@@ -1,25 +1,26 @@
 import { Logo } from "@/components/ui/logo";
 import { Button } from "@/components/ui/button";
-import { Container } from "@/components/ui/container";
+import { ThemeToggle } from "@/components/theme/theme-toggle";
 
-/** Barra de navegação pública (Landing Page) — superfície glass. */
+/** Navbar flutuante translúcida (glassmorphism) da Landing Page. */
 export function PublicNav() {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/80 bg-[#FAF8F5]/70 backdrop-blur-xl ring-1 ring-[#E6E0D4]/40">
-      <Container className="flex h-16 items-center justify-between">
+    <div className="pointer-events-none fixed inset-x-0 top-4 z-40 flex justify-center px-4">
+      <header className="glass-surface pointer-events-auto flex h-16 w-full max-w-5xl items-center justify-between rounded-2xl px-5">
         <Logo />
         <nav className="hidden items-center gap-8 md:flex">
-          <a href="#recursos" className="text-sm text-[#57534E] hover:text-[#1C1917]">
+          <a href="#recursos" className="text-sm text-foreground hover:text-heading">
             Recursos
           </a>
-          <a href="#como-funciona" className="text-sm text-[#57534E] hover:text-[#1C1917]">
+          <a href="#como-funciona" className="text-sm text-foreground hover:text-heading">
             Como funciona
           </a>
-          <a href="#financas" className="text-sm text-[#57534E] hover:text-[#1C1917]">
+          <a href="#financas" className="text-sm text-foreground hover:text-heading">
             Finanças Duo
           </a>
         </nav>
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button href="/login" variant="ghost" size="sm">
             Entrar
           </Button>
@@ -27,7 +28,7 @@ export function PublicNav() {
             Criar conta
           </Button>
         </div>
-      </Container>
-    </header>
+      </header>
+    </div>
   );
 }

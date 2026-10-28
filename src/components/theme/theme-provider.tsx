@@ -4,7 +4,6 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useState,
 } from "react";
 
@@ -30,13 +29,15 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 export const THEME_STORAGE_KEY = "pd-theme";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>("light");
-
-  // Sincroniza com o que o script anti-flash já aplicou ao <html>.
-  useEffect(() => {
-    const isDark = document.documentElement.classList.contains("dark");
-    setThemeState(isDark ? "dark" : "light");
-  }, []);
+  // Inicialização lazy: lê o tema que o script anti-flash já aplicou ao <html>.
+  // No servidor `document` não existe, então o fallback é "light" (o script
+  // inline corrige o <html> antes da hidratação, evitando flash).
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof document === "undefined") return "light";
+    return document.documentElement.classList.contains("dark")
+      ? "dark"
+      : "light";
+  });
 
   const applyTheme = useCallback((t: Theme) => {
     const root = document.documentElement;

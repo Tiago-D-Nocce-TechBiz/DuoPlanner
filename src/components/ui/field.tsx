@@ -1,8 +1,8 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Rótulo + input de texto no estilo editorial claro translúcido.
- * bg-white/85, borda sand, foco em couro (#8C7A6B) com ring suave.
+ * Rótulo + input de texto no estilo editorial, adaptativo ao tema.
+ * Claro: vidro branco translúcido. Escuro: superfície de vidro escura.
  */
 export function Field({
   label,
@@ -25,7 +25,7 @@ export function Field({
 }) {
   return (
     <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={id} className="block text-sm font-medium text-[#44403C]">
+      <label htmlFor={id} className="block text-sm font-medium text-heading/80">
         {label}
       </label>
       <input
@@ -36,7 +36,7 @@ export function Field({
         required={required}
         autoComplete={autoComplete}
         defaultValue={defaultValue}
-        className="h-11 w-full rounded-xl border border-[#DCD5C7] bg-white/85 px-3.5 text-sm text-[#1C1917] placeholder:text-[#A8A29E] transition-colors focus:border-[#8C7A6B] focus:outline-none focus:ring-4 focus:ring-[#8C7A6B]/10"
+        className="h-11 w-full rounded-xl border border-field-border bg-white/85 px-3.5 text-sm text-heading placeholder:text-[color:var(--placeholder)] transition-colors focus:border-field-focus focus:outline-none focus:ring-4 focus:ring-field-focus/10 dark:bg-white/[0.04]"
       />
     </div>
   );

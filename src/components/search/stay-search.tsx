@@ -9,7 +9,6 @@ import {
 import { saveSearch } from "@/lib/supabase/searches";
 import { Button } from "@/components/ui/button";
 import { BedDouble, ExternalLink, ArrowLeftRight, ArrowRight } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 /**
  * Buscar Hospedagem — Deep Linking Outbound + persistência no Supabase.

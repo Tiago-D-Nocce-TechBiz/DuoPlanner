@@ -2,8 +2,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Marca do PlannerDuo (editorial). "Planner" em serif espresso,
- * "Duo" em tom couro/sand para contraste sóbrio — sem amarelo.
+ * Marca do PlannerDuo (editorial, adaptativa ao tema).
+ * "Planner" em serif (heading) + "Duo" em tom couro/sand (leather).
  */
 export function Logo({
   href = "/",
@@ -16,11 +16,11 @@ export function Logo({
     <Link
       href={href}
       className={cn(
-        "font-serif text-2xl font-bold tracking-tight text-[#1C1917]",
+        "font-serif text-2xl font-bold tracking-tight text-heading",
         className
       )}
     >
-      Planner<span className="text-[#8C7A6B]">Duo</span>
+      Planner<span className="text-leather">Duo</span>
     </Link>
   );
 }

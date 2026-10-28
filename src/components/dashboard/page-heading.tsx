@@ -8,11 +8,11 @@ export function PageHeading({
 }) {
   return (
     <div className="mb-8">
-      <h1 className="font-serif text-3xl font-bold text-[#1C1917] md:text-4xl">
+      <h1 className="font-serif text-3xl font-bold text-heading md:text-4xl">
         {title}
       </h1>
       {description && (
-        <p className="mt-1.5 text-sm text-[#57534E]">{description}</p>
+        <p className="mt-1.5 text-sm text-foreground">{description}</p>
       )}
     </div>
   );

@@ -12,13 +12,13 @@ export default function RoteiroPage() {
       />
 
       <div className="glass-surface flex flex-col items-center justify-center rounded-2xl p-16 text-center">
-        <div className="mb-4 inline-flex rounded-xl border border-[#DFD9CE] bg-[#EFECE6] p-4">
-          <CalendarDays className="h-7 w-7 text-[#1C1917]" />
+        <div className="mb-4 inline-flex rounded-xl border border-sand-border bg-sand-surface p-4">
+          <CalendarDays className="h-7 w-7 text-heading" />
         </div>
-        <h2 className="font-serif text-2xl font-semibold text-[#1C1917]">
+        <h2 className="font-serif text-2xl font-semibold text-heading">
           Ainda sem roteiro
         </h2>
-        <p className="mt-2 max-w-sm text-sm text-[#57534E]">
+        <p className="mt-2 max-w-sm text-sm text-foreground">
           Crie o primeiro dia da viagem e comece a adicionar atividades,
           reservas e anotações.
         </p>

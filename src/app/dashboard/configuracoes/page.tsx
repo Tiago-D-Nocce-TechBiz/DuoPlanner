@@ -3,8 +3,8 @@ import { Field } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 
 /**
- * Página de Configurações da conta/dupla.
- * Layout expandido (max-w-4xl) com grid estruturado: dados do casal e
+ * Página de Configurações da conta.
+ * Layout expandido (max-w-4xl) com grid estruturado: dados da conta e
  * preferências da viagem.
  */
 export default function ConfiguracoesPage() {
@@ -12,20 +12,20 @@ export default function ConfiguracoesPage() {
     <div className="max-w-4xl">
       <PageHeading
         title="Configurações"
-        description="Faça a gestão da conta e das preferências da dupla."
+        description="Faça a gestão da conta e das preferências de viagem."
       />
 
       <div className="space-y-6">
-        {/* Dados do casal */}
+        {/* Dados da conta */}
         <section className="glass-surface rounded-2xl p-6">
-          <h2 className="font-serif text-xl font-semibold text-[#1C1917]">
-            Dados do casal
+          <h2 className="font-serif text-xl font-semibold text-heading">
+            Dados da conta
           </h2>
-          <p className="mt-1 text-sm text-[#57534E]">
-            Como vocês aparecem no PlannerDuo.
+          <p className="mt-1 text-sm text-foreground">
+            Como você aparece no PlannerDuo.
           </p>
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
-            <Field id="duoName" label="Nome da dupla" defaultValue="A nossa dupla" />
+            <Field id="accountName" label="Nome da conta" defaultValue="Minha Conta" />
             <Field
               id="partnerEmail"
               label="E-mail do parceiro(a)"
@@ -39,10 +39,10 @@ export default function ConfiguracoesPage() {
 
         {/* Preferências da viagem */}
         <section className="glass-surface rounded-2xl p-6">
-          <h2 className="font-serif text-xl font-semibold text-[#1C1917]">
+          <h2 className="font-serif text-xl font-semibold text-heading">
             Preferências da viagem
           </h2>
-          <p className="mt-1 text-sm text-[#57534E]">
+          <p className="mt-1 text-sm text-foreground">
             Padrões usados ao montar buscas e finanças.
           </p>
           <div className="mt-5 grid gap-5 sm:grid-cols-2">

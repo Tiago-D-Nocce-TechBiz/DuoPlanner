@@ -7,10 +7,10 @@ export function CTA() {
     <section id="financas" className="py-24">
       <Container>
         <div className="glass-surface relative overflow-hidden rounded-3xl p-10 text-center md:p-16">
-          <h2 className="relative font-serif text-4xl font-bold text-[#1C1917] md:text-5xl">
+          <h2 className="relative font-serif text-4xl font-bold text-heading md:text-5xl">
             A próxima viagem a dois começa agora
           </h2>
-          <p className="relative mx-auto mt-4 max-w-xl text-[#57534E]">
+          <p className="relative mx-auto mt-4 max-w-xl text-foreground">
             Crie a sua conta gratuita e comece a planejar em minutos. Sem cartão,
             sem compromissos.
           </p>

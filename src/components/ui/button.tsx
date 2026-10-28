@@ -2,13 +2,13 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Botão do sistema de design PlannerDuo (redesign editorial).
+ * Botão do sistema de design PlannerDuo (adaptativo Claro/Escuro).
  *
  * Variantes:
- * - "primary": Espresso profundo (#1C1917) com texto Alabaster. Ações principais
- *   e item ativo da Sidebar.
- * - "secondary": Bege areia (#EFECE6) com texto espresso e borda sand.
- * - "ghost": transparente, apenas texto, para ações terciárias.
+ * - "primary": cor de ação primária (tinta espresso no claro; branco sobre
+ *   escuro no dark). Usa tokens --accent-ink / --accent-on.
+ * - "secondary": superfície sand/grafite com borda.
+ * - "ghost": transparente, apenas texto.
  *
  * Pode renderizar-se como <button> ou, quando `href` é fornecido, como <Link>.
  */
@@ -21,10 +21,10 @@ const base =
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-[#1C1917] text-[#FAF8F5] hover:bg-[#292524] shadow-[0_6px_20px_-6px_rgba(28,25,23,0.35)]",
+    "bg-accent-ink text-accent-on hover:bg-accent-ink-hover shadow-[0_6px_20px_-6px_rgba(28,25,23,0.35)]",
   secondary:
-    "bg-[#EFECE6] text-[#292524] border border-[#DFD9CE] hover:bg-[#E6E1D6]",
-  ghost: "bg-transparent text-[#57534E] hover:bg-[#EFECE6] hover:text-[#1C1917]",
+    "bg-sand-surface text-heading border border-sand-border hover:bg-sand-surface-hover",
+  ghost: "bg-transparent text-foreground hover:bg-sand-surface hover:text-heading",
 };
 
 const sizes: Record<Size, string> = {

@@ -10,10 +10,10 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1 text-center">
-        <h1 className="font-serif text-3xl font-bold text-[#1C1917]">
+        <h1 className="font-serif text-3xl font-bold text-heading">
           Bem-vindo de volta
         </h1>
-        <p className="text-sm text-[#57534E]">
+        <p className="text-sm text-foreground">
           Entre para continuar a planejar.
         </p>
       </div>
@@ -40,9 +40,9 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-[#57534E]">
+      <p className="text-center text-sm text-foreground">
         Ainda não tem conta?{" "}
-        <Link href="/registo" className="font-medium text-[#8C7A6B] hover:underline">
+        <Link href="/registo" className="font-medium text-leather hover:underline">
           Criar conta
         </Link>
       </p>

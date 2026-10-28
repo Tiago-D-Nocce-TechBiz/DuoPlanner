@@ -37,14 +37,14 @@ export function ReceiptScanner() {
   return (
     <div className="glass-surface rounded-2xl p-6">
       <div className="flex items-start gap-4">
-        <div className="inline-flex rounded-xl border border-[#DFD9CE] bg-[#EFECE6] p-3">
-          <Sparkles className="h-6 w-6 text-[#1C1917]" />
+        <div className="inline-flex rounded-xl border border-sand-border bg-sand-surface p-3">
+          <Sparkles className="h-6 w-6 text-heading" />
         </div>
         <div className="flex-1">
-          <h2 className="font-serif text-xl font-semibold text-[#1C1917]">
+          <h2 className="font-serif text-xl font-semibold text-heading">
             Despesas sem digitação
           </h2>
-          <p className="mt-1.5 text-sm text-[#57534E]">
+          <p className="mt-1.5 text-sm text-foreground">
             Fotografe ou envie uma nota fiscal e deixe a IA extrair o valor, a
             data e o estabelecimento automaticamente.
           </p>
@@ -65,7 +65,7 @@ export function ReceiptScanner() {
               Escanear Nota ou Recibo
             </Button>
 
-            {/* Ação secundária — Bege areia */}
+            {/* Ação secundária */}
             <Button type="button" variant="secondary">
               <Plus className="h-4 w-4" />
               Lançamento manual
@@ -84,7 +84,7 @@ export function ReceiptScanner() {
             <p
               className={
                 "mt-4 text-sm " +
-                (result.ok ? "text-[#44403C]" : "text-red-600")
+                (result.ok ? "text-foreground" : "text-red-600")
               }
             >
               {result.message}
