@@ -2,12 +2,12 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Botão do sistema de design PlannerDuo.
+ * Botão do sistema de design PlannerDuo (redesign editorial).
  *
  * Variantes:
- * - "primary": Amarelo Pastel (#FCEB88) com texto PRETO. Uso ESTRITO em ações
- *   principais, conforme a identidade visual.
- * - "secondary": superfície zinc-900 com borda zinc-800.
+ * - "primary": Espresso profundo (#1C1917) com texto Alabaster. Ações principais
+ *   e item ativo da Sidebar.
+ * - "secondary": Bege areia (#EFECE6) com texto espresso e borda sand.
  * - "ghost": transparente, apenas texto, para ações terciárias.
  *
  * Pode renderizar-se como <button> ou, quando `href` é fornecido, como <Link>.
@@ -17,14 +17,14 @@ type Variant = "primary" | "secondary" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-colors focus-visible:outline-none disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors focus-visible:outline-none disabled:opacity-60 disabled:pointer-events-none whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
   primary:
-    "bg-accent text-accent-foreground hover:bg-[#f7e36a] active:bg-[#efd94f]",
+    "bg-[#1C1917] text-[#FAF8F5] hover:bg-[#292524] shadow-[0_6px_20px_-6px_rgba(28,25,23,0.35)]",
   secondary:
-    "bg-zinc-900 text-zinc-200 border border-zinc-800 hover:bg-zinc-800",
-  ghost: "bg-transparent text-zinc-300 hover:bg-zinc-900 hover:text-zinc-100",
+    "bg-[#EFECE6] text-[#292524] border border-[#DFD9CE] hover:bg-[#E6E1D6]",
+  ghost: "bg-transparent text-[#57534E] hover:bg-[#EFECE6] hover:text-[#1C1917]",
 };
 
 const sizes: Record<Size, string> = {

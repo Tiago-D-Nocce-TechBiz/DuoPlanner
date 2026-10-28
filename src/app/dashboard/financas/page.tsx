@@ -5,14 +5,14 @@ import { TrendingUp, Users, Receipt } from "lucide-react";
 
 /**
  * Finanças Duo.
- * Resumo de gastos + preparação da digitalização de recibos com IA.
+ * Resumo de gastos (em Reais) + captura de despesas com IA.
  * Os valores de resumo são placeholders até à ligação com a base de dados.
  */
 export default function FinancasPage() {
   const summary = [
     { label: "Total gasto", value: formatCurrency(0), icon: TrendingUp },
     { label: "A sua parte", value: formatCurrency(0), icon: Users },
-    { label: "Despesas registadas", value: "0", icon: Receipt },
+    { label: "Despesas registradas", value: "0", icon: Receipt },
   ];
 
   return (
@@ -25,32 +25,29 @@ export default function FinancasPage() {
       {/* Cartões de resumo */}
       <div className="mb-8 grid gap-5 sm:grid-cols-3">
         {summary.map(({ label, value, icon: Icon }) => (
-          <div
-            key={label}
-            className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
-          >
+          <div key={label} className="glass-surface rounded-2xl p-6">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-zinc-400">{label}</span>
-              <Icon className="h-5 w-5 text-zinc-600" />
+              <span className="text-sm text-[#57534E]">{label}</span>
+              <Icon className="h-5 w-5 text-[#A8A29E]" />
             </div>
-            <p className="mt-3 font-mono text-2xl font-semibold text-zinc-50">
+            <p className="mt-3 font-mono text-2xl font-semibold text-[#1C1917]">
               {value}
             </p>
           </div>
         ))}
       </div>
 
-      {/* Digitalização de recibos com IA (preparação) */}
+      {/* Captura de despesas com IA */}
       <ReceiptScanner />
 
       {/* Lista de despesas (vazia por agora) */}
-      <div className="mt-8 rounded-2xl border border-zinc-800 bg-zinc-900 p-6">
-        <h2 className="font-serif text-lg font-semibold text-zinc-100">
+      <div className="glass-surface mt-8 rounded-2xl p-6">
+        <h2 className="font-serif text-xl font-semibold text-[#1C1917]">
           Despesas
         </h2>
-        <p className="mt-2 text-sm text-zinc-400">
-          Ainda não há despesas registadas. Digitalize um recibo ou adicione uma
-          despesa manualmente para começar.
+        <p className="mt-2 text-sm text-[#57534E]">
+          Ainda não há despesas registradas. Escaneie uma nota ou adicione um
+          lançamento manual para começar.
         </p>
       </div>
     </div>

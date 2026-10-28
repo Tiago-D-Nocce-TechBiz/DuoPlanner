@@ -12,7 +12,7 @@ export default function BuscaPage() {
     <div>
       <PageHeading
         title="Motor de busca"
-        description="Insira origem, destino e datas. Geramos links prontos para Airbnb, Booking, LATAM, Azul e GOL — abrem direto na página de resultados."
+        description="Informe origem, destino e datas. Geramos links prontos para Airbnb, Booking, LATAM, Azul e GOL — abrem direto na página de resultados."
       />
       <SearchEngine />
     </div>

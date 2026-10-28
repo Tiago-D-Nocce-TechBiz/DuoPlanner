@@ -1,47 +1,94 @@
 @import "tailwindcss";
 
 /*
-  PlannerDuo — Identidade visual (Dark Mode integral).
-  - Fundo principal: zinc-950 | Cartões: zinc-900 | Bordas: zinc-800
-  - Destaque (ações primárias): Amarelo Pastel #FCEB88 com texto preto
-  - Tipografia híbrida: serif para títulos (--font-serif) e sans para corpo (--font-sans)
+  PlannerDuo — Redesign Editorial (Warm Alabaster & Sand + Glassmorphism).
+  Paleta:
+  - Fundo profundo (Alabaster): #FAF8F5
+  - Areia / bege para profundidade: #F3EFE6, #EAE3D2
+  - Espresso (ações primárias / texto forte): #1C1917 / hover #292524
+  - Bege areia (ações secundárias): #EFECE6 / #E6E1D6, bordas #DFD9CE
+  - Texto base (UI): #57534E | Títulos: #1C1917 | Placeholder: #A8A29E
+  Tipografia editorial: serif (Cormorant/Playfair) em títulos; sans (Plus Jakarta) na UI.
 */
 
 :root {
-  --background: #09090b; /* zinc-950 */
-  --foreground: #d4d4d8; /* zinc-300 */
-  --accent: #fceb88; /* Amarelo Pastel */
-  --accent-foreground: #000000;
+  --background: #faf8f5; /* Alabaster */
+  --foreground: #57534e; /* Stone 600 — texto base */
+  --heading: #1c1917; /* Espresso — títulos e texto forte */
+
+  --sand-100: #f3efe6;
+  --sand-200: #eae3d2;
+  --sand-surface: #efece6;
+  --sand-surface-hover: #e6e1d6;
+  --sand-border: #dfd9ce;
+
+  --espresso: #1c1917;
+  --espresso-hover: #292524;
+
+  --field-border: #dcd5c7;
+  --field-focus: #8c7a6b;
+  --placeholder: #a8a29e;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
+  --color-heading: var(--heading);
+
+  --color-sand-100: var(--sand-100);
+  --color-sand-200: var(--sand-200);
+  --color-sand-surface: var(--sand-surface);
+  --color-sand-surface-hover: var(--sand-surface-hover);
+  --color-sand-border: var(--sand-border);
+
+  --color-espresso: var(--espresso);
+  --color-espresso-hover: var(--espresso-hover);
+
+  --color-field-border: var(--field-border);
+  --color-field-focus: var(--field-focus);
+
   --font-sans: var(--font-sans-base);
   --font-serif: var(--font-serif-title);
   --font-mono: var(--font-mono-base);
 }
 
 html {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 body {
-  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+
+  /*
+    Profundidade real para a refração do vidro (glassmorphism):
+    gradientes radiais suaves em tons de bege/areia sobre o Alabaster.
+  */
+  background-color: var(--background);
+  background-image:
+    radial-gradient(60rem 60rem at 12% -10%, var(--sand-100) 0%, transparent 55%),
+    radial-gradient(50rem 50rem at 100% 0%, var(--sand-200) 0%, transparent 50%),
+    radial-gradient(45rem 45rem at 85% 110%, var(--sand-100) 0%, transparent 55%);
+  background-attachment: fixed;
 }
 
-/* Scrollbar discreta coerente com o tema escuro */
+/* Scrollbar discreta coerente com o tema claro */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent; /* zinc-700 */
+  scrollbar-color: #d6cfc2 transparent;
 }
 
-/* Realce de foco acessível usando a cor de destaque */
+/* Foco acessível com o tom de couro/sand */
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--field-focus);
   outline-offset: 2px;
+}
+
+/* Utilitário de superfície "glass" reutilizável */
+.glass-surface {
+  background-color: color-mix(in srgb, #ffffff 65%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid color-mix(in srgb, #ffffff 80%, transparent);
+  box-shadow: 0 10px 35px -5px rgba(28, 25, 23, 0.05);
 }

@@ -1,18 +1,23 @@
 import type { Metadata } from "next";
-// Tipografia híbrida: Playfair Display (serif) para títulos, Inter (sans) para corpo,
-// e JetBrains Mono para dados tabulares/numéricos (datas, códigos de voo).
-import { Inter, Playfair_Display, JetBrains_Mono } from "next/font/google";
+// Tipografia editorial: Cormorant Garamond (serif) nos títulos,
+// Plus Jakarta Sans (sans) na UI/corpo, JetBrains Mono em dados numéricos.
+import {
+  Plus_Jakarta_Sans,
+  Cormorant_Garamond,
+  JetBrains_Mono,
+} from "next/font/google";
 import "./globals.css";
 
-const sans = Inter({
+const sans = Plus_Jakarta_Sans({
   variable: "--font-sans-base",
   subsets: ["latin"],
   display: "swap",
 });
 
-const serif = Playfair_Display({
+const serif = Cormorant_Garamond({
   variable: "--font-serif-title",
   subsets: ["latin"],
+  weight: ["500", "600", "700"],
   display: "swap",
 });
 
@@ -23,18 +28,18 @@ const mono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PlannerDuo — Planeie viagens a dois, sem complicações",
+  title: "PlannerDuo — Planeje viagens a dois, sem complicações",
   description:
-    "PlannerDuo é a aplicação pessoal e 100% gratuita para planear as suas viagens: pesquise voos e estadias, organize o roteiro e controle as finanças da dupla.",
+    "PlannerDuo é o app pessoal e 100% gratuito para planejar suas viagens: pesquise voos e hospedagens, organize o roteiro e controle as finanças da dupla.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="pt-PT"
+      lang="pt-BR"
       className={`${sans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-950 text-zinc-300">
+      <body className="min-h-full flex flex-col text-foreground">
         {children}
       </body>
     </html>

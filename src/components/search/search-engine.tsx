@@ -22,14 +22,16 @@ import { cn } from "@/lib/utils";
  *
  * Recolhe os dados da viagem e, ao submeter, gera as opções clicáveis via
  * buildProviderLinks. NÃO faz pesquisa interna: cada opção abre a página de
- * resultados pré-preenchida do parceiro num novo separador (target="_blank"
+ * resultados pré-preenchida do parceiro numa nova aba (target="_blank"
  * + rel="noopener noreferrer" por segurança).
+ *
+ * Estilo editorial: inputs claros translúcidos sobre superfície glass.
  */
 
 const inputClass =
-  "h-11 w-full rounded-lg border border-zinc-800 bg-zinc-950 px-3.5 text-sm text-zinc-100 placeholder:text-zinc-600 focus:border-accent focus:outline-none";
+  "h-11 w-full rounded-xl border border-[#DCD5C7] bg-white/85 px-3.5 text-sm text-[#1C1917] placeholder:text-[#A8A29E] transition-colors focus:border-[#8C7A6B] focus:outline-none focus:ring-4 focus:ring-[#8C7A6B]/10";
 
-const labelClass = "mb-1.5 block text-sm font-medium text-zinc-300";
+const labelClass = "mb-1.5 block text-sm font-medium text-[#44403C]";
 
 export function SearchEngine() {
   const [tripType, setTripType] = useState<TripType>("round");
@@ -81,12 +83,9 @@ export function SearchEngine() {
 
   return (
     <div className="space-y-8">
-      <form
-        onSubmit={handleSubmit}
-        className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6"
-      >
+      <form onSubmit={handleSubmit} className="glass-surface rounded-2xl p-6">
         {/* Tipo de viagem */}
-        <div className="mb-6 inline-flex rounded-lg border border-zinc-800 bg-zinc-950 p-1">
+        <div className="mb-6 inline-flex rounded-xl border border-[#DFD9CE] bg-white/70 p-1">
           {([
             { key: "round", label: "Ida e volta" },
             { key: "oneway", label: "Só ida" },
@@ -96,10 +95,10 @@ export function SearchEngine() {
               type="button"
               onClick={() => setTripType(t.key)}
               className={cn(
-                "rounded-md px-4 py-1.5 text-sm transition-colors",
+                "rounded-lg px-4 py-1.5 text-sm transition-colors",
                 tripType === t.key
-                  ? "bg-accent text-accent-foreground font-medium"
-                  : "text-zinc-400 hover:text-zinc-100"
+                  ? "bg-[#1C1917] text-[#FAF8F5] font-medium"
+                  : "text-[#57534E] hover:text-[#1C1917]"
               )}
             >
               {t.label}
@@ -116,7 +115,7 @@ export function SearchEngine() {
             <input
               id="originCity"
               className={inputClass}
-              placeholder="Ex.: Lisboa"
+              placeholder="Ex.: Belo Horizonte"
               value={form.originCity}
               onChange={(e) => update("originCity", e.target.value)}
             />
@@ -128,7 +127,7 @@ export function SearchEngine() {
             <input
               id="originIata"
               className={cn(inputClass, "uppercase")}
-              placeholder="Ex.: LIS"
+              placeholder="Ex.: CNF"
               maxLength={3}
               value={form.originIata}
               onChange={(e) => update("originIata", e.target.value)}
@@ -170,7 +169,7 @@ export function SearchEngine() {
             <input
               id="departDate"
               type="date"
-              className={cn(inputClass, "[color-scheme:dark]")}
+              className={inputClass}
               value={form.departDate}
               onChange={(e) => update("departDate", e.target.value)}
             />
@@ -182,7 +181,7 @@ export function SearchEngine() {
             <input
               id="returnDate"
               type="date"
-              className={cn(inputClass, "[color-scheme:dark]")}
+              className={inputClass}
               value={form.returnDate}
               disabled={tripType === "oneway"}
               onChange={(e) => update("returnDate", e.target.value)}
@@ -223,8 +222,8 @@ export function SearchEngine() {
         </div>
 
         <div className="mt-6 flex items-center justify-between gap-4">
-          <p className="text-xs text-zinc-500">
-            Preencha a cidade de destino (estadias) e/ou os códigos IATA (voos).
+          <p className="text-xs text-[#78716C]">
+            Preencha a cidade de destino (hospedagens) e/ou os códigos IATA (voos).
           </p>
           <Button type="submit" variant="primary" size="lg" disabled={!canSubmit}>
             Gerar opções
@@ -237,23 +236,23 @@ export function SearchEngine() {
       {results && (
         <div className="space-y-8">
           {results.length === 0 && (
-            <div className="rounded-2xl border border-dashed border-zinc-800 bg-zinc-900/50 p-10 text-center text-sm text-zinc-400">
-              Nenhuma opção gerada. Para estadias, indique a cidade de destino.
-              Para voos, indique os códigos IATA de origem e destino.
+            <div className="glass-surface rounded-2xl p-10 text-center text-sm text-[#57534E]">
+              Nenhuma opção gerada. Para hospedagens, informe a cidade de
+              destino. Para voos, informe os códigos IATA de origem e destino.
             </div>
           )}
 
           {flights.length > 0 && (
             <ResultGroup
               title="Voos"
-              icon={<Plane className="h-5 w-5 text-accent" />}
+              icon={<Plane className="h-5 w-5 text-[#1C1917]" />}
               links={flights}
             />
           )}
           {stays.length > 0 && (
             <ResultGroup
-              title="Estadias"
-              icon={<BedDouble className="h-5 w-5 text-accent" />}
+              title="Hospedagens"
+              icon={<BedDouble className="h-5 w-5 text-[#1C1917]" />}
               links={stays}
             />
           )}
@@ -263,7 +262,7 @@ export function SearchEngine() {
   );
 }
 
-/** Grupo de resultados (voos ou estadias). */
+/** Grupo de resultados (voos ou hospedagens). */
 function ResultGroup({
   title,
   icon,
@@ -275,7 +274,7 @@ function ResultGroup({
 }) {
   return (
     <section>
-      <h2 className="mb-4 flex items-center gap-2 font-serif text-xl font-semibold text-zinc-100">
+      <h2 className="mb-4 flex items-center gap-2 font-serif text-2xl font-semibold text-[#1C1917]">
         {icon}
         {title}
       </h2>
@@ -286,18 +285,18 @@ function ResultGroup({
             href={link.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="group flex flex-col justify-between rounded-2xl border border-zinc-800 bg-zinc-900 p-5 transition-colors hover:border-accent/50"
+            className="glass-surface group flex flex-col justify-between rounded-2xl p-5 transition-colors hover:ring-[#8C7A6B]/40"
           >
             <div>
               <div className="flex items-center justify-between">
-                <span className="font-serif text-lg font-semibold text-zinc-100">
+                <span className="font-serif text-xl font-semibold text-[#1C1917]">
                   {link.name}
                 </span>
-                <ExternalLink className="h-4 w-4 text-zinc-500 group-hover:text-accent" />
+                <ExternalLink className="h-4 w-4 text-[#A8A29E] group-hover:text-[#1C1917]" />
               </div>
-              <p className="mt-1.5 text-sm text-zinc-400">{link.note}</p>
+              <p className="mt-1.5 text-sm text-[#57534E]">{link.note}</p>
             </div>
-            <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent">
+            <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-[#8C7A6B]">
               Abrir pesquisa
               <ArrowLeftRight className="h-3.5 w-3.5" />
             </span>

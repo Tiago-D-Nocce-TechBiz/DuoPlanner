@@ -8,14 +8,14 @@
  *
  * Contrato pretendido (para evolução futura):
  *  1. Receber o ficheiro do recibo (imagem/PDF) via FormData.
- *  2. Enviar para um LLM de visão e extrair: comerciante, data, total, moeda,
- *     categoria e itens.
+ *  2. Enviar para um LLM de visão e extrair: estabelecimento, data, total,
+ *     moeda, categoria e itens.
  *  3. Persistir a despesa associada à dupla/viagem na base de dados.
  *  4. Revalidar a página de finanças para refletir a nova despesa.
  */
 
 export interface ScannedReceipt {
-  merchant: string;
+  establishment: string; // estabelecimento
   date: string; // ISO yyyy-mm-dd
   total: number;
   currency: string;
@@ -36,7 +36,7 @@ export async function scanReceiptAction(
   if (!(file instanceof File) || file.size === 0) {
     return {
       ok: false,
-      message: "Selecione uma imagem ou PDF do recibo para digitalizar.",
+      message: "Selecione uma imagem ou PDF da nota/recibo para escanear.",
     };
   }
 
@@ -46,9 +46,9 @@ export async function scanReceiptAction(
   // 3. await db.expenses.insert({ ...extracted, duoId, tripId });
   // 4. revalidatePath("/dashboard/financas");
 
-  // Placeholder: confirma a receção do ficheiro sem persistir.
+  // Placeholder: confirma o recebimento do arquivo sem persistir.
   return {
     ok: true,
-    message: `Recibo "${file.name}" recebido. A extração por IA será ativada em breve.`,
+    message: `Nota/recibo "${file.name}" recebido. A extração por IA será ativada em breve.`,
   };
 }

@@ -164,21 +164,21 @@ function buildGol(q: SearchQuery): string {
 export function buildProviderLinks(q: SearchQuery): ProviderLink[] {
   const links: ProviderLink[] = [];
 
-  // Estadias — requerem cidade de destino
+  // Hospedagens — requerem cidade de destino
   if (q.destinationCity) {
     links.push({
       id: "airbnb",
       name: "Airbnb",
       category: "stay",
       url: buildAirbnb(q),
-      note: "Estadias em casas e apartamentos no destino.",
+      note: "Hospedagens em casas e apartamentos no destino.",
     });
     links.push({
       id: "booking",
       name: "Booking.com",
       category: "stay",
       url: buildBooking(q),
-      note: "Hotéis e alojamentos com as suas datas.",
+      note: "Hotéis e hospedagens com as suas datas.",
     });
   }
 

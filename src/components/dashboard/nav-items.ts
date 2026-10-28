@@ -19,5 +19,5 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard/busca", label: "Motor de busca", icon: Search },
   { href: "/dashboard/roteiro", label: "Roteiro", icon: Map },
   { href: "/dashboard/financas", label: "Finanças Duo", icon: Wallet },
-  { href: "/dashboard/definicoes", label: "Definições", icon: Settings },
+  { href: "/dashboard/configuracoes", label: "Configurações", icon: Settings },
 ];

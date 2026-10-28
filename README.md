@@ -1,6 +1,6 @@
 # PlannerDuo
 
-Aplicação **pessoal e 100% gratuita** de planeamento de viagens a dois, construída em **Next.js (App Router)** + **TypeScript** + **Tailwind CSS v4**. Uso estritamente não corporativo.
+App **pessoal e 100% gratuito** de planejamento de viagens a dois, construído em **Next.js (App Router)** + **TypeScript** + **Tailwind CSS v4**. Uso estritamente não corporativo. Interface 100% em **Português Brasileiro (PT-BR)**.
 
 Repositório: `Tiago-D-Nocce-TechBiz/PlannerDuo.0`.
 
@@ -11,19 +11,21 @@ Repositório: `Tiago-D-Nocce-TechBiz/PlannerDuo.0`.
 - Tailwind CSS v4
 - lucide-react (ícones)
 
-## Identidade visual
+## Identidade visual — Editorial (Warm Alabaster & Sand + Glassmorphism)
 
-Dark Mode integral, sem temas claros.
+Tema claro editorial com superfícies de vidro (glassmorphism), sem Dark Mode.
 
 | Token | Valor | Uso |
 | --- | --- | --- |
-| Fundo principal | `bg-zinc-950` | corpo da aplicação |
-| Cartões | `bg-zinc-900` | superfícies/cards |
-| Bordas | `border-zinc-800` | contornos subtis |
-| Texto base | `text-zinc-300` | corpo |
-| Destaque | `#FCEB88` (Amarelo Pastel) + texto preto | **apenas** ações principais |
+| Fundo principal | `#FAF8F5` (Alabaster) + gradientes de areia `#F3EFE6`/`#EAE3D2` | corpo da aplicação |
+| Superfícies glass | `bg-white/65` + `backdrop-blur-xl` + `ring-[#E6E0D4]/70` | Sidebar, Header, cards |
+| Inputs | `bg-white/85`, borda `#DCD5C7`, foco `#8C7A6B` | formulários |
+| Ação primária / item ativo | Espresso `#1C1917` / hover `#292524`, texto `#FAF8F5` | botões principais |
+| Ação secundária / badge | Bege areia `#EFECE6` / `#E6E1D6`, borda `#DFD9CE` | botões secundários |
+| Títulos | `#1C1917` | headings |
+| Texto base | `#57534E` | corpo/UI |
 
-Tipografia híbrida: **serif** (Playfair Display) nos títulos, **sans** (Inter) no corpo, **mono** (JetBrains Mono) em dados numéricos.
+Tipografia editorial: **serif** (Cormorant Garamond) nos títulos, **sans** (Plus Jakarta Sans) na UI, **mono** (JetBrains Mono) em dados numéricos.
 
 ## Estrutura
 
@@ -32,10 +34,10 @@ src/
   app/
     page.tsx                  # Landing Page
     (auth)/
-      layout.tsx              # Layout centralizado de auth
-      actions.ts              # Server Actions base de login/registo
-      login/page.tsx          # Início de sessão
-      registo/page.tsx        # Registo
+      layout.tsx              # Layout centralizado de auth (glass)
+      actions.ts              # Server Actions base de login/registro
+      login/page.tsx          # Entrar
+      registo/page.tsx        # Criar conta
     dashboard/
       layout.tsx              # Shell autenticado (Sidebar + Header)
       page.tsx                # Visão geral
@@ -43,16 +45,16 @@ src/
       roteiro/page.tsx        # Roteiro
       financas/
         page.tsx              # Finanças Duo
-        actions.ts            # Server Action base p/ OCR de recibos (IA)
-      definicoes/page.tsx     # Definições
+        actions.ts            # Server Action base p/ OCR de notas (IA)
+      configuracoes/page.tsx  # Configurações
   components/
     ui/                       # Button, Field, Logo, Container
-    marketing/                # Secções da Landing Page
+    marketing/                # Seções da Landing Page
     dashboard/                # Sidebar, Header, Shell, PageHeading
     search/                   # SearchEngine (deep linking outbound)
-    financas/                 # ReceiptScanner (botão "Digitalizar Recibo com IA")
+    financas/                 # ReceiptScanner (botão "Escanear Nota ou Recibo")
   lib/
-    utils.ts                  # cn(), formatação de data/moeda
+    utils.ts                  # cn(), formatação de data/moeda (R$)
     deep-links.ts             # Geração de URLs para Airbnb, Booking, LATAM, Azul, GOL
 ```
 
@@ -61,20 +63,22 @@ src/
 ### Motor de busca (Deep Linking Outbound)
 
 O PlannerDuo **não** faz pesquisa interna. A partir de origem, destino e datas,
-gera links pré-preenchidos que abrem num novo separador as páginas de resultados
-de **Airbnb**, **Booking**, **LATAM**, **Azul** e **GOL**. A construção dos URLs
+gera links pré-preenchidos que abrem numa nova aba as páginas de resultados
+de **Airbnb**, **Booking**, **LATAM**, **Azul** e **GOL**. A construção das URLs
 está centralizada em `src/lib/deep-links.ts` — ponto único de manutenção caso os
-parceiros alterem os seus formatos de query string.
+parceiros alterem seus formatos de query string.
 
-> Nota: estadias usam o nome da cidade de destino; voos usam códigos IATA
-> (ex.: `LIS`, `GIG`).
+> Nota: hospedagens usam o nome da cidade de destino; voos usam códigos IATA
+> (ex.: `CNF`, `GIG`).
 
 ### Finanças Duo + IA (preparação)
 
-A secção Finanças tem o botão **"Digitalizar Recibo com IA"** e a Server Action
-base `scanReceiptAction` (em `dashboard/financas/actions.ts`), onde o LLM de
-visão (OCR) e a persistência em base de dados serão ligados futuramente. Os
-placeholders e o contrato de dados (`ScannedReceipt`) já estão definidos.
+A seção Finanças tem o botão **"Escanear Nota ou Recibo"** (ação primária) e
+**"+ Lançamento manual"** (secundária), com a Server Action base
+`scanReceiptAction` (em `dashboard/financas/actions.ts`), onde o LLM de visão
+(OCR) e a persistência no banco de dados serão ligados futuramente. Os
+placeholders e o contrato de dados (`ScannedReceipt`, com `establishment`) já
+estão definidos. Valores exibidos em Real (R$).
 
 ## Executar localmente
 

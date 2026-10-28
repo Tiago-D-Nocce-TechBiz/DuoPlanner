@@ -20,10 +20,10 @@ export function formatDateBR(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
-/** Formata um valor numérico como moeda em Euros (pt-PT). */
+/** Formata um valor numérico como moeda em Reais (pt-BR). */
 export function formatCurrency(value: number): string {
-  return new Intl.NumberFormat("pt-PT", {
+  return new Intl.NumberFormat("pt-BR", {
     style: "currency",
-    currency: "EUR",
+    currency: "BRL",
   }).format(value);
 }

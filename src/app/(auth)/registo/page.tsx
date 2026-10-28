@@ -10,11 +10,11 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1 text-center">
-        <h1 className="font-serif text-2xl font-bold text-zinc-50">
+        <h1 className="font-serif text-3xl font-bold text-[#1C1917]">
           Crie a sua conta
         </h1>
-        <p className="text-sm text-zinc-400">
-          Gratuito, para sempre. Comece a planear em minutos.
+        <p className="text-sm text-[#57534E]">
+          Gratuito, para sempre. Comece a planejar em minutos.
         </p>
       </div>
 
@@ -36,9 +36,9 @@ export default function RegisterPage() {
         />
         <Field
           id="password"
-          label="Palavra-passe"
+          label="Senha"
           type="password"
-          placeholder="Crie uma palavra-passe"
+          placeholder="Crie uma senha"
           autoComplete="new-password"
           required
         />
@@ -47,10 +47,10 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-zinc-400">
+      <p className="text-center text-sm text-[#57534E]">
         Já tem conta?{" "}
-        <Link href="/login" className="font-medium text-accent hover:underline">
-          Iniciar sessão
+        <Link href="/login" className="font-medium text-[#8C7A6B] hover:underline">
+          Entrar
         </Link>
       </p>
     </div>

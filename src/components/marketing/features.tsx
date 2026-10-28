@@ -13,7 +13,7 @@ const FEATURES = [
     icon: Search,
     title: "Motor de busca inteligente",
     description:
-      "Insira origem, destino e datas. O PlannerDuo gera links já preenchidos para Airbnb, Booking, LATAM, Azul e GOL — abre direto na página de resultados.",
+      "Informe origem, destino e datas. O PlannerDuo gera links já preenchidos para Airbnb, Booking, LATAM, Azul e GOL — abre direto na página de resultados.",
   },
   {
     icon: Map,
@@ -29,9 +29,9 @@ const FEATURES = [
   },
   {
     icon: ScanLine,
-    title: "Recibos com IA",
+    title: "Notas com IA",
     description:
-      "Em breve: digitalize faturas e recibos com visão por IA (OCR) e registe despesas automaticamente.",
+      "Em breve: escaneie notas fiscais e recibos com visão por IA (OCR) e registre despesas automaticamente.",
   },
   {
     icon: Users,
@@ -53,10 +53,10 @@ export function Features() {
     <section id="recursos" className="py-20">
       <Container>
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="font-serif text-3xl font-bold text-zinc-50 md:text-4xl">
+          <h2 className="font-serif text-4xl font-bold text-[#1C1917] md:text-5xl">
             Tudo o que uma dupla precisa para viajar
           </h2>
-          <p className="mt-4 text-zinc-400">
+          <p className="mt-4 text-[#57534E]">
             Do primeiro clique na pesquisa à divisão da conta no fim da viagem.
           </p>
         </div>
@@ -64,15 +64,15 @@ export function Features() {
           {FEATURES.map(({ icon: Icon, title, description }) => (
             <div
               key={title}
-              className="rounded-2xl border border-zinc-800 bg-zinc-900 p-6 transition-colors hover:border-zinc-700"
+              className="glass-surface rounded-2xl p-6 transition-colors hover:ring-[#8C7A6B]/30"
             >
-              <div className="mb-4 inline-flex rounded-xl border border-zinc-800 bg-zinc-950 p-3">
-                <Icon className="h-6 w-6 text-accent" />
+              <div className="mb-4 inline-flex rounded-xl border border-[#DFD9CE] bg-[#EFECE6] p-3">
+                <Icon className="h-6 w-6 text-[#1C1917]" />
               </div>
-              <h3 className="font-serif text-lg font-semibold text-zinc-100">
+              <h3 className="font-serif text-xl font-semibold text-[#1C1917]">
                 {title}
               </h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">
+              <p className="mt-2 text-sm leading-relaxed text-[#57534E]">
                 {description}
               </p>
             </div>
