@@ -50,12 +50,6 @@ export interface ProviderLink {
   note: string;
 }
 
-/** Converte Date/ISO para componentes seguros. */
-function parts(iso: string) {
-  const [y, m, d] = iso.split("-");
-  return { y, m, d };
-}
-
 /* --------------------------------- ESTADIAS -------------------------------- */
 
 /**

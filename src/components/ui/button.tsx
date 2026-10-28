@@ -62,8 +62,19 @@ export function Button(props: ButtonAsButton | ButtonAsLink) {
     );
   }
 
-  const { variant: _v, size: _s, className: _c, children: _ch, ...rest } =
-    props as ButtonAsButton;
+  // Remove props específicas do design system antes de espalhar no <button>.
+  const {
+    variant: _variant,
+    size: _size,
+    className: _className,
+    children: _children,
+    ...rest
+  } = props as ButtonAsButton;
+  void _variant;
+  void _size;
+  void _className;
+  void _children;
+
   return (
     <button className={classes} {...rest}>
       {children}

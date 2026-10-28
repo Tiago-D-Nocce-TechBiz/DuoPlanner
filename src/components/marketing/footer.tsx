@@ -1,6 +1,10 @@
 import { Logo } from "@/components/ui/logo";
 import { Container } from "@/components/ui/container";
 
+// Ano de copyright como constante: evita `new Date()` no prerender
+// (Cache Components) e mantém o rodapé totalmente estático.
+const COPYRIGHT_YEAR = 2026;
+
 /** Rodapé público. */
 export function Footer() {
   return (
@@ -13,7 +17,7 @@ export function Footer() {
           </p>
         </div>
         <p className="text-xs text-zinc-600">
-          © {new Date().getFullYear()} PlannerDuo — Uso pessoal, não corporativo.
+          © {COPYRIGHT_YEAR} PlannerDuo — Uso pessoal, não corporativo.
         </p>
       </Container>
     </footer>
