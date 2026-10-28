@@ -1,20 +1,9 @@
-import { PageHeading } from "@/components/dashboard/page-heading";
-import { SearchEngine } from "@/components/search/search-engine";
-
-export const metadata = { title: "Motor de busca — PlannerDuo" };
+import { redirect } from "next/navigation";
 
 /**
- * Página do Motor de Busca (Deep Linking Outbound).
- * A lógica interativa vive em <SearchEngine /> (client component).
+ * Rota legada do motor único de busca. Agora dividida em "Buscar Viagem" e
+ * "Buscar Hospedagem" — redirecionamos para a nova rota de voos.
  */
-export default function BuscaPage() {
-  return (
-    <div>
-      <PageHeading
-        title="Motor de busca"
-        description="Informe origem, destino e datas. Geramos links prontos para Airbnb, Booking, LATAM, Azul e GOL — abrem direto na página de resultados."
-      />
-      <SearchEngine />
-    </div>
-  );
+export default function BuscaLegacyPage() {
+  redirect("/dashboard/buscar-viagem");
 }

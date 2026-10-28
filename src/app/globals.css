@@ -1,33 +1,57 @@
 @import "tailwindcss";
 
+/* O modo escuro é controlado pela classe .dark no <html> (ThemeProvider). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /*
-  PlannerDuo — Redesign Editorial (Warm Alabaster & Sand + Glassmorphism).
-  Paleta:
-  - Fundo profundo (Alabaster): #FAF8F5
-  - Areia / bege para profundidade: #F3EFE6, #EAE3D2
-  - Espresso (ações primárias / texto forte): #1C1917 / hover #292524
-  - Bege areia (ações secundárias): #EFECE6 / #E6E1D6, bordas #DFD9CE
-  - Texto base (UI): #57534E | Títulos: #1C1917 | Placeholder: #A8A29E
-  Tipografia editorial: serif (Cormorant/Playfair) em títulos; sans (Plus Jakarta) na UI.
+  PlannerDuo — Sistema de temas (Claro & Escuro) com degradês ricos.
+
+  Modo Claro (Warm Editorial):
+    #FAF8F5 (branco profundo) · #F3E9DC (champanhe) · #E4ECE9 (sálvia) · #EFE4DF (rosé)
+  Modo Escuro (Deep Midnight):
+    #0B0F17 (azul meia-noite) · #131822 (grafite) · reflexos #1E293B e #2A2421
+
+  Superfícies glass: utilitário .glass-surface (adapta-se ao tema).
 */
 
 :root {
-  --background: #faf8f5; /* Alabaster */
-  --foreground: #57534e; /* Stone 600 — texto base */
-  --heading: #1c1917; /* Espresso — títulos e texto forte */
+  --background: #faf8f5;
+  --foreground: #57534e;
+  --heading: #1c1917;
 
-  --sand-100: #f3efe6;
-  --sand-200: #eae3d2;
   --sand-surface: #efece6;
   --sand-surface-hover: #e6e1d6;
   --sand-border: #dfd9ce;
 
-  --espresso: #1c1917;
-  --espresso-hover: #292524;
+  --accent-ink: #1c1917; /* ação primária (claro) */
+  --accent-ink-hover: #292524;
+  --accent-on: #faf8f5; /* texto sobre ação primária */
 
   --field-border: #dcd5c7;
   --field-focus: #8c7a6b;
   --placeholder: #a8a29e;
+
+  --leather: #8c7a6b; /* realce de marca */
+}
+
+.dark {
+  --background: #0b0f17;
+  --foreground: #cbd5e1; /* slate-300 */
+  --heading: #f8fafc; /* slate-50 */
+
+  --sand-surface: #1e293b;
+  --sand-surface-hover: #273449;
+  --sand-border: #334155;
+
+  --accent-ink: #f8fafc; /* ação primária (escuro) = claro sobre escuro */
+  --accent-ink-hover: #e2e8f0;
+  --accent-on: #0b0f17;
+
+  --field-border: #334155;
+  --field-focus: #cbb79b;
+  --placeholder: #64748b;
+
+  --leather: #cbb79b;
 }
 
 @theme inline {
@@ -35,17 +59,16 @@
   --color-foreground: var(--foreground);
   --color-heading: var(--heading);
 
-  --color-sand-100: var(--sand-100);
-  --color-sand-200: var(--sand-200);
   --color-sand-surface: var(--sand-surface);
   --color-sand-surface-hover: var(--sand-surface-hover);
   --color-sand-border: var(--sand-border);
 
-  --color-espresso: var(--espresso);
-  --color-espresso-hover: var(--espresso-hover);
-
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-ink-hover: var(--accent-ink-hover);
+  --color-accent-on: var(--accent-on);
   --color-field-border: var(--field-border);
   --color-field-focus: var(--field-focus);
+  --color-leather: var(--leather);
 
   --font-sans: var(--font-sans-base);
   --font-serif: var(--font-serif-title);
@@ -55,40 +78,75 @@
 html {
   color-scheme: light;
 }
+html.dark {
+  color-scheme: dark;
+}
 
 body {
   color: var(--foreground);
   font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
 
-  /*
-    Profundidade real para a refração do vidro (glassmorphism):
-    gradientes radiais suaves em tons de bege/areia sobre o Alabaster.
-  */
+  /* Degradê rico do modo CLARO */
   background-color: var(--background);
   background-image:
-    radial-gradient(60rem 60rem at 12% -10%, var(--sand-100) 0%, transparent 55%),
-    radial-gradient(50rem 50rem at 100% 0%, var(--sand-200) 0%, transparent 50%),
-    radial-gradient(45rem 45rem at 85% 110%, var(--sand-100) 0%, transparent 55%);
+    radial-gradient(55rem 55rem at 8% -8%, #f3e9dc 0%, transparent 55%),
+    radial-gradient(50rem 50rem at 100% 0%, #e4ece9 0%, transparent 52%),
+    radial-gradient(48rem 48rem at 88% 108%, #efe4df 0%, transparent 55%),
+    radial-gradient(40rem 40rem at 20% 115%, #f3e9dc 0%, transparent 50%);
   background-attachment: fixed;
 }
 
-/* Scrollbar discreta coerente com o tema claro */
+/* Degradê profundo do modo ESCURO */
+.dark body {
+  background-color: var(--background);
+  background-image:
+    radial-gradient(55rem 55rem at 8% -8%, #131822 0%, transparent 55%),
+    radial-gradient(50rem 50rem at 100% 0%, #1e293b 0%, transparent 50%),
+    radial-gradient(48rem 48rem at 88% 108%, #2a2421 0%, transparent 55%),
+    radial-gradient(40rem 40rem at 20% 115%, #131822 0%, transparent 50%);
+}
+
+/* Scrollbar discreta por tema */
 * {
   scrollbar-width: thin;
   scrollbar-color: #d6cfc2 transparent;
 }
+.dark * {
+  scrollbar-color: #334155 transparent;
+}
 
-/* Foco acessível com o tom de couro/sand */
 :focus-visible {
   outline: 2px solid var(--field-focus);
   outline-offset: 2px;
 }
 
-/* Utilitário de superfície "glass" reutilizável */
+/* ---------------------------------------------------------------------------
+   Superfície glass adaptativa.
+   Claro: vidro branco translúcido. Escuro: vidro branco a 4% sobre o fundo.
+--------------------------------------------------------------------------- */
 .glass-surface {
   background-color: color-mix(in srgb, #ffffff 65%, transparent);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border: 1px solid color-mix(in srgb, #ffffff 80%, transparent);
   box-shadow: 0 10px 35px -5px rgba(28, 25, 23, 0.05);
+}
+.dark .glass-surface {
+  background-color: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(32px);
+  -webkit-backdrop-filter: blur(32px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 10px 40px -8px rgba(0, 0, 0, 0.5);
+}
+
+/* Variante mais translúcida para navbar/sidebar */
+.glass-panel {
+  background-color: color-mix(in srgb, #faf8f5 70%, transparent);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+.dark .glass-panel {
+  background-color: rgba(11, 15, 23, 0.6);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
