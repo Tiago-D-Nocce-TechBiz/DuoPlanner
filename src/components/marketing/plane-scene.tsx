@@ -38,10 +38,6 @@ function Airplane({ autoRotate }: { autoRotate: boolean }) {
     () => new THREE.MeshStandardMaterial({ color: "#F3EFE6", metalness: 0.6, roughness: 0.35 }),
     []
   );
-  const matAccentWarm = useMemo(
-    () => new THREE.MeshStandardMaterial({ color: BRAND_WARM, metalness: 0.5, roughness: 0.4 }),
-    []
-  );
   const matAccentTeal = useMemo(
     () => new THREE.MeshStandardMaterial({ color: BRAND_TEAL, metalness: 0.5, roughness: 0.4 }),
     []
@@ -68,77 +64,102 @@ function Airplane({ autoRotate }: { autoRotate: boolean }) {
     if (!group.current || !autoRotate) return;
     group.current.rotation.y += delta * 0.35;
     const t = state.clock.getElapsedTime();
-    group.current.rotation.z = Math.sin(t * 0.6) * 0.12;
-    group.current.rotation.x = Math.sin(t * 0.4) * 0.06;
+    group.current.rotation.z = Math.sin(t * 0.6) * 0.1;
+    group.current.rotation.x = Math.sin(t * 0.4) * 0.05;
   });
 
+  /*
+   * Jato comercial de passageiros (airliner), modelo original inspirado no
+   * estilo de referência: fuselagem longa e esguia, asas enflechadas (varridas
+   * para trás) montadas na parte baixa, duas turbinas sob as asas e cauda com
+   * estabilizadores. Eixo longo da fuselagem = X (nariz em +X).
+   *
+   * Escala geral reduzida (0.62) conforme pedido.
+   */
   return (
-    <Float speed={autoRotate ? 1.4 : 0} rotationIntensity={0} floatIntensity={autoRotate ? 0.5 : 0}>
-      {/* O eixo longo da fuselagem é X; rotacionamos para o nariz apontar para a câmera/frente. */}
-      <group ref={group} rotation={[0, 0, 0]} scale={1}>
-        {/* Fuselagem */}
+    <Float speed={autoRotate ? 1.2 : 0} rotationIntensity={0} floatIntensity={autoRotate ? 0.4 : 0}>
+      <group ref={group} scale={0.62}>
+        {/* Fuselagem longa e esguia */}
         <mesh material={matFuselage} rotation={[0, 0, Math.PI / 2]} castShadow>
-          <capsuleGeometry args={[0.42, 2.4, 12, 24]} />
+          <capsuleGeometry args={[0.34, 3.6, 16, 28]} />
         </mesh>
 
-        {/* Faixa de acento na fuselagem */}
-        <mesh material={matAccentWarm} rotation={[0, 0, Math.PI / 2]} position={[0, -0.02, 0]}>
-          <cylinderGeometry args={[0.425, 0.425, 0.5, 24]} />
+        {/* Nariz cônico suave */}
+        <mesh material={matFuselage} position={[2.08, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+          <coneGeometry args={[0.33, 0.6, 28]} />
         </mesh>
 
-        {/* Cockpit envidraçado (nariz) */}
-        <mesh material={matGlass} position={[1.25, 0.18, 0]}>
-          <sphereGeometry args={[0.3, 20, 16]} />
+        {/* Cockpit envidraçado junto ao nariz */}
+        <mesh material={matGlass} position={[1.78, 0.14, 0]} scale={[1.1, 0.7, 0.9]}>
+          <sphereGeometry args={[0.26, 20, 16]} />
         </mesh>
 
-        {/* Nariz cônico */}
-        <mesh material={matFuselage} position={[1.45, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-          <coneGeometry args={[0.4, 0.5, 24]} />
+        {/* Faixa de acento ao longo da fuselagem */}
+        <mesh material={matAccentTeal} rotation={[0, 0, Math.PI / 2]} position={[0, 0.16, 0]} scale={[1, 1, 1.002]}>
+          <cylinderGeometry args={[0.345, 0.345, 3.4, 28, 1, true, 0, Math.PI * 0.6]} />
         </mesh>
 
-        {/* Asa esquerda e direita (com diedro) */}
-        <mesh material={matWing} position={[0, -0.05, 1.15]} rotation={[0.12, 0, 0]} castShadow>
-          <boxGeometry args={[1.0, 0.06, 1.9]} />
-        </mesh>
-        <mesh material={matWing} position={[0, -0.05, -1.15]} rotation={[-0.12, 0, 0]} castShadow>
-          <boxGeometry args={[1.0, 0.06, 1.9]} />
-        </mesh>
+        {/*
+         * Asas enflechadas (baixas). Cada asa é um box girado em Y para dar o
+         * enflechamento (sweep) e levemente em X para o diedro. Posicionadas no
+         * centro-traseiro da fuselagem, como num airliner.
+         */}
+        <group position={[-0.1, -0.22, 0]}>
+          {/* asa direita (+Z) */}
+          <mesh material={matWing} position={[-0.35, 0.02, 1.25]} rotation={[0.07, -0.6, 0]} castShadow>
+            <boxGeometry args={[1.5, 0.07, 0.95]} />
+          </mesh>
+          {/* asa esquerda (-Z) */}
+          <mesh material={matWing} position={[-0.35, 0.02, -1.25]} rotation={[-0.07, 0.6, 0]} castShadow>
+            <boxGeometry args={[1.5, 0.07, 0.95]} />
+          </mesh>
+          {/* winglets nas pontas */}
+          <mesh material={matAccentTeal} position={[-1.05, 0.14, 2.0]} rotation={[0, -0.6, 0.5]}>
+            <boxGeometry args={[0.5, 0.26, 0.05]} />
+          </mesh>
+          <mesh material={matAccentTeal} position={[-1.05, 0.14, -2.0]} rotation={[0, 0.6, -0.5]}>
+            <boxGeometry args={[0.5, 0.26, 0.05]} />
+          </mesh>
+        </group>
 
-        {/* Pontas das asas (winglets) em teal */}
-        <mesh material={matAccentTeal} position={[0, 0.08, 2.05]} rotation={[0.3, 0, 0]}>
-          <boxGeometry args={[0.5, 0.22, 0.05]} />
-        </mesh>
-        <mesh material={matAccentTeal} position={[0, 0.08, -2.05]} rotation={[-0.3, 0, 0]}>
-          <boxGeometry args={[0.5, 0.22, 0.05]} />
-        </mesh>
+        {/* Turbinas suspensas sob as asas (à frente do bordo de ataque) */}
+        <group position={[0.1, -0.42, 0]}>
+          <mesh material={matTurbine} position={[0, 0, 1.0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.17, 0.19, 0.78, 20]} />
+          </mesh>
+          <mesh material={matTurbine} position={[0, 0, -1.0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.17, 0.19, 0.78, 20]} />
+          </mesh>
+          {/* entradas de ar (anel claro) */}
+          <mesh material={matWing} position={[0.4, 0, 1.0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[0.17, 0.035, 12, 20]} />
+          </mesh>
+          <mesh material={matWing} position={[0.4, 0, -1.0]} rotation={[0, 0, Math.PI / 2]}>
+            <torusGeometry args={[0.17, 0.035, 12, 20]} />
+          </mesh>
+          {/* pilones ligando turbina à asa */}
+          <mesh material={matFuselage} position={[-0.1, 0.2, 1.0]}>
+            <boxGeometry args={[0.5, 0.22, 0.06]} />
+          </mesh>
+          <mesh material={matFuselage} position={[-0.1, 0.2, -1.0]}>
+            <boxGeometry args={[0.5, 0.22, 0.06]} />
+          </mesh>
+        </group>
 
-        {/* Estabilizador horizontal (cauda) */}
-        <mesh material={matWing} position={[-1.35, 0.05, 0.55]} castShadow>
-          <boxGeometry args={[0.55, 0.05, 0.9]} />
-        </mesh>
-        <mesh material={matWing} position={[-1.35, 0.05, -0.55]} castShadow>
-          <boxGeometry args={[0.55, 0.05, 0.9]} />
-        </mesh>
-
-        {/* Estabilizador vertical (leme) em teal */}
-        <mesh material={matAccentTeal} position={[-1.4, 0.5, 0]} rotation={[0, 0, 0.1]} castShadow>
-          <boxGeometry args={[0.6, 0.7, 0.06]} />
-        </mesh>
-
-        {/* Turbinas sob as asas */}
-        <mesh material={matTurbine} position={[0.1, -0.3, 0.95]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.2, 0.2, 0.7, 20]} />
-        </mesh>
-        <mesh material={matTurbine} position={[0.1, -0.3, -0.95]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.2, 0.2, 0.7, 20]} />
-        </mesh>
-        {/* Bocais das turbinas em warm */}
-        <mesh material={matAccentWarm} position={[-0.26, -0.3, 0.95]} rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[0.2, 0.04, 12, 20]} />
-        </mesh>
-        <mesh material={matAccentWarm} position={[-0.26, -0.3, -0.95]} rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[0.2, 0.04, 12, 20]} />
-        </mesh>
+        {/* Empenagem (cauda) */}
+        <group position={[-1.95, 0.08, 0]}>
+          {/* estabilizadores horizontais, também enflechados */}
+          <mesh material={matWing} position={[-0.1, 0, 0.5]} rotation={[0.05, -0.5, 0]} castShadow>
+            <boxGeometry args={[0.72, 0.05, 0.5]} />
+          </mesh>
+          <mesh material={matWing} position={[-0.1, 0, -0.5]} rotation={[-0.05, 0.5, 0]} castShadow>
+            <boxGeometry args={[0.72, 0.05, 0.5]} />
+          </mesh>
+          {/* leme vertical alto, enflechado, em teal */}
+          <mesh material={matAccentTeal} position={[-0.25, 0.62, 0]} rotation={[0, 0, 0.42]} castShadow>
+            <boxGeometry args={[0.85, 0.78, 0.06]} />
+          </mesh>
+        </group>
       </group>
     </Float>
   );
@@ -153,7 +174,7 @@ export function PlaneScene() {
 
   return (
     <Canvas
-      camera={{ position: [3.4, 1.6, 4.2], fov: 42 }}
+      camera={{ position: [3.0, 1.5, 3.8], fov: 40 }}
       dpr={[1, 2]}
       gl={{ antialias: true, alpha: true }}
       style={{ background: "transparent", cursor: interagindo ? "grabbing" : "grab" }}

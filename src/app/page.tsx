@@ -53,12 +53,7 @@ export default function LandingPage() {
       {/* Hero focado */}
       <main className="mx-auto w-full max-w-3xl flex-1 flex flex-col items-center justify-center text-center py-16 sm:py-20">
         {/* Avião 3D realista interativo (gire segurando o mouse) */}
-        <FlightRoute3D className="w-full max-w-2xl h-64 sm:h-80 mb-4" />
-
-        <div className="inline-flex items-center gap-2 rounded-full glass-panel px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-6">
-          <span>🧭</span>
-          <span>Planejamento de viagens a dois</span>
-        </div>
+        <FlightRoute3D className="w-full max-w-2xl h-60 sm:h-72 mb-6" />
 
         <h1 className="font-serif text-4xl sm:text-6xl font-bold tracking-tight text-[var(--color-heading)] leading-[1.1]">
           Planejem a próxima viagem, juntos e sem estresse

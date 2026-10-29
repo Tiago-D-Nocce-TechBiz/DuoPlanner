@@ -51,11 +51,6 @@ export function FlightRoute3D({ className }: { className?: string }) {
         <circle cx="610" cy="80" r="5" fill="var(--color-background)" stroke="var(--color-heading)" strokeWidth="2" />
       </svg>
 
-      {/* Dica de interação */}
-      <div className="pointer-events-none absolute left-1/2 top-0 z-10 -translate-x-1/2 rounded-full glass-panel px-3 py-1 text-[10px] font-medium text-[var(--color-muted)]">
-        ✈️ Segure e arraste para girar o avião em 3D
-      </div>
-
       {/* Palco 3D */}
       <div className="relative z-[1] h-full w-full">
         <ErrorBoundary fallback={<SceneFallback />}>
