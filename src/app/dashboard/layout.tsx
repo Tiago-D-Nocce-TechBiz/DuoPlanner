@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { InviteButton } from "@/components/dashboard/invite-button";
 import { logoutAction } from "@/app/(auth)/actions";
 
 const MENU_ITENS = [
@@ -22,20 +23,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [modalSairAberto, setModalSairAberto] = useState(false);
-  const [modalConviteAberto, setModalConviteAberto] = useState(false);
-  const [copiado, setCopiado] = useState(false);
   const [saindo, startSaida] = useTransition();
-
-  const linkConvite =
-    typeof window !== "undefined"
-      ? `${window.location.origin}/convite?code=DUO-BH-2027`
-      : "https://plannerduo-vert.vercel.app/convite?code=DUO-BH-2027";
-
-  const copiarConvite = () => {
-    navigator.clipboard.writeText(linkConvite);
-    setCopiado(true);
-    setTimeout(() => setCopiado(false), 2500);
-  };
 
   // Encerra a sessão real no Supabase e volta à Landing Page.
   const confirmarSaida = () => {
@@ -110,13 +98,7 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setModalConviteAberto(true)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
-            >
-              + Convidar Parceiro(a)
-            </button>
+            <InviteButton />
             <div className="hidden md:block">
               <ThemeToggle />
             </div>
@@ -167,43 +149,6 @@ export default function DashboardLayout({
         </div>
       )}
 
-      {/* Modal de Convite para Sincronizar Conta com Parceiro(a) */}
-      {modalConviteAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="glass-panel rounded-2xl p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl font-bold text-[var(--color-heading)]">
-              Convidar para Planejamento Compartilhado
-            </h3>
-            <p className="mt-2 text-sm text-[var(--color-muted)]">
-              Envie o link abaixo para quem vai viajar com você. Apenas os gastos marcados como <strong>Gasto da Viagem (Compartilhado)</strong> serão visíveis entre as duas contas.
-            </p>
-            <div className="mt-4">
-              <input
-                type="text"
-                readOnly
-                value={linkConvite}
-                className="glass-input text-xs"
-              />
-            </div>
-            <div className="mt-5 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setModalConviteAberto(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold glass-panel cursor-pointer"
-              >
-                Fechar
-              </button>
-              <button
-                type="button"
-                onClick={copiarConvite}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
-              >
-                {copiado ? "✓ Link Copiado!" : "Copiar Link de Convite"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
