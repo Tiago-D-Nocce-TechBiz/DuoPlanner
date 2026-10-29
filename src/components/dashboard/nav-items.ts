@@ -17,7 +17,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Visão geral", icon: LayoutDashboard },
-  { href: "/dashboard/buscar-viagem", label: "Buscar Viagem", icon: Plane },
+  { href: "/dashboard/buscar-viagem", label: "Buscar Passagens", icon: Plane },
   { href: "/dashboard/buscar-hospedagem", label: "Buscar Hospedagem", icon: Hotel },
   { href: "/dashboard/roteiro", label: "Roteiro", icon: Map },
   { href: "/dashboard/financas", label: "Finanças Duo", icon: Wallet },

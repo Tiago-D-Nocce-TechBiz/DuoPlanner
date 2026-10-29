@@ -6,6 +6,7 @@ import {
   sugerirExperienciasLocais,
   type LocalGemsResult,
 } from "@/app/dashboard/actions";
+import type { ConciergeParse } from "@/lib/concierge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -69,7 +70,7 @@ async function requestFlights(params: URLSearchParams): Promise<Outcome> {
   }
 }
 
-export function FlightSearch() {
+export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse | null }) {
   const [form, setForm] = useState({
     tripType: "round" as FlightTripType,
     from: "",
@@ -89,6 +90,24 @@ export function FlightSearch() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
   const [gems, setGems] = useState<Promise<LocalGemsResult> | null>(null);
+
+  // Preenchimento vindo do Concierge de IA. Em vez de um efeito que chama
+  // setState, sincronizamos durante o render comparando a referência anterior
+  // (padrão recomendado pelo React para "ajustar estado quando a prop muda").
+  const [preenchimentoAnterior, setPreenchimentoAnterior] =
+    useState<ConciergeParse | null>(null);
+  if (preenchimento && preenchimento !== preenchimentoAnterior) {
+    setPreenchimentoAnterior(preenchimento);
+    setForm((prev) => ({
+      ...prev,
+      from: preenchimento.originIata ?? prev.from,
+      to: preenchimento.destinationIata ?? prev.to,
+      dateFrom: preenchimento.departDate ?? prev.dateFrom,
+      dateTo: preenchimento.returnDate ?? prev.dateTo,
+      adults: preenchimento.passengers ?? prev.adults,
+      tripType: preenchimento.returnDate ? "round" : prev.tripType,
+    }));
+  }
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

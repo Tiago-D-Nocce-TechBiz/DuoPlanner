@@ -24,6 +24,94 @@ export interface ProviderLink {
 }
 
 /* ========================================================================== */
+/*                          BUSCAR PASSAGENS — ÔNIBUS                         */
+/* ========================================================================== */
+
+export interface BusQuery {
+  originCity: string;
+  destinationCity: string;
+  departDate: string; // ISO yyyy-mm-dd
+  returnDate?: string; // ISO yyyy-mm-dd (ida e volta)
+}
+
+/**
+ * Gera links de busca de passagens de ÔNIBUS.
+ *
+ * Os sites de ônibus brasileiros variam muito na estrutura de URL e vários
+ * exigem o fluxo interno de origem/destino. Usamos a busca por termo/consulta
+ * mais tolerante possível por provedor; quando o site não expõe query estável,
+ * caímos na página de busca com a cidade no caminho ou em `?q=`.
+ */
+export function buildBusLinks(q: BusQuery): ProviderLink[] {
+  if (!q.originCity || !q.destinationCity) return [];
+  const o = encodeURIComponent(q.originCity);
+  const d = encodeURIComponent(q.destinationCity);
+  const data = q.departDate;
+
+  return [
+    {
+      id: "buser",
+      name: "Buser",
+      url: `https://www.buser.com.br/onibus/${slug(q.originCity)}/${slug(q.destinationCity)}?ida=${data}`,
+      note: "Fretamento colaborativo e viações parceiras.",
+    },
+    {
+      id: "clickbus",
+      name: "ClickBus",
+      url: `https://www.clickbus.com.br/onibus/${slug(q.originCity)}/${slug(q.destinationCity)}?departureDate=${data}`,
+      note: "Maior marketplace de passagens rodoviárias.",
+    },
+    {
+      id: "guanabara",
+      name: "Expresso Guanabara",
+      url: `https://www.expressoguanabara.com.br/?origem=${o}&destino=${d}&data=${data}`,
+      note: "Nordeste e ligações regionais.",
+    },
+    {
+      id: "util",
+      name: "Viação UTIL",
+      url: `https://www.util.com.br/?origem=${o}&destino=${d}&data=${data}`,
+      note: "Sudeste e Centro-Oeste.",
+    },
+    {
+      id: "deonibus",
+      name: "DeÔnibus",
+      url: `https://www.deonibus.com/onibus/${slug(q.originCity)}/${slug(q.destinationCity)}?data=${data}`,
+      note: "Comparador de passagens rodoviárias.",
+    },
+    {
+      id: "flixbus",
+      name: "FlixBus",
+      url: `https://www.flixbus.com.br/busca?departureCity=${o}&arrivalCity=${d}&rideDate=${data}`,
+      note: "Rede internacional de ônibus.",
+    },
+    {
+      id: "gontijo",
+      name: "Gontijo",
+      url: `https://www.gontijo.com.br/?origem=${o}&destino=${d}&data=${data}`,
+      note: "Longas distâncias pelo Brasil.",
+    },
+    {
+      id: "cometa",
+      name: "Viação Cometa",
+      url: `https://www.viacaocometa.com.br/?origem=${o}&destino=${d}&data=${data}`,
+      note: "Sudeste e Sul.",
+    },
+  ];
+}
+
+/** Converte "Belo Horizonte" em "belo-horizonte" para caminhos de URL. */
+function slug(s: string): string {
+  return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/* ========================================================================== */
 /*                               BUSCAR VIAGEM                                */
 /* ========================================================================== */
 
@@ -139,7 +227,19 @@ function buildSkyscanner(q: FlightQuery): string {
   return `https://www.skyscanner.com.br/transporte/passagens-aereas/${o}/${d}/${out}${back}/?${params.toString()}`;
 }
 
-/** Gera as opções de VOO (LATAM, Azul, GOL, Google Flights, Skyscanner). */
+/** Decolar (voos) — busca por rota com termo tolerante. */
+function buildDecolarVoo(q: FlightQuery): string {
+  const params = new URLSearchParams({
+    from: q.originIata,
+    to: q.destinationIata,
+    departure: q.departDate,
+    adults: String(q.passengers),
+  });
+  if (q.tripType === "round" && q.returnDate) params.set("return", q.returnDate);
+  return `https://www.decolar.com/shop/flights/results/roundtrip/${q.originIata}/${q.destinationIata}/${q.departDate}/${q.returnDate ?? q.departDate}/${q.passengers}/0/0?${params.toString()}`;
+}
+
+/** Gera as opções de VOO (LATAM, Azul, GOL, Google Flights, Skyscanner, Decolar). */
 export function buildFlightLinks(q: FlightQuery): ProviderLink[] {
   if (!q.originIata || !q.destinationIata) return [];
   return [
@@ -158,6 +258,7 @@ export function buildFlightLinks(q: FlightQuery): ProviderLink[] {
       url: buildSkyscanner(q),
       note: "Metabusca de passagens.",
     },
+    { id: "decolar", name: "Decolar", url: buildDecolarVoo(q), note: "Voos e pacotes." },
   ];
 }
 
@@ -223,7 +324,60 @@ function buildTrivago(q: StayQuery): string {
   return `https://www.trivago.com.br/pt-BR/srl?${params.toString()}`;
 }
 
-/** Gera as opções de HOSPEDAGEM (Airbnb, Booking, Hoteis.com, Trivago). */
+/** Decolar (hospedagem). */
+function buildDecolarHotel(q: StayQuery): string {
+  const params = new URLSearchParams({
+    destination: q.city,
+    checkin: q.checkin,
+    checkout: q.checkout,
+    rooms: String(q.rooms),
+    adults: String(q.guests),
+  });
+  return `https://www.decolar.com/hoteis/?${params.toString()}`;
+}
+
+/** Vrbo — casas de temporada. */
+function buildVrbo(q: StayQuery): string {
+  const params = new URLSearchParams({
+    q: q.city,
+    "startDate": q.checkin,
+    "endDate": q.checkout,
+    adults: String(q.guests),
+  });
+  return `https://www.vrbo.com/pt-br/busca/keywords:${encodeURIComponent(q.city)}?${params.toString()}`;
+}
+
+/** Expedia — hotéis e pacotes. */
+function buildExpedia(q: StayQuery): string {
+  const params = new URLSearchParams({
+    destination: q.city,
+    startDate: q.checkin,
+    endDate: q.checkout,
+    rooms: String(q.rooms),
+    adults: String(q.guests),
+  });
+  return `https://www.expedia.com.br/Hotel-Search?${params.toString()}`;
+}
+
+/** Google Hotels — via busca de hotéis do Google (termo tolerante). */
+function buildGoogleHotels(q: StayQuery): string {
+  const params = new URLSearchParams({
+    q: `Hotéis em ${q.city}`,
+    hl: "pt-BR",
+  });
+  return `https://www.google.com/travel/search?${params.toString()}`;
+}
+
+/** TripAdvisor — busca de hospedagem por destino. */
+function buildTripAdvisor(q: StayQuery): string {
+  const params = new URLSearchParams({ q: q.city });
+  return `https://www.tripadvisor.com.br/Search?${params.toString()}`;
+}
+
+/**
+ * Gera as opções de HOSPEDAGEM (Airbnb, Booking, Hoteis.com, Trivago, Decolar,
+ * Vrbo, Expedia, Google Hotels, TripAdvisor).
+ */
 export function buildStayLinks(q: StayQuery): ProviderLink[] {
   if (!q.city) return [];
   return [
@@ -231,5 +385,10 @@ export function buildStayLinks(q: StayQuery): ProviderLink[] {
     { id: "booking", name: "Booking.com", url: buildBooking(q), note: "Hotéis e hospedagens." },
     { id: "hoteis", name: "Hoteis.com", url: buildHoteis(q), note: "Hotéis com programa de fidelidade." },
     { id: "trivago", name: "Trivago", url: buildTrivago(q), note: "Compare preços de hotéis." },
+    { id: "decolar", name: "Decolar", url: buildDecolarHotel(q), note: "Hotéis e pacotes." },
+    { id: "vrbo", name: "Vrbo", url: buildVrbo(q), note: "Casas de temporada." },
+    { id: "expedia", name: "Expedia", url: buildExpedia(q), note: "Hotéis e pacotes internacionais." },
+    { id: "google-hotels", name: "Google Hotels", url: buildGoogleHotels(q), note: "Compare no Google." },
+    { id: "tripadvisor", name: "TripAdvisor", url: buildTripAdvisor(q), note: "Avaliações e preços." },
   ];
 }

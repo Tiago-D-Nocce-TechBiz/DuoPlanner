@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { logoutAction } from "@/app/(auth)/actions";
 
 const MENU_ITENS = [
   { href: "/dashboard", label: "Visão geral", icone: "⊞" },
@@ -20,15 +21,15 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [modalSairAberto, setModalSairAberto] = useState(false);
   const [modalConviteAberto, setModalConviteAberto] = useState(false);
   const [copiado, setCopiado] = useState(false);
+  const [saindo, startSaida] = useTransition();
 
   const linkConvite =
     typeof window !== "undefined"
-      ? `${window.location.origin}/login?convite=DUO-BH-2027`
-      : "https://plannerduo-vert.vercel.app/login?convite=DUO-BH-2027";
+      ? `${window.location.origin}/convite?code=DUO-BH-2027`
+      : "https://plannerduo-vert.vercel.app/convite?code=DUO-BH-2027";
 
   const copiarConvite = () => {
     navigator.clipboard.writeText(linkConvite);
@@ -36,9 +37,11 @@ export default function DashboardLayout({
     setTimeout(() => setCopiado(false), 2500);
   };
 
+  // Encerra a sessão real no Supabase e volta à Landing Page.
   const confirmarSaida = () => {
-    setModalSairAberto(false);
-    router.push("/");
+    startSaida(async () => {
+      await logoutAction();
+    });
   };
 
   return (
@@ -138,10 +141,10 @@ export default function DashboardLayout({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
           <div className="glass-panel rounded-2xl p-6 max-w-md w-full">
             <h3 className="font-serif text-xl font-bold text-[var(--color-heading)]">
-              Deseja realmente sair do login?
+              Deseja realmente encerrar a sessão?
             </h3>
             <p className="mt-2 text-sm text-[var(--color-muted)]">
-              Ao confirmar, sua sessão atual será encerrada e você será direcionado para a página inicial (Landing Page) do PlannerDuo.
+              Ao confirmar, sua sessão atual será encerrada e você retornará à página inicial (Landing Page) do PlannerDuo.
             </p>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button
@@ -154,9 +157,10 @@ export default function DashboardLayout({
               <button
                 type="button"
                 onClick={confirmarSaida}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
+                disabled={saindo}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
               >
-                Sim, sair e ir para a Landing Page
+                {saindo ? "Encerrando…" : "Sim, encerrar e ir ao início"}
               </button>
             </div>
           </div>

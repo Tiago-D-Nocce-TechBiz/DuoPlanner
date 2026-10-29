@@ -183,7 +183,7 @@ export default function LandingPage() {
 
       {/* Rodapé */}
       <footer className="mx-auto w-full max-w-6xl mt-20 pt-8 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-muted)]">
-        <span>© {new Date().getFullYear()} PlannerDuo. Todos os direitos reservados.</span>
+        <span>© 2026 PlannerDuo. Todos os direitos reservados.</span>
         <div className="flex items-center gap-6">
           <Link href="/termos" className="hover:underline">
             Termos de Uso & Conformidade LGPD

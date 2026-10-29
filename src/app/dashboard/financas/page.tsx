@@ -17,82 +17,77 @@ interface ItemDespesa {
   origem: string;
 }
 
-function classificarItemAutomaticamente(titulo: string, valor: number, data: string): ItemDespesa {
+function idAleatorio() {
+  return Math.random().toString(36).substring(2, 9);
+}
+
+/**
+ * Classifica automaticamente um item da fatura/NF por palavras-chave.
+ *
+ * - Passagens & Transporte: companhias aéreas, viações de ônibus, apps de
+ *   mobilidade, pedágios, combustível.
+ * - Hospedagem: plataformas e tipos de acomodação.
+ * - Passeios & Lazer: ingressos, parques, tours, passeios (antes de alimentação
+ *   para não serem absorvidos por "bar"/"praia").
+ * - Alimentação & Gastronomia: restaurantes, mercados, iFood, etc.
+ * - Gastos Pessoais / Fora da Viagem (privado): assinaturas, farmácia, academia
+ *   e qualquer coisa não reconhecida como da viagem.
+ */
+function classificarItemAutomaticamente(
+  titulo: string,
+  valor: number,
+  data: string,
+  origem = "Fatura / NF"
+): ItemDespesa {
   const t = titulo.toLowerCase();
 
-  if (
-    t.includes("latam") ||
-    t.includes("azul") ||
-    t.includes("gol") ||
-    t.includes("buser") ||
-    t.includes("guanabara") ||
-    t.includes("util") ||
-    t.includes("clickbus") ||
-    t.includes("uber") ||
-    t.includes("99") ||
-    t.includes("pedagio") ||
-    t.includes("posto")
-  ) {
-    return {
-      id: Math.random().toString(36).substring(2, 9),
-      data,
-      estabelecimento: titulo,
-      valor,
-      categoriaDestino: "Passagens & Transporte",
-      escopo: "viagem_compartilhado",
-      origem: "Fatura / NF",
-    };
+  const base = { id: idAleatorio(), data, estabelecimento: titulo, valor, origem };
+
+  const transporte = [
+    "latam", "azul", "gol", "voeazul", "voegol", "decolar", "skyscanner",
+    "buser", "guanabara", "util", "clickbus", "flixbus", "deonibus", "gontijo",
+    "cometa", "viacao", "viação", "rodoviaria", "rodoviária",
+    "uber", "99", "99app", "cabify", "pedagio", "pedágio", "sem parar", "conectcar",
+    "posto", "combustivel", "combustível", "shell", "ipiranga", "petrobras",
+  ];
+  const hospedagem = [
+    "airbnb", "booking", "hoteis", "hotéis", "hotel", "pousada", "resort",
+    "hospedagem", "hostel", "vrbo", "expedia", "trivago", "flat",
+  ];
+  const lazer = [
+    "ingresso", "ingressos", "parque", "tour", "passeio", "museu", "cinema",
+    "show", "balada", "ticket", "beach club", "mergulho", "escuna", "trilha",
+  ];
+  const alimentacao = [
+    "restaurante", "bar ", "boteco", "praia", "quiosque", "padaria",
+    "lanchonete", "ifood", "mercado", "supermercado", "cafe", "café",
+    "pizzaria", "hamburgueria", "churrascaria", "sorveteria", "food",
+  ];
+  const pessoal = [
+    "academia", "farmacia", "farmácia", "drogaria", "assinatura", "streaming",
+    "netflix", "spotify", "amazon prime", "mensalidade", "consulta", "plano de saude",
+  ];
+
+  const casa = (lista: string[]) => lista.some((k) => t.includes(k));
+
+  if (casa(pessoal)) {
+    return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
+  }
+  if (casa(transporte)) {
+    return { ...base, categoriaDestino: "Passagens & Transporte", escopo: "viagem_compartilhado" };
+  }
+  if (casa(hospedagem)) {
+    return { ...base, categoriaDestino: "Hospedagem", escopo: "viagem_compartilhado" };
+  }
+  if (casa(lazer)) {
+    return { ...base, categoriaDestino: "Passeios & Lazer", escopo: "viagem_compartilhado" };
+  }
+  if (casa(alimentacao)) {
+    return { ...base, categoriaDestino: "Alimentação & Gastronomia", escopo: "viagem_compartilhado" };
   }
 
-  if (
-    t.includes("airbnb") ||
-    t.includes("booking") ||
-    t.includes("hotel") ||
-    t.includes("pousada") ||
-    t.includes("resort") ||
-    t.includes("hospedagem")
-  ) {
-    return {
-      id: Math.random().toString(36).substring(2, 9),
-      data,
-      estabelecimento: titulo,
-      valor,
-      categoriaDestino: "Hospedagem",
-      escopo: "viagem_compartilhado",
-      origem: "Fatura / NF",
-    };
-  }
-
-  if (
-    t.includes("restaurante") ||
-    t.includes("bar") ||
-    t.includes("praia") ||
-    t.includes("quiosque") ||
-    t.includes("padaria") ||
-    t.includes("lanchonete") ||
-    t.includes("passeio") ||
-    t.includes("ingresso")
-  ) {
-    return {
-      id: Math.random().toString(36).substring(2, 9),
-      data,
-      estabelecimento: titulo,
-      valor,
-      categoriaDestino: "Alimentação & Gastronomia",
-      escopo: "viagem_compartilhado",
-      origem: "Fatura / NF",
-    };
-  }
-
-  return {
-    id: Math.random().toString(36).substring(2, 9),
-    data,
-    estabelecimento: titulo,
-    valor,
-    categoriaDestino: "Gasto Pessoal (Fora da Viagem)",
-    escopo: "pessoal_privado",
-    origem: "Fatura / NF",
-  };
+  // Desconhecido: por segurança, trata como pessoal/privado (nunca vaza).
+  return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
 }
 
 export default function FinancasPage() {
@@ -118,6 +113,7 @@ export default function FinancasPage() {
   ]);
 
   const [itensTriagem, setItensTriagem] = useState<ItemDespesa[]>([]);
+  const [textoColado, setTextoColado] = useState("");
   const [abaVisualizacao, setAbaVisualizacao] = useState<"compartilhado" | "privado">("compartilhado");
   const [tituloManual, setTituloManual] = useState("");
   const [valorManual, setValorManual] = useState("");
@@ -158,6 +154,45 @@ export default function FinancasPage() {
 
     if (extraidos.length > 0) {
       setItensTriagem(extraidos);
+    }
+  };
+
+  // Processa texto colado diretamente da fatura ou NF.
+  // Aceita linhas no formato "data,categoria,titulo,valor" (CSV Nubank) ou,
+  // de forma tolerante, "titulo .... valor" / "titulo;valor".
+  const processarTextoColado = () => {
+    const linhas = textoColado.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    const extraidos: ItemDespesa[] = [];
+
+    for (let i = 0; i < linhas.length; i++) {
+      const linha = linhas[i].trim();
+      if (i === 0 && linha.toLowerCase().includes("amount")) continue;
+
+      const partesCsv = linha.split(/[,;\t]/).map((p) => p.trim());
+      if (partesCsv.length >= 4) {
+        const data = partesCsv[0] || new Date().toLocaleDateString("pt-BR");
+        const titulo = partesCsv[2];
+        const valor = Math.abs(parseFloat(partesCsv[3].replace(/[^0-9,.-]/g, "").replace(",", ".")) || 0);
+        if (titulo && valor > 0) extraidos.push(classificarItemAutomaticamente(titulo, valor, data, "Texto colado"));
+        continue;
+      }
+
+      // Formato livre: pega o último número como valor e o resto como título.
+      const m = linha.match(/(.+?)[\s.]*R?\$?\s*([\d.]+,\d{2}|\d+(?:\.\d{2})?)\s*$/);
+      if (m) {
+        const titulo = m[1].replace(/[.\-–—]+$/, "").trim();
+        const valor = Math.abs(parseFloat(m[2].replace(/\./g, "").replace(",", ".")) || 0);
+        if (titulo && valor > 0) {
+          extraidos.push(
+            classificarItemAutomaticamente(titulo, valor, new Date().toLocaleDateString("pt-BR"), "Texto colado")
+          );
+        }
+      }
+    }
+
+    if (extraidos.length > 0) {
+      setItensTriagem(extraidos);
+      setTextoColado("");
     }
   };
 
@@ -282,16 +317,16 @@ export default function FinancasPage() {
         <div className="glass-panel rounded-2xl p-6 flex flex-col justify-between">
           <div>
             <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">
-              Importar Fatura Nubank (.CSV) ou Nota Fiscal
+              Importar Fatura Nubank ou Nota Fiscal
             </h2>
             <p className="mt-1.5 text-xs sm:text-sm text-[var(--color-muted)] leading-relaxed">
-              Envie o arquivo CSV exportado do Nubank ou Nota Fiscal. Antes de sincronizar com a pessoa convidada, você revisa o que é da viagem e o que é pessoal.
+              Envie o CSV do Nubank (padrão <code>date,category,title,amount</code>), uma Nota Fiscal ou cole o texto da fatura. Antes de sincronizar com a pessoa convidada, você revisa o que é da viagem e o que é pessoal.
             </p>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-5 flex flex-wrap items-center gap-3">
             <label className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer hover:opacity-90 transition-opacity">
-              📂 Selecionar Fatura CSV / NF
+              📂 Selecionar arquivo (CSV / TXT / NF)
               <input
                 type="file"
                 accept=".csv,.txt"
@@ -305,7 +340,29 @@ export default function FinancasPage() {
               onClick={carregarExemploFaturaNubank}
               className="px-4 py-2.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
             >
-              ⚡ Testar com Fatura Nubank de Exemplo
+              ⚡ Testar com fatura de exemplo
+            </button>
+          </div>
+
+          {/* Colagem direta do texto da fatura */}
+          <div className="mt-4">
+            <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-1.5">
+              Ou cole o texto da fatura
+            </label>
+            <textarea
+              value={textoColado}
+              onChange={(e) => setTextoColado(e.target.value)}
+              rows={3}
+              placeholder={"Ex.:\n08/07/2027,transporte,Buser BH x Cabo Frio,298,90\nRestaurante Búzios  R$ 245,50"}
+              className="glass-input resize-none font-mono text-xs"
+            />
+            <button
+              type="button"
+              onClick={processarTextoColado}
+              disabled={!textoColado.trim()}
+              className="mt-2 px-4 py-2 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-50"
+            >
+              📝 Ler texto colado
             </button>
           </div>
         </div>
@@ -396,6 +453,41 @@ export default function FinancasPage() {
               </button>
             </div>
           </div>
+
+          {/* Resumo analítico da fatura importada, por categoria */}
+          {(() => {
+            const porCategoria = itensTriagem.reduce<Record<string, { total: number; qtd: number }>>(
+              (acc, item) => {
+                const atual = acc[item.categoriaDestino] ?? { total: 0, qtd: 0 };
+                atual.total += item.valor;
+                atual.qtd += 1;
+                acc[item.categoriaDestino] = atual;
+                return acc;
+              },
+              {}
+            );
+            const totalGeral = itensTriagem.reduce((a, i) => a + i.valor, 0);
+            return (
+              <div className="mb-5 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                {Object.entries(porCategoria).map(([cat, { total, qtd }]) => (
+                  <div key={cat} className="rounded-xl border border-[var(--color-border)] px-3 py-2.5">
+                    <p className="text-[11px] font-semibold text-[var(--color-muted)] leading-tight">{cat}</p>
+                    <p className="mt-1 font-serif text-base font-bold text-[var(--color-heading)]">
+                      R$ {total.toFixed(2).replace(".", ",")}
+                    </p>
+                    <p className="text-[11px] text-[var(--color-subtle)]">{qtd} item(ns)</p>
+                  </div>
+                ))}
+                <div className="rounded-xl bg-[var(--color-accent)] text-[var(--color-accent-foreground)] px-3 py-2.5">
+                  <p className="text-[11px] font-semibold opacity-80 leading-tight">Total da fatura</p>
+                  <p className="mt-1 font-serif text-base font-bold">
+                    R$ {totalGeral.toFixed(2).replace(".", ",")}
+                  </p>
+                  <p className="text-[11px] opacity-80">{itensTriagem.length} item(ns)</p>
+                </div>
+              </div>
+            );
+          })()}
 
           <div className="space-y-2.5">
             {itensTriagem.map((item) => (

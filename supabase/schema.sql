@@ -124,3 +124,173 @@ begin
       with check (user_id is null or auth.uid() = user_id);
   end if;
 end $$;
+
+-- ===========================================================================
+-- Fase 3 — Contas compartilhadas (workspaces), convites e escopo de privacidade
+-- Idempotente: pode rodar o arquivo inteiro de novo no SQL Editor.
+--
+-- Modelo: cada usuário pertence a um "workspace" (espaço compartilhado da
+-- dupla). Dois usuários no mesmo workspace_id enxergam e editam os mesmos
+-- dados compartilhados. Despesas marcadas como 'pessoal_privado' ficam
+-- visíveis apenas para quem as lançou.
+-- ===========================================================================
+
+-- Espaço compartilhado da dupla.
+create table if not exists public.workspaces (
+  id          uuid primary key default gen_random_uuid(),
+  nome        text not null default 'Nossa Viagem',
+  codigo      text not null unique default encode(gen_random_bytes(6), 'hex'),
+  owner_id    uuid references auth.users (id) on delete set null,
+  created_at  timestamptz not null default now()
+);
+
+-- Vínculo usuário <-> workspace (papel: dono ou parceiro).
+create table if not exists public.workspace_members (
+  id           uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references public.workspaces (id) on delete cascade,
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  papel        text not null default 'parceiro' check (papel in ('dono', 'parceiro')),
+  created_at   timestamptz not null default now(),
+  constraint workspace_members_unique unique (workspace_id, user_id)
+);
+
+create index if not exists workspace_members_user_idx
+  on public.workspace_members (user_id);
+create index if not exists workspace_members_ws_idx
+  on public.workspace_members (workspace_id);
+
+-- Convites por e-mail/código para entrar num workspace.
+create table if not exists public.convites (
+  id            uuid primary key default gen_random_uuid(),
+  workspace_id  uuid not null references public.workspaces (id) on delete cascade,
+  codigo        text not null unique default encode(gen_random_bytes(8), 'hex'),
+  email_convidado text,
+  status        text not null default 'pendente' check (status in ('pendente', 'aceito', 'revogado')),
+  convidado_por uuid references auth.users (id) on delete set null,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists convites_codigo_idx on public.convites (codigo);
+create index if not exists convites_ws_idx on public.convites (workspace_id);
+
+-- Despesas passam a pertencer a um workspace e ter escopo de privacidade.
+alter table public.despesas
+  add column if not exists workspace_id uuid references public.workspaces (id) on delete cascade;
+alter table public.despesas
+  add column if not exists escopo text not null default 'viagem_compartilhado'
+  check (escopo in ('viagem_compartilhado', 'pessoal_privado'));
+alter table public.despesas
+  add column if not exists categoria_destino text;
+
+create index if not exists despesas_workspace_idx
+  on public.despesas (workspace_id);
+
+-- Buscas (viagens) e roteiro também pertencem ao workspace.
+alter table public.viagens
+  add column if not exists workspace_id uuid references public.workspaces (id) on delete cascade;
+create index if not exists viagens_workspace_idx
+  on public.viagens (workspace_id);
+
+-- Itens do roteiro compartilhado.
+create table if not exists public.roteiro_itens (
+  id            uuid primary key default gen_random_uuid(),
+  workspace_id  uuid references public.workspaces (id) on delete cascade,
+  user_id       uuid references auth.users (id) on delete set null,
+  dia           date,
+  titulo        text not null,
+  descricao     text,
+  horario       text,
+  created_at    timestamptz not null default now()
+);
+
+create index if not exists roteiro_itens_ws_idx
+  on public.roteiro_itens (workspace_id, dia);
+
+alter table public.workspaces enable row level security;
+alter table public.workspace_members enable row level security;
+alter table public.convites enable row level security;
+alter table public.roteiro_itens enable row level security;
+
+-- Função auxiliar: retorna os workspace_id a que o usuário atual pertence.
+create or replace function public.meus_workspaces()
+returns setof uuid
+language sql
+security definer
+set search_path = public
+as $$
+  select workspace_id from public.workspace_members where user_id = auth.uid();
+$$;
+
+do $$
+begin
+  -- Workspaces: membros enxergam; registros órfãos liberados em dev.
+  if not exists (select 1 from pg_policies where tablename = 'workspaces' and policyname = 'workspaces_membros') then
+    create policy "workspaces_membros" on public.workspaces
+      for all using (
+        owner_id is null
+        or auth.uid() = owner_id
+        or id in (select public.meus_workspaces())
+      )
+      with check (owner_id is null or auth.uid() = owner_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where tablename = 'workspace_members' and policyname = 'workspace_members_self') then
+    create policy "workspace_members_self" on public.workspace_members
+      for all using (user_id is null or auth.uid() = user_id or workspace_id in (select public.meus_workspaces()))
+      with check (user_id is null or auth.uid() = user_id);
+  end if;
+
+  if not exists (select 1 from pg_policies where tablename = 'convites' and policyname = 'convites_membros') then
+    create policy "convites_membros" on public.convites
+      for all using (true) with check (true);
+  end if;
+
+  if not exists (select 1 from pg_policies where tablename = 'roteiro_itens' and policyname = 'roteiro_itens_ws') then
+    create policy "roteiro_itens_ws" on public.roteiro_itens
+      for all using (workspace_id is null or workspace_id in (select public.meus_workspaces()))
+      with check (workspace_id is null or workspace_id in (select public.meus_workspaces()));
+  end if;
+end $$;
+
+-- Atualiza a política de despesas para respeitar workspace + escopo privado.
+-- Compartilhadas: visíveis a todo o workspace. Privadas: só para o autor.
+do $$
+begin
+  if exists (select 1 from pg_policies where tablename = 'despesas' and policyname = 'despesas_owner') then
+    drop policy "despesas_owner" on public.despesas;
+  end if;
+
+  if not exists (select 1 from pg_policies where tablename = 'despesas' and policyname = 'despesas_escopo') then
+    create policy "despesas_escopo" on public.despesas
+      for all using (
+        user_id is null
+        or auth.uid() = user_id
+        or (
+          escopo = 'viagem_compartilhado'
+          and workspace_id in (select public.meus_workspaces())
+        )
+      )
+      with check (user_id is null or auth.uid() = user_id);
+  end if;
+end $$;
+
+-- Ao criar um workspace, registra o dono como membro automaticamente.
+create or replace function public.registrar_dono_workspace()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if new.owner_id is not null then
+    insert into public.workspace_members (workspace_id, user_id, papel)
+    values (new.id, new.owner_id, 'dono')
+    on conflict (workspace_id, user_id) do nothing;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_registrar_dono on public.workspaces;
+create trigger trg_registrar_dono
+  after insert on public.workspaces
+  for each row execute function public.registrar_dono_workspace();

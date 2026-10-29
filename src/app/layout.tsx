@@ -20,6 +20,25 @@ export const metadata: Metadata = {
     "Planeje passagens aéreas, ônibus, hospedagens, roteiro diário e divida despesas da viagem com privacidade e conformidade LGPD.",
 };
 
+/**
+ * Aplica o tema salvo (ou a preferência do sistema) antes da hidratação,
+ * evitando o flash de tema incorreto (FOUC). Modo Claro é o padrão.
+ */
+const themeInitScript = `
+(function() {
+  try {
+    var t = localStorage.getItem('plannerduo-theme');
+    if (t === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else if (t !== 'light') {
+      if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+        document.documentElement.classList.add('dark');
+      }
+    }
+  } catch (e) {}
+})();
+`;
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,6 +46,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="pt-BR" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+      </head>
       <body className={`${manrope.variable} ${playfair.variable} antialiased`}>
         {children}
       </body>

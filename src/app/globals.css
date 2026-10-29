@@ -26,19 +26,20 @@
 
 .dark {
   --color-background: #0B0F17;
-  --color-foreground: #E4E4E7;
+  --color-foreground: #F4F4F5;
   --color-heading: #FAFAFA;
   --color-muted: #A1A1AA;
   --color-subtle: #71717A;
 
-  --color-card: rgba(24, 24, 27, 0.60);
-  --color-elevated: rgba(39, 39, 42, 0.75);
+  /* Cartões em vidro escuro translúcido (bg-zinc-900/55) */
+  --color-card: rgba(24, 24, 27, 0.55);
+  --color-elevated: rgba(39, 39, 42, 0.70);
   --color-border: rgba(255, 255, 255, 0.10);
   --color-border-strong: rgba(255, 255, 255, 0.22);
 
   --color-accent: #F4F4F5;
   --color-accent-hover: #E4E4E7;
-  --color-accent-foreground: #090D16;
+  --color-accent-foreground: #0B0F17;
 
   --color-danger: #FCA5A5;
 }
@@ -78,19 +79,21 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     min-height: 100vh;
+    /* Modo Claro — degradê suave (#FAF8F5, #F3E9DC, #E4ECE9, #EFE4DF) com esferas de luz difusas */
     background-image:
-      radial-gradient(circle at 12% 18%, rgba(234, 216, 192, 0.45) 0%, transparent 45%),
-      radial-gradient(circle at 88% 22%, rgba(200, 220, 229, 0.40) 0%, transparent 45%),
-      radial-gradient(circle at 50% 85%, rgba(238, 214, 204, 0.35) 0%, transparent 50%);
+      radial-gradient(circle at 12% 18%, rgba(243, 233, 220, 0.70) 0%, transparent 45%),
+      radial-gradient(circle at 88% 22%, rgba(228, 236, 233, 0.65) 0%, transparent 45%),
+      radial-gradient(circle at 50% 85%, rgba(239, 228, 223, 0.60) 0%, transparent 50%);
     background-attachment: fixed;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
+  /* Modo Escuro — degradê noturno (#0B0F17, #131B2E, #1F1924) com esferas difusas sutis */
   .dark body {
     background-image:
-      radial-gradient(circle at 15% 20%, rgba(22, 43, 77, 0.45) 0%, transparent 45%),
-      radial-gradient(circle at 85% 25%, rgba(61, 41, 30, 0.30) 0%, transparent 45%),
-      radial-gradient(circle at 50% 85%, rgba(37, 23, 61, 0.30) 0%, transparent 50%);
+      radial-gradient(circle at 15% 20%, rgba(19, 27, 46, 0.80) 0%, transparent 48%),
+      radial-gradient(circle at 85% 25%, rgba(31, 25, 36, 0.70) 0%, transparent 48%),
+      radial-gradient(circle at 50% 88%, rgba(19, 27, 46, 0.60) 0%, transparent 52%);
   }
 }
 
