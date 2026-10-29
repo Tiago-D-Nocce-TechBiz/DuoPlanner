@@ -1,23 +1,100 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer utilities {
-  .animate-fade-in-up {
-    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  }
-  .animate-spin-slow {
-    animation: spin 3s linear infinite;
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
   }
 }
 
-@keyframes fadeInUp {
-  0% {
-    opacity: 0;
-    transform: translateY(24px);
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+ badges e links
+  vitais. Navegação, ícones decorativos e foco usam a escala zinc.
+*/
+
+@theme {
+  --color-background: #09090b;
+  --color-foreground: #d4d4d8;
+  --color-heading: #f4f4f5;
+  --color-muted: #a1a1aa;
+  --color-subtle: #71717a;
+
+  --color-card: #18181b;
+  --color-elevated: #27272a;
+  --color-border: #27272a;
+  --color-border-strong: #3f3f46;
+
+  --color-accent: #f2eab7;
+  --color-accent-hover: #fceb88;
+  --color-accent-foreground: #000000;
+
+  /* Estado de erro (acessibilidade): vermelho suave legível sobre zinc-900. */
+  --color-danger: #fca5a5;
+}
+
+/* Tipografia híbrida: variáveis criadas pelo next/font no layout raiz. */
+@theme inline {
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+}
+
+@layer base {
+  /* No Tailwind v4 a borda padrão é `currentColor`; fixamos zinc-800 para que
+     qualquer `border` saia sutil por padrão. */
+  *,
+  ::before,
+  ::after {
+    border-color: var(--color-border);
   }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
+
+  html {
+    color-scheme: dark; /* controles nativos (date, select, scrollbar) escuros */
+    background-color: var(--color-background);
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1,
+  h2 {
+    font-family: var(--font-serif);
+    color: var(--color-heading);
+    letter-spacing: -0.01em;
+  }
+
+  ::selection {
+    background-color: var(--color-border-strong);
+    color: var(--color-heading);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-muted);
+    outline-offset: 2px;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-elevated) transparent;
   }
 }
