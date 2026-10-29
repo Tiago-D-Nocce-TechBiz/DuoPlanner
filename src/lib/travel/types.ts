@@ -110,6 +110,8 @@ export interface SearchErrorBody {
     | "BOOKING_NOT_CONFIGURED"
     | "UPSTREAM_ERROR"
     | "RATE_LIMITED"
-    | "NOT_FOUND";
+    | "NOT_FOUND"
+    // Origem/destino sem código IATA resolvido: só deep links ficam disponíveis.
+    | "IATA_NECESSARIO";
   issues?: Record<string, string[] | undefined>;
 }

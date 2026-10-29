@@ -72,7 +72,7 @@ export function StaySearch() {
     rooms: 1,
     budget: "",
     minScore: "",
-    useMemory: true,
+    useMemory: false,
   });
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -169,7 +169,7 @@ export function StaySearch() {
           <details className="mt-6 rounded-xl border border-border bg-background">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm text-muted transition-colors hover:text-heading">
               <SlidersHorizontal className="h-4 w-4" />
-              Orçamento, nota mínima e memória da IA
+              Filtros avançados (opcional)
             </summary>
             <div className="grid gap-5 border-t border-border p-4 sm:grid-cols-2">
               <div>
@@ -188,7 +188,7 @@ export function StaySearch() {
                 <input type="checkbox" checked={form.useMemory}
                   onChange={(e) => update("useMemory", e.target.checked)}
                   className="h-4 w-4 rounded border-border bg-background accent-zinc-300" />
-                Usar as preferências que a IA memorizou para preencher filtros vazios
+                Usar minhas preferências salvas para preencher filtros vazios
               </label>
             </div>
           </details>

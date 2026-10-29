@@ -6,7 +6,7 @@ import {
   sugerirExperienciasLocais,
   type LocalGemsResult,
 } from "@/app/dashboard/actions";
-import type { ConciergeParse } from "@/lib/concierge";
+import { iataDaCidade, type ConciergeParse } from "@/lib/concierge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -43,7 +43,7 @@ const CABINS: { value: CabinClass; label: string }[] = [
 ];
 
 const STOPOVER_OPTIONS = [
-  { value: "", label: "Memória da IA / qualquer" },
+  { value: "", label: "Qualquer" },
   { value: "0", label: "Somente diretos" },
   { value: "1", label: "Até 1 escala por trecho" },
   { value: "2", label: "Até 2 escalas por trecho" },
@@ -89,8 +89,10 @@ async function requestFlights(params: URLSearchParams): Promise<Outcome> {
 export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse | null }) {
   const [form, setForm] = useState({
     tripType: "round" as FlightTripType,
-    from: "",
-    to: "",
+    originCity: "",
+    destinationCity: "",
+    from: "", // IATA de origem (opcional)
+    to: "", // IATA de destino (opcional)
     dateFrom: "",
     dateTo: "",
     nightsFrom: 5,
@@ -100,7 +102,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
     maxStopovers: "",
     maxLayoverHours: "",
     budget: "",
-    useMemory: true,
+    useMemory: false,
   });
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
@@ -116,6 +118,8 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
     setPreenchimentoAnterior(preenchimento);
     setForm((prev) => ({
       ...prev,
+      originCity: preenchimento.originCity ?? prev.originCity,
+      destinationCity: preenchimento.destinationCity ?? prev.destinationCity,
       from: preenchimento.originIata ?? prev.from,
       to: preenchimento.destinationIata ?? prev.to,
       dateFrom: preenchimento.departDate ?? prev.dateFrom,
@@ -130,17 +134,59 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
   }
 
   const isRound = form.tripType === "round";
+
+  // Resolve o IATA: usa o campo IATA se preenchido; senão tenta deduzir da
+  // cidade. Permite buscar informando só a cidade.
+  function resolveIata(iataField: string, cityField: string): string {
+    const direct = iataField.trim().toUpperCase();
+    if (/^[A-Z]{3}$/.test(direct)) return direct;
+    return (iataDaCidade(cityField) ?? "").toUpperCase();
+  }
+
+  // Basta ter origem e destino (cidade OU IATA) e a data de ida.
   const canSubmit =
-    /^[A-Za-z]{3}$/.test(form.from.trim()) &&
-    /^[A-Za-z]{3}$/.test(form.to.trim()) &&
+    (form.originCity.trim().length >= 2 || /^[A-Za-z]{3}$/.test(form.from.trim())) &&
+    (form.destinationCity.trim().length >= 2 || /^[A-Za-z]{3}$/.test(form.to.trim())) &&
     form.dateFrom.length > 0 &&
     !pending;
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const from = form.from.trim().toUpperCase();
-    const to = form.to.trim().toUpperCase();
+    const from = resolveIata(form.from, form.originCity);
+    const to = resolveIata(form.to, form.destinationCity);
+    const originCity = form.originCity.trim() || from;
+    const destinationCity = form.destinationCity.trim() || to;
     const nightsTo = Math.max(form.nightsTo, form.nightsFrom);
+
+    // Deep links funcionam com cidade; a busca via API Kiwi precisa de IATA.
+    const providerLinks = buildFlightLinks({
+      originCity,
+      destinationCity,
+      originIata: from,
+      destinationIata: to,
+      departDate: form.dateFrom,
+      returnDate: isRound ? addDays(form.dateFrom, form.nightsFrom) : undefined,
+      tripType: form.tripType,
+      passengers: form.adults,
+      cabin: form.cabin,
+    });
+
+    // Sem IATA resolvido, não dá para consultar a API de voos reais: mostramos
+    // os links diretos (que aceitam cidade) e orientamos a informar o IATA.
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) {
+      setOutcome({
+        ok: false,
+        error: {
+          error:
+            "Para a busca de preços em tempo real, informe o código do aeroporto (IATA) de origem e destino. Enquanto isso, use os links diretos abaixo com as cidades informadas.",
+          code: "IATA_NECESSARIO",
+        } as SearchErrorBody,
+      });
+      setLinks(providerLinks);
+      setGems(null);
+      void saveSearch("voo", { originCity, destinationCity, departDate: form.dateFrom, tripType: form.tripType, passengers: form.adults });
+      return;
+    }
 
     const params = new URLSearchParams({
       from,
@@ -160,29 +206,17 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
     if (form.maxLayoverHours) params.set("maxLayoverHours", form.maxLayoverHours);
     if (form.budget) params.set("budget", form.budget);
 
-    const providerLinks = buildFlightLinks({
-      originIata: from,
-      destinationIata: to,
-      departDate: form.dateFrom,
-      returnDate: isRound ? addDays(form.dateFrom, form.nightsFrom) : undefined,
-      tripType: form.tripType,
-      passengers: form.adults,
-      cabin: form.cabin,
-    });
-
     startTransition(async () => {
       const result = await requestFlights(params);
       const city = result.ok ? result.data.offers[0]?.outbound.to.city : undefined;
       startTransition(() => {
         setOutcome(result);
         setLinks(providerLinks);
-        // Etapa seguinte do plano: experiências ocultas no destino escolhido.
-        setGems(sugerirExperienciasLocais(city ?? to, form.dateFrom));
+        setGems(sugerirExperienciasLocais(city ?? destinationCity, form.dateFrom));
       });
-      // Histórico de buscas da Fase 1 (tabela `viagens`), sem bloquear a UI.
       void saveSearch("voo", {
-        originCity: from,
-        destinationCity: city ?? to,
+        originCity,
+        destinationCity: city ?? destinationCity,
         originIata: from,
         destinationIata: to,
         departDate: form.dateFrom,
@@ -228,14 +262,26 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
 
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <label className={labelClass} htmlFor="from">Origem (IATA)</label>
-              <input id="from" className={cn(inputClass, "uppercase")} placeholder="GRU"
+              <label className={labelClass} htmlFor="originCity">Origem (cidade)</label>
+              <input id="originCity" className={inputClass} placeholder="Ex.: Belo Horizonte"
+                autoComplete="off" value={form.originCity}
+                onChange={(e) => update("originCity", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="from">Origem — IATA (opcional)</label>
+              <input id="from" className={cn(inputClass, "uppercase")} placeholder="Ex.: CNF"
                 maxLength={3} autoComplete="off" value={form.from}
                 onChange={(e) => update("from", e.target.value)} />
             </div>
             <div>
-              <label className={labelClass} htmlFor="to">Destino (IATA)</label>
-              <input id="to" className={cn(inputClass, "uppercase")} placeholder="LIS"
+              <label className={labelClass} htmlFor="destinationCity">Destino (cidade)</label>
+              <input id="destinationCity" className={inputClass} placeholder="Ex.: Rio de Janeiro"
+                autoComplete="off" value={form.destinationCity}
+                onChange={(e) => update("destinationCity", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="to">Destino — IATA (opcional)</label>
+              <input id="to" className={cn(inputClass, "uppercase")} placeholder="Ex.: GIG"
                 maxLength={3} autoComplete="off" value={form.to}
                 onChange={(e) => update("to", e.target.value)} />
             </div>
@@ -287,7 +333,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
           <details className="group mt-6 rounded-xl border border-border bg-background">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm text-muted transition-colors hover:text-heading">
               <SlidersHorizontal className="h-4 w-4" />
-              Filtros e memória da IA
+              Filtros avançados (opcional)
             </summary>
             <div className="grid gap-5 border-t border-border p-4 sm:grid-cols-3">
               <div>
@@ -315,14 +361,14 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
                 <input type="checkbox" checked={form.useMemory}
                   onChange={(e) => update("useMemory", e.target.checked)}
                   className="h-4 w-4 rounded border-border bg-background accent-zinc-300" />
-                Usar as preferências que a IA memorizou para preencher filtros vazios
+                Usar minhas preferências salvas para preencher filtros vazios
               </label>
             </div>
           </details>
 
           <div className="mt-6 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-xs text-subtle">
-              Datas flexíveis: a Kiwi.com cruza a janela de ida com as noites no destino.
+              Informe a cidade (deduzimos o aeroporto) ou o código IATA. As datas são flexíveis.
             </p>
             <Button type="submit" variant="primary" size="lg" disabled={!canSubmit}>
               {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
@@ -390,12 +436,16 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
               <div>
                 <h2 className="font-serif text-xl font-semibold">
                   {outcome.error.code === "KIWI_NOT_CONFIGURED"
-                    ? "Motor da Kiwi.com ainda não está ativo"
-                    : "Não foi possível buscar os voos"}
+                    ? "Busca de preços em tempo real indisponível"
+                    : outcome.error.code === "IATA_NECESSARIO"
+                      ? "Abra a busca nos parceiros"
+                      : "Não foi possível buscar os voos"}
                 </h2>
                 <p className={cn(
                   "mt-1.5 text-sm",
-                  outcome.error.code === "KIWI_NOT_CONFIGURED" ? "text-muted" : "text-danger"
+                  outcome.error.code === "KIWI_NOT_CONFIGURED" || outcome.error.code === "IATA_NECESSARIO"
+                    ? "text-muted"
+                    : "text-danger"
                 )}>
                   {outcome.error.error}
                 </p>
