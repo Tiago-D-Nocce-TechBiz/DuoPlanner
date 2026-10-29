@@ -1,62 +1,68 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-}
- badges e links
-  vitais. Navegação, ícones decorativos e foco usam a escala zinc.
+/* 
+  PlannerDuo — Sistema de Design Unificado (Tailwind v4)
+  Suporte nativo a Modo Claro (Alabaster & Areia) e Modo Escuro (Safira Noturno & Grafite)
 */
 
-@theme {
-  --color-background: #09090b;
-  --color-foreground: #d4d4d8;
-  --color-heading: #f4f4f5;
-  --color-muted: #a1a1aa;
-  --color-subtle: #71717a;
+:root {
+  --color-background: #FAF8F5;
+  --color-foreground: #1C1917;
+  --color-heading: #141210;
+  --color-muted: #57534E;
+  --color-subtle: #78716C;
 
-  --color-card: #18181b;
-  --color-elevated: #27272a;
-  --color-border: #27272a;
-  --color-border-strong: #3f3f46;
+  --color-card: rgba(255, 255, 255, 0.68);
+  --color-elevated: rgba(255, 255, 255, 0.85);
+  --color-border: rgba(220, 213, 199, 0.85);
+  --color-border-strong: #C7B9A5;
 
-  --color-accent: #f2eab7;
-  --color-accent-hover: #fceb88;
-  --color-accent-foreground: #000000;
+  --color-accent: #1C1917;
+  --color-accent-hover: #292524;
+  --color-accent-foreground: #FAF8F5;
 
-  /* Estado de erro (acessibilidade): vermelho suave legível sobre zinc-900. */
-  --color-danger: #fca5a5;
+  --color-danger: #DC2626;
 }
 
-/* Tipografia híbrida: variáveis criadas pelo next/font no layout raiz. */
+.dark {
+  --color-background: #0B0F17;
+  --color-foreground: #E4E4E7;
+  --color-heading: #FAFAFA;
+  --color-muted: #A1A1AA;
+  --color-subtle: #71717A;
+
+  --color-card: rgba(24, 24, 27, 0.60);
+  --color-elevated: rgba(39, 39, 42, 0.75);
+  --color-border: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.22);
+
+  --color-accent: #F4F4F5;
+  --color-accent-hover: #E4E4E7;
+  --color-accent-foreground: #090D16;
+
+  --color-danger: #FCA5A5;
+}
+
 @theme inline {
+  --color-background: var(--color-background);
+  --color-foreground: var(--color-foreground);
+  --color-heading: var(--color-heading);
+  --color-muted: var(--color-muted);
+  --color-subtle: var(--color-subtle);
+  --color-card: var(--color-card);
+  --color-elevated: var(--color-elevated);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-accent: var(--color-accent);
+  --color-accent-hover: var(--color-accent-hover);
+  --color-accent-foreground: var(--color-accent-foreground);
+  --color-danger: var(--color-danger);
+
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
 }
 
 @layer base {
-  /* No Tailwind v4 a borda padrão é `currentColor`; fixamos zinc-800 para que
-     qualquer `border` saia sutil por padrão. */
   *,
   ::before,
   ::after {
@@ -64,37 +70,56 @@ body {
   }
 
   html {
-    color-scheme: dark; /* controles nativos (date, select, scrollbar) escuros */
-    background-color: var(--color-background);
+    scroll-behavior: smooth;
   }
 
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+    background-image:
+      radial-gradient(circle at 12% 18%, rgba(234, 216, 192, 0.45) 0%, transparent 45%),
+      radial-gradient(circle at 88% 22%, rgba(200, 220, 229, 0.40) 0%, transparent 45%),
+      radial-gradient(circle at 50% 85%, rgba(238, 214, 204, 0.35) 0%, transparent 50%);
+    background-attachment: fixed;
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
-  h1,
-  h2 {
-    font-family: var(--font-serif);
-    color: var(--color-heading);
-    letter-spacing: -0.01em;
+  .dark body {
+    background-image:
+      radial-gradient(circle at 15% 20%, rgba(22, 43, 77, 0.45) 0%, transparent 45%),
+      radial-gradient(circle at 85% 25%, rgba(61, 41, 30, 0.30) 0%, transparent 45%),
+      radial-gradient(circle at 50% 85%, rgba(37, 23, 61, 0.30) 0%, transparent 50%);
   }
+}
 
-  ::selection {
-    background-color: var(--color-border-strong);
-    color: var(--color-heading);
-  }
+/* Utilitários de Glassmorphism compatíveis com Tailwind v4 */
+.glass-panel {
+  background-color: var(--color-card);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 12px 36px -8px rgba(28, 25, 23, 0.07);
+}
 
-  :focus-visible {
-    outline: 2px solid var(--color-muted);
-    outline-offset: 2px;
-  }
+.dark .glass-panel {
+  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
+}
 
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-elevated) transparent;
-  }
+.glass-input {
+  background-color: var(--color-elevated);
+  border: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  border-radius: 0.75rem;
+  padding: 0.65rem 0.9rem;
+  width: 100%;
+  font-size: 0.875rem;
+  transition: all 0.2s ease;
+}
+
+.glass-input:focus {
+  outline: none;
+  border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 3px rgba(140, 122, 107, 0.15);
 }
