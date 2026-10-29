@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
-import { PlaneEmblem } from "@/components/marketing/plane-emblem";
+import { FlightRoute3D } from "@/components/marketing/flight-route-3d";
 
 // Ano de copyright como constante: evita `new Date()` no prerender
 // (Cache Components) e mantém o rodapé totalmente estático.
@@ -52,7 +52,8 @@ export default function LandingPage() {
 
       {/* Hero focado */}
       <main className="mx-auto w-full max-w-3xl flex-1 flex flex-col items-center justify-center text-center py-16 sm:py-20">
-        <PlaneEmblem className="h-28 w-28 sm:h-32 sm:w-32 mb-8" />
+        {/* Rota aérea animada com avião em 3D (decorativa) */}
+        <FlightRoute3D className="w-full max-w-xl h-40 sm:h-48 mb-6" />
 
         <div className="inline-flex items-center gap-2 rounded-full glass-panel px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-6">
           <span>🧭</span>
@@ -99,14 +100,9 @@ export default function LandingPage() {
       {/* Rodapé */}
       <footer className="mx-auto w-full max-w-5xl pt-8 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-muted)]">
         <span>© {COPYRIGHT_YEAR} PlannerDuo. Todos os direitos reservados.</span>
-        <div className="flex items-center gap-6">
-          <Link className="hover:underline" href="/termos">
-            Termos de Uso & LGPD
-          </Link>
-          <Link className="hover:underline" href="/login">
-            Entrar
-          </Link>
-        </div>
+        <Link className="hover:underline" href="/termos">
+          Termos de Uso & LGPD
+        </Link>
       </footer>
     </div>
   );
