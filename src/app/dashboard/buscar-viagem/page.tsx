@@ -5,7 +5,6 @@ import { Plane, Bus, LayoutGrid } from "lucide-react";
 import { PageHeading } from "@/components/dashboard/page-heading";
 import { FlightSearch } from "@/components/search/flight-search";
 import { BusSearch } from "@/components/search/bus-search";
-import { ConciergeBox } from "@/components/search/concierge-box";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { ConciergeParse } from "@/lib/concierge";
 import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
@@ -40,15 +39,7 @@ export default function BuscarPassagensPage() {
   // Inicializa com o handoff do Concierge da página principal, se houver.
   const [handoff] = useState(() => lerHandoffInicial());
   const [aba, setAba] = useState<Aba>(handoff?.aba ?? "todos");
-  const [preenchimento, setPreenchimento] = useState<ConciergeParse | null>(
-    handoff?.dados ?? null
-  );
-
-  function aoInterpretar(dados: ConciergeParse) {
-    setPreenchimento({ ...dados });
-    // Se o concierge não achou IATAs (só ônibus por cidade), vai para "todos".
-    if (dados.originIata && dados.destinationIata) setAba("voos");
-  }
+  const [preenchimento] = useState<ConciergeParse | null>(handoff?.dados ?? null);
 
   return (
     <div className="space-y-8">
@@ -56,8 +47,6 @@ export default function BuscarPassagensPage() {
         title="Buscar Passagens"
         description="Voos (LATAM, Azul, GOL, Google Flights, Skyscanner, Decolar) e ônibus (Guanabara, Buser, UTIL, ClickBus, DeÔnibus, FlixBus, Gontijo, Cometa) em um só lugar."
       />
-
-      <ConciergeBox onInterpretar={aoInterpretar} />
 
       {/* Abas */}
       <div

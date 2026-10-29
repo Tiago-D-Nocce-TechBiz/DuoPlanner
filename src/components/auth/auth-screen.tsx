@@ -4,6 +4,7 @@ import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { BrandLogo } from "@/components/brand/logo";
 import { loginAction, cadastroAction, type AuthState } from "@/app/(auth)/actions";
 
 /**
@@ -41,12 +42,7 @@ export function AuthScreen({
   return (
     <div className="min-h-screen flex flex-col justify-between p-4 sm:p-6">
       <header className="mx-auto w-full max-w-5xl flex items-center justify-between py-2">
-        <Link
-          href="/"
-          className="font-serif text-2xl font-bold text-[var(--color-heading)] hover:opacity-80 transition-opacity"
-        >
-          PlannerDuo
-        </Link>
+        <BrandLogo href="/" />
         <div className="flex items-center gap-3">
           <ThemeToggle />
           <Link

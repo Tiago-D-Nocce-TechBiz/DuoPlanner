@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
+import { BrandLogo } from "@/components/brand/logo";
 import { FlightRoute3D } from "@/components/marketing/flight-route-3d";
 
 // Ano de copyright como constante: evita `new Date()` no prerender
@@ -22,15 +23,7 @@ export default function LandingPage() {
       {/* Navbar flutuante */}
       <header className="sticky top-4 z-50 mx-auto w-full max-w-5xl">
         <nav className="glass-panel rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 bg-[var(--color-elevated)] shadow-lg">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 font-serif text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-heading)]"
-          >
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)] text-[var(--color-accent-foreground)] text-sm font-sans">
-              ✦
-            </span>
-            <span>PlannerDuo</span>
-          </Link>
+          <BrandLogo href="/" />
 
           <div className="flex items-center gap-3">
             <ThemeToggle />

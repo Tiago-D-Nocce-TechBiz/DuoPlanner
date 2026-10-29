@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { InviteButton } from "@/components/dashboard/invite-button";
+import { BrandLogo } from "@/components/brand/logo";
 import { logoutAction } from "@/app/(auth)/actions";
 
 const MENU_ITENS = [
@@ -42,10 +43,10 @@ export default function DashboardLayout({
             <button
               type="button"
               onClick={() => setModalSairAberto(true)}
-              className="font-serif text-2xl font-bold tracking-tight text-[var(--color-heading)] hover:opacity-75 transition-opacity text-left cursor-pointer"
-              title="Voltar para a página inicial"
+              className="hover:opacity-75 transition-opacity text-left cursor-pointer"
+              title="Encerrar sessão e voltar ao início"
             >
-              PlannerDuo
+              <BrandLogo href={null} />
             </button>
             <div className="md:hidden flex items-center gap-2">
               <ThemeToggle />
