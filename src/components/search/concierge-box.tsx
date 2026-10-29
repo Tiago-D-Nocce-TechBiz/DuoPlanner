@@ -1,29 +1,35 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
+import { Sparkles, Plane, Hotel } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { interpretarBusca, type ConciergeParse } from "@/lib/concierge";
+import { cn } from "@/lib/utils";
+
+export type ConciergeModo = "passagens" | "hospedagem";
 
 /**
- * Agente Concierge de IA (linguagem natural).
+ * Agente Concierge de linguagem natural.
  *
- * O usuário descreve a viagem em uma frase e o concierge extrai origem,
- * destino, datas e passageiros, entregando o resultado via `onInterpretar`
- * para a tela de busca preencher os campos automaticamente.
+ * O usuário descreve a viagem em uma frase; o concierge extrai origem, destino,
+ * datas e passageiros e entrega via `onInterpretar`. Quando `comModos` é true,
+ * mostra a escolha Passagens/Hospedagem e informa o modo escolhido — útil na
+ * página principal para decidir para onde levar o usuário.
  *
- * A interpretação é determinística (src/lib/concierge.ts), então funciona sem
- * depender de chave de IA. Um LLM pode ser plugado depois para frases livres.
+ * Interpretação determinística (src/lib/concierge.ts): funciona sem chave de IA.
  */
 export function ConciergeBox({
   onInterpretar,
+  comModos = false,
   exemplo = "Ex.: quero ir de Belo Horizonte para o Rio de Janeiro de 10/07 a 15/07, 2 pessoas",
 }: {
-  onInterpretar: (dados: ConciergeParse) => void;
+  onInterpretar: (dados: ConciergeParse, modo: ConciergeModo) => void;
+  comModos?: boolean;
   exemplo?: string;
 }) {
   const [frase, setFrase] = useState("");
+  const [modo, setModo] = useState<ConciergeModo>("passagens");
   const [aviso, setAviso] = useState<string | null>(null);
 
   function interpretar() {
@@ -35,24 +41,54 @@ export function ConciergeBox({
       dados.destinationIata ||
       dados.departDate;
     if (!achouAlgo) {
-      setAviso("Não consegui entender. Tente algo como: “de São Paulo para Recife dia 12/08”.");
+      setAviso('Não consegui entender. Tente algo como: "de São Paulo para Recife dia 12/08".');
       return;
     }
-    setAviso("Preenchi o formulário com o que entendi. Confira e ajuste se precisar.");
-    onInterpretar(dados);
+    setAviso(null);
+    onInterpretar(dados, modo);
   }
 
   return (
     <Card className="p-5">
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-4 flex items-center gap-2">
         <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-accent text-accent-foreground">
           <Sparkles className="h-4 w-4" />
         </span>
         <div>
           <h2 className="font-serif text-lg font-semibold text-heading">Concierge de IA</h2>
-          <p className="text-xs text-muted">Descreva a viagem em uma frase e eu preencho a busca.</p>
+          <p className="text-xs text-muted">
+            Descreva a viagem em uma frase e eu monto a busca para você.
+          </p>
         </div>
       </div>
+
+      {comModos && (
+        <div
+          role="radiogroup"
+          aria-label="Buscar o quê"
+          className="mb-3 inline-flex rounded-xl border border-border bg-background p-1"
+        >
+          {([
+            { key: "passagens", label: "Passagens", icon: Plane },
+            { key: "hospedagem", label: "Hospedagem", icon: Hotel },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="radio"
+              aria-checked={modo === t.key}
+              onClick={() => setModo(t.key)}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm transition-colors",
+                modo === t.key ? "bg-elevated font-medium text-heading" : "text-muted hover:text-heading"
+              )}
+            >
+              <t.icon className="h-4 w-4" />
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <input
@@ -66,11 +102,11 @@ export function ConciergeBox({
         />
         <Button type="button" variant="primary" onClick={interpretar} disabled={!frase.trim()}>
           <Sparkles className="h-4 w-4" />
-          Interpretar
+          {comModos ? "Buscar" : "Interpretar"}
         </Button>
       </div>
 
-      {aviso && <p className="mt-3 text-xs text-muted">{aviso}</p>}
+      {aviso && <p className="mt-3 text-xs text-danger">{aviso}</p>}
     </Card>
   );
 }

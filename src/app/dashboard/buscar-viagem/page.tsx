@@ -8,7 +8,21 @@ import { BusSearch } from "@/components/search/bus-search";
 import { ConciergeBox } from "@/components/search/concierge-box";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { ConciergeParse } from "@/lib/concierge";
+import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 import { cn } from "@/lib/utils";
+
+/** Lê (uma vez) o pré-preenchimento vindo do Concierge da página principal. */
+function lerHandoffInicial(): { dados: ConciergeParse; aba: Aba } | null {
+  const h = readLocal<{ dados: ConciergeParse; modo: string } | null>(
+    STORAGE_KEYS.concierge,
+    null
+  );
+  if (!h || h.modo !== "passagens") return null;
+  // Consome o handoff para não reaplicar em recarregamentos futuros.
+  writeLocal(STORAGE_KEYS.concierge, null);
+  const temIata = Boolean(h.dados.originIata && h.dados.destinationIata);
+  return { dados: h.dados, aba: temIata ? "voos" : "todos" };
+}
 
 type Aba = "todos" | "voos" | "onibus";
 
@@ -23,8 +37,12 @@ const ABAS: { chave: Aba; rotulo: string; icone: typeof Plane }[] = [
  * topo para preencher a busca a partir de linguagem natural.
  */
 export default function BuscarPassagensPage() {
-  const [aba, setAba] = useState<Aba>("todos");
-  const [preenchimento, setPreenchimento] = useState<ConciergeParse | null>(null);
+  // Inicializa com o handoff do Concierge da página principal, se houver.
+  const [handoff] = useState(() => lerHandoffInicial());
+  const [aba, setAba] = useState<Aba>(handoff?.aba ?? "todos");
+  const [preenchimento, setPreenchimento] = useState<ConciergeParse | null>(
+    handoff?.dados ?? null
+  );
 
   function aoInterpretar(dados: ConciergeParse) {
     setPreenchimento({ ...dados });

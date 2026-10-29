@@ -11,7 +11,9 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { buildStayLinks, type ProviderLink } from "@/lib/deep-links";
+import type { ConciergeParse } from "@/lib/concierge";
 import { saveSearch } from "@/lib/supabase/searches";
+import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 import type { HotelSearchResponse, SearchErrorBody } from "@/lib/travel/types";
 import { cn } from "@/lib/utils";
 import { HotelCard } from "./hotel-card";
@@ -64,15 +66,24 @@ async function requestHotels(params: URLSearchParams): Promise<Outcome> {
 }
 
 export function StaySearch() {
-  const [form, setForm] = useState({
-    city: "",
-    checkin: "",
-    checkout: "",
-    adults: 2,
-    rooms: 1,
-    budget: "",
-    minScore: "",
-    useMemory: false,
+  const [form, setForm] = useState(() => {
+    // Pré-preenchimento vindo do Concierge da página principal (modo hospedagem).
+    const h = readLocal<{ dados: ConciergeParse; modo: string } | null>(
+      STORAGE_KEYS.concierge,
+      null
+    );
+    const dados = h && h.modo === "hospedagem" ? h.dados : null;
+    if (h && h.modo === "hospedagem") writeLocal(STORAGE_KEYS.concierge, null);
+    return {
+      city: dados?.destinationCity ?? "",
+      checkin: dados?.departDate ?? "",
+      checkout: dados?.returnDate ?? "",
+      adults: dados?.passengers ?? 2,
+      rooms: 1,
+      budget: "",
+      minScore: "",
+      useMemory: false,
+    };
   });
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);

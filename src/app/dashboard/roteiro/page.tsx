@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 
 /**
  * Roteiro funcional — organiza a viagem em dias, cada um com itens
- * (horário + atividade + nota). Estado local no cliente (pronto para, depois,
- * persistir no Supabase via a tabela `roteiro_itens`). 100% em PT-BR.
+ * (horário + atividade + nota). Os dados persistem no navegador (localStorage),
+ * então não se perdem ao recarregar. Pronto para, depois, sincronizar no
+ * Supabase via a tabela `roteiro_itens`. 100% em PT-BR.
  */
 
 interface ItemRoteiro {
@@ -30,7 +32,18 @@ function formatarData(iso: string): string {
 }
 
 export default function RoteiroPage() {
-  const [dias, setDias] = useState<DiaRoteiro[]>([]);
+  const [dias, setDiasState] = useState<DiaRoteiro[]>(() =>
+    readLocal<DiaRoteiro[]>(STORAGE_KEYS.roteiro, [])
+  );
+
+  // Toda alteração persiste no navegador para o roteiro não se perder.
+  function setDias(updater: (prev: DiaRoteiro[]) => DiaRoteiro[]) {
+    setDiasState((prev) => {
+      const next = updater(prev);
+      writeLocal(STORAGE_KEYS.roteiro, next);
+      return next;
+    });
+  }
 
   const adicionarDia = () =>
     setDias((prev) => [...prev, { id: novoId(), data: "", itens: [] }]);
