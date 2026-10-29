@@ -2,9 +2,11 @@
 
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { cardClass } from "./card";
+import { cn } from "@/lib/utils";
 
 /**
- * Modal genérico em glassmorphism, centrado sobre um backdrop desfocado.
+ * Modal genérico: card zinc-900 sobre backdrop escuro desfocado.
  * Fecha com ESC, clique no backdrop ou no botão de fechar.
  */
 export function Modal({
@@ -37,11 +39,16 @@ export function Modal({
       aria-label={title}
     >
       <div
-        className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
         onClick={onClose}
         aria-hidden
       />
-      <div className="glass-surface relative w-full max-w-md rounded-2xl p-6">
+      <div
+        className={cn(
+          cardClass,
+          "relative w-full max-w-md p-6 shadow-2xl shadow-black/60"
+        )}
+      >
         <div className="mb-3 flex items-start justify-between gap-4">
           <h2 className="font-serif text-xl font-semibold text-heading">
             {title}
@@ -49,7 +56,7 @@ export function Modal({
           <button
             onClick={onClose}
             aria-label="Fechar"
-            className="rounded-md p-1 text-foreground/70 hover:bg-sand-surface hover:text-heading"
+            className="rounded-md p-1 text-muted hover:bg-elevated hover:text-heading"
           >
             <X className="h-5 w-5" />
           </button>

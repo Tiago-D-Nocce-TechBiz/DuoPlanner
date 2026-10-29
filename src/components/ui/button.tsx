@@ -2,35 +2,34 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Botão do sistema de design PlannerDuo (adaptativo Claro/Escuro).
+ * Botão do sistema de design PlannerDuo (Premium Dark).
  *
  * Variantes:
- * - "primary": cor de ação primária (tinta espresso no claro; branco sobre
- *   escuro no dark). Usa tokens --accent-ink / --accent-on.
- * - "secondary": superfície sand/grafite com borda.
+ * - "primary": amarelo pastel (#F2EAB7) com texto preto. Use só na ação
+ *   principal de cada contexto.
+ * - "secondary": superfície zinc-900 com borda zinc-800.
  * - "ghost": transparente, apenas texto.
  *
- * Pode renderizar-se como <button> ou, quando `href` é fornecido, como <Link>.
+ * Renderiza <button> ou, quando `href` é fornecido, <Link>.
  */
 
 type Variant = "primary" | "secondary" | "ghost";
 type Size = "sm" | "md" | "lg";
 
 const base =
-  "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors focus-visible:outline-none disabled:opacity-60 disabled:pointer-events-none whitespace-nowrap";
+  "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors disabled:opacity-50 disabled:pointer-events-none whitespace-nowrap";
 
 const variants: Record<Variant, string> = {
-  primary:
-    "bg-accent-ink text-accent-on hover:bg-accent-ink-hover shadow-[0_6px_20px_-6px_rgba(28,25,23,0.35)]",
+  primary: "bg-accent text-accent-foreground hover:bg-accent-hover",
   secondary:
-    "bg-sand-surface text-heading border border-sand-border hover:bg-sand-surface-hover",
-  ghost: "bg-transparent text-foreground hover:bg-sand-surface hover:text-heading",
+    "border border-border bg-card text-heading hover:border-border-strong hover:bg-elevated",
+  ghost: "bg-transparent text-muted hover:bg-card hover:text-heading",
 };
 
 const sizes: Record<Size, string> = {
   sm: "h-9 px-3 text-sm",
   md: "h-11 px-5 text-sm",
-  lg: "h-13 px-7 text-base",
+  lg: "h-12 px-6 text-base",
 };
 
 interface CommonProps {

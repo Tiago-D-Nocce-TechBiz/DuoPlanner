@@ -10,7 +10,7 @@ export default function LoginPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1 text-center">
-        <h1 className="font-serif text-3xl font-bold text-heading">
+        <h1 className="font-serif text-3xl font-semibold text-heading">
           Bem-vindo de volta
         </h1>
         <p className="text-sm text-foreground">
@@ -40,9 +40,9 @@ export default function LoginPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-foreground">
+      <p className="text-center text-sm text-muted">
         Ainda não tem conta?{" "}
-        <Link href="/registo" className="font-medium text-leather hover:underline">
+        <Link href="/registo" className="font-medium text-accent hover:text-accent-hover">
           Criar conta
         </Link>
       </p>

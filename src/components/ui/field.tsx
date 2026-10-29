@@ -1,9 +1,15 @@
 import { cn } from "@/lib/utils";
 
 /**
- * Rótulo + input de texto no estilo editorial, adaptativo ao tema.
- * Claro: vidro branco translúcido. Escuro: superfície de vidro escura.
+ * Classes partilhadas dos campos de formulário (Premium Dark): campo afundado
+ * em zinc-950 dentro dos cards zinc-900, borda zinc-800 e foco em zinc-700.
  */
+export const inputClass =
+  "h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-heading placeholder:text-subtle transition-colors focus:border-border-strong focus:outline-none focus:ring-2 focus:ring-border-strong/40 disabled:opacity-50";
+
+export const labelClass = "mb-1.5 block text-sm font-medium text-muted";
+
+/** Rótulo + input de texto. */
 export function Field({
   label,
   id,
@@ -24,8 +30,8 @@ export function Field({
   className?: string;
 }) {
   return (
-    <div className={cn("space-y-1.5", className)}>
-      <label htmlFor={id} className="block text-sm font-medium text-heading/80">
+    <div className={className}>
+      <label htmlFor={id} className={labelClass}>
         {label}
       </label>
       <input
@@ -36,7 +42,7 @@ export function Field({
         required={required}
         autoComplete={autoComplete}
         defaultValue={defaultValue}
-        className="h-11 w-full rounded-xl border border-field-border bg-white/85 px-3.5 text-sm text-heading placeholder:text-[color:var(--placeholder)] transition-colors focus:border-field-focus focus:outline-none focus:ring-4 focus:ring-field-focus/10 dark:bg-white/[0.04]"
+        className={cn(inputClass)}
       />
     </div>
   );

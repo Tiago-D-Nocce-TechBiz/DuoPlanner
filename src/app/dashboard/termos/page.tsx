@@ -1,4 +1,5 @@
 import { TermsContent } from "@/components/legal/terms-content";
+import { Card } from "@/components/ui/card";
 
 export const metadata = { title: "Termos de uso & LGPD — PlannerDuo" };
 
@@ -6,9 +7,9 @@ export const metadata = { title: "Termos de uso & LGPD — PlannerDuo" };
 export default function TermosDashboardPage() {
   return (
     <div className="max-w-3xl">
-      <div className="glass-surface rounded-2xl p-6 md:p-8">
+      <Card className="p-6 md:p-8">
         <TermsContent />
-      </div>
+      </Card>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
+import { LogoMark } from "@/components/ui/logo";
 import { getSupabase } from "@/lib/supabase/client";
 
 /**
@@ -30,10 +31,9 @@ export function LogoutLogo() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="font-serif text-2xl font-bold tracking-tight text-heading"
         aria-label="Sair da sessão"
       >
-        Planner<span className="text-leather">Duo</span>
+        <LogoMark />
       </button>
 
       <Modal

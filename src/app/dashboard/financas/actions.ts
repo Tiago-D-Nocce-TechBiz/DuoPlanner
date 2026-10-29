@@ -1,54 +1,75 @@
 "use server";
 
+import { refresh } from "next/cache";
+import { AiNotConfiguredError, isGeminiConfigured } from "@/lib/ai/model";
+import { runReceiptAgent, type ExtractedExpense } from "@/lib/ai/receipt-agent";
+import { parseBase64Upload } from "@/lib/ai/upload";
+import { todayInSaoPaulo } from "@/lib/dates";
+import {
+  createSupabaseServerClient,
+  getCurrentUserId,
+} from "@/lib/supabase/server";
+
 /**
- * Finanças Duo — Server Action BASE para digitalização de recibos com IA.
+ * Finanças Duo — OCR de notas fiscais e recibos com IA.
  *
- * ESTADO: placeholder/estrutura. A ligação ao LLM de visão (OCR de
- * faturas/recibos) e a persistência em base de dados serão adicionadas aqui.
+ * Fluxo: valida o arquivo → Agente de Leitura de Recibos (LangGraph + Gemini
+ * Vision) extrai { titulo, valor, data } → a despesa é inserida em
+ * `despesas` no Supabase → a página é atualizada com refresh().
  *
- * Contrato pretendido (para evolução futura):
- *  1. Receber o ficheiro do recibo (imagem/PDF) via FormData.
- *  2. Enviar para um LLM de visão e extrair: estabelecimento, data, total,
- *     moeda, categoria e itens.
- *  3. Persistir a despesa associada à dupla/viagem na base de dados.
- *  4. Revalidar a página de finanças para refletir a nova despesa.
+ * Nunca lança para o cliente: devolve sempre um resultado com mensagem em PT-BR.
  */
 
-export interface ScannedReceipt {
-  establishment: string; // estabelecimento
-  date: string; // ISO yyyy-mm-dd
-  total: number;
-  currency: string;
-  category: string;
-}
+export type ReceiptScanResult =
+  | {
+      ok: true;
+      despesa: ExtractedExpense;
+      salvo: boolean;
+      avisos: string[];
+      message: string;
+    }
+  | { ok: false; message: string };
 
-export interface ScanResult {
-  ok: boolean;
-  message: string;
-  receipt?: ScannedReceipt;
-}
+export async function processReceiptImage(
+  base64Image: string
+): Promise<ReceiptScanResult> {
+  const upload = parseBase64Upload(base64Image);
+  if (!upload.ok) return upload;
 
-export async function scanReceiptAction(
-  formData: FormData
-): Promise<ScanResult> {
-  const file = formData.get("receipt");
-
-  if (!(file instanceof File) || file.size === 0) {
-    return {
-      ok: false,
-      message: "Selecione uma imagem ou PDF da nota/recibo para escanear.",
-    };
+  if (!isGeminiConfigured()) {
+    return { ok: false, message: new AiNotConfiguredError().message };
   }
 
-  // TODO (integração futura):
-  // 1. const bytes = await file.arrayBuffer();
-  // 2. const extracted = await visionLLM.extractReceipt(bytes);
-  // 3. await db.expenses.insert({ ...extracted, duoId, tripId });
-  // 4. revalidatePath("/dashboard/financas");
+  try {
+    const supabase = await createSupabaseServerClient();
+    const userId = supabase ? await getCurrentUserId(supabase) : null;
 
-  // Placeholder: confirma o recebimento do arquivo sem persistir.
-  return {
-    ok: true,
-    message: `Nota/recibo "${file.name}" recebido. A extração por IA será ativada em breve.`,
-  };
+    const state = await runReceiptAgent(
+      { mimeType: upload.mimeType, base64: upload.base64, hoje: todayInSaoPaulo() },
+      { supabase, userId }
+    );
+
+    if (state.erro || !state.despesa) {
+      return { ok: false, message: state.erro ?? "Não foi possível ler o recibo." };
+    }
+
+    const salvo = Boolean(state.despesaId);
+    if (salvo) refresh();
+
+    return {
+      ok: true,
+      despesa: state.despesa,
+      salvo,
+      avisos: state.avisos,
+      message: salvo
+        ? "Despesa registrada nas Finanças Duo."
+        : "Recibo lido, mas a despesa não foi salva.",
+    };
+  } catch (error) {
+    console.error("[processReceiptImage]", error);
+    return {
+      ok: false,
+      message: "A IA não conseguiu processar o recibo agora. Tente novamente em instantes.",
+    };
+  }
 }

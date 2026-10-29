@@ -2,9 +2,23 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Marca do PlannerDuo (editorial, adaptativa ao tema).
- * "Planner" em serif (heading) + "Duo" em tom couro/sand (leather).
+ * Marca do PlannerDuo: "Planner" em Playfair (zinc-100) + "Duo" em itálico
+ * zinc-400. O acento amarelo fica reservado para ações, então a marca é
+ * monocromática.
  */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "font-serif text-2xl font-semibold tracking-tight text-heading",
+        className
+      )}
+    >
+      Planner<span className="font-normal italic text-muted">Duo</span>
+    </span>
+  );
+}
+
 export function Logo({
   href = "/",
   className,
@@ -13,14 +27,8 @@ export function Logo({
   className?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className={cn(
-        "font-serif text-2xl font-bold tracking-tight text-heading",
-        className
-      )}
-    >
-      Planner<span className="text-leather">Duo</span>
+    <Link href={href} aria-label="PlannerDuo — início">
+      <LogoMark className={className} />
     </Link>
   );
 }

@@ -3,13 +3,13 @@ import { FlightSearch } from "@/components/search/flight-search";
 
 export const metadata = { title: "Buscar Viagem — PlannerDuo" };
 
-/** Motor de busca de voos (Deep Linking Outbound + Supabase). */
+/** Motor de busca de passagens (Kiwi.com Tequila + memória da IA). */
 export default function BuscarViagemPage() {
   return (
     <div>
       <PageHeading
         title="Buscar Viagem"
-        description="Informe origem, destino e datas. Geramos links prontos para LATAM, Azul, GOL, Google Flights e Skyscanner — abrem direto na página de resultados."
+        description="Passagens reais da Kiwi.com com datas flexíveis e combinações de companhias low-cost. A memória da dupla preenche limites de escala e orçamento."
       />
       <FlightSearch />
     </div>

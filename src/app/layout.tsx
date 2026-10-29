@@ -1,29 +1,18 @@
-import type { Metadata } from "next";
-// Tipografia editorial: Cormorant Garamond (serif) nos títulos,
-// Plus Jakarta Sans (sans) na UI/corpo, JetBrains Mono em dados numéricos.
-import {
-  Plus_Jakarta_Sans,
-  Cormorant_Garamond,
-  JetBrains_Mono,
-} from "next/font/google";
+import type { Metadata, Viewport } from "next";
+// Tipografia híbrida (Fase 2): Playfair Display (serif) nos títulos e Manrope
+// (sans geométrica) no corpo e na interface. Ambas são fontes variáveis, então
+// não é preciso listar pesos.
+import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
-import { ThemeProvider, themeInitScript } from "@/components/theme/theme-provider";
 
-const sans = Plus_Jakarta_Sans({
-  variable: "--font-sans-base",
+const sans = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   display: "swap",
 });
 
-const serif = Cormorant_Garamond({
-  variable: "--font-serif-title",
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  display: "swap",
-});
-
-const mono = JetBrains_Mono({
-  variable: "--font-mono-base",
+const serif = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
   display: "swap",
 });
@@ -31,22 +20,23 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "PlannerDuo — Planeje viagens a dois, sem complicações",
   description:
-    "PlannerDuo é o app pessoal e 100% gratuito para planejar suas viagens: pesquise voos e hospedagens, organize o roteiro e controle as finanças da dupla.",
+    "PlannerDuo é o app pessoal e 100% gratuito para planejar viagens a dois: busque voos e hospedagens, registre despesas com IA e organize o roteiro da dupla.",
+};
+
+// App 100% escuro: barra do navegador/PWA e controles nativos no tom do fundo.
+export const viewport: Viewport = {
+  themeColor: "#09090b",
+  colorScheme: "dark",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="pt-BR"
-      className={`${sans.variable} ${serif.variable} ${mono.variable} h-full antialiased`}
-      suppressHydrationWarning
+      className={`${sans.variable} ${serif.variable} h-full antialiased`}
     >
-      <head>
-        {/* Aplica o tema salvo antes da hidratação para evitar flash. */}
-        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
-      </head>
-      <body className="min-h-full flex flex-col text-foreground">
-        <ThemeProvider>{children}</ThemeProvider>
+      <body className="flex min-h-full flex-col bg-background font-sans text-foreground">
+        {children}
       </body>
     </html>
   );

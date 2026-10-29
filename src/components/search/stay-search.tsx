@@ -1,130 +1,281 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState, useTransition } from "react";
+import { BedDouble, Brain, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import {
-  buildStayLinks,
-  type StayQuery,
-  type ProviderLink,
-} from "@/lib/deep-links";
-import { saveSearch } from "@/lib/supabase/searches";
+  sugerirExperienciasLocais,
+  type LocalGemsResult,
+} from "@/app/dashboard/actions";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { BedDouble, ExternalLink, ArrowLeftRight, ArrowRight } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { inputClass, labelClass } from "@/components/ui/field";
+import { buildStayLinks, type ProviderLink } from "@/lib/deep-links";
+import { saveSearch } from "@/lib/supabase/searches";
+import type { HotelSearchResponse, SearchErrorBody } from "@/lib/travel/types";
+import { cn } from "@/lib/utils";
+import { HotelCard } from "./hotel-card";
+import { LocalGems } from "./local-gems";
+import { ProviderLinks } from "./provider-links";
 
 /**
- * Buscar Hospedagem — Deep Linking Outbound + persistência no Supabase.
- * Gera cards para Airbnb, Booking.com, Hoteis.com e Trivago.
+ * Buscar Hospedagem — Booking.com via RapidAPI (/api/hotels).
+ *
+ * Preço TOTAL da estadia para a dupla (2 adultos por padrão) e ranking de
+ * custo-benefício calculado no servidor. Orçamento e nota mínima vazios usam a
+ * memória da IA. Depois da busca, a etapa Experiências Ocultas entra em cena.
  */
 
-const inputClass =
-  "h-11 w-full rounded-xl border border-field-border bg-white/85 px-3.5 text-sm text-heading placeholder:text-[color:var(--placeholder)] transition-colors focus:border-field-focus focus:outline-none focus:ring-4 focus:ring-field-focus/10 dark:bg-white/[0.04]";
-const labelClass = "mb-1.5 block text-sm font-medium text-heading/80";
+type Outcome =
+  | { ok: true; data: HotelSearchResponse }
+  | { ok: false; error: SearchErrorBody };
+
+async function requestHotels(params: URLSearchParams): Promise<Outcome> {
+  try {
+    const res = await fetch(`/api/hotels?${params}`, {
+      headers: { accept: "application/json" },
+    });
+    const body: unknown = await res.json();
+    return res.ok
+      ? { ok: true, data: body as HotelSearchResponse }
+      : { ok: false, error: body as SearchErrorBody };
+  } catch {
+    return {
+      ok: false,
+      error: { error: "Sem conexão com o servidor. Tente novamente.", code: "UPSTREAM_ERROR" },
+    };
+  }
+}
 
 export function StaySearch() {
   const [form, setForm] = useState({
     city: "",
     checkin: "",
     checkout: "",
-    guests: 2,
+    adults: 2,
     rooms: 1,
+    budget: "",
+    minScore: "",
+    useMemory: true,
   });
-  const [results, setResults] = useState<ProviderLink[] | null>(null);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const [outcome, setOutcome] = useState<Outcome | null>(null);
+  const [links, setLinks] = useState<ProviderLink[]>([]);
+  const [gems, setGems] = useState<Promise<LocalGemsResult> | null>(null);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
   }
 
-  const canSubmit = useMemo(
-    () => form.city.trim().length > 0 && form.checkin.length > 0 && form.checkout.length > 0,
-    [form]
-  );
+  const canSubmit =
+    form.city.trim().length >= 2 &&
+    form.checkin.length > 0 &&
+    form.checkout.length > 0 &&
+    form.checkout > form.checkin &&
+    !pending;
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const query: StayQuery = {
-      city: form.city.trim(),
+  function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const city = form.city.trim();
+    const params = new URLSearchParams({
+      city,
       checkin: form.checkin,
       checkout: form.checkout,
-      guests: form.guests,
+      adults: String(form.adults),
+      rooms: String(form.rooms),
+      memory: form.useMemory ? "1" : "0",
+    });
+    if (form.budget) params.set("budget", form.budget);
+    if (form.minScore) params.set("minScore", form.minScore);
+
+    const providerLinks = buildStayLinks({
+      city,
+      checkin: form.checkin,
+      checkout: form.checkout,
+      guests: form.adults,
       rooms: form.rooms,
-    };
-    setResults(buildStayLinks(query));
-    const res = await saveSearch(
-      "hospedagem",
-      query as unknown as Record<string, unknown>
-    );
-    setSaveMsg(res.message);
+    });
+
+    startTransition(async () => {
+      const result = await requestHotels(params);
+      const destination = result.ok ? result.data.destination.name : city;
+      startTransition(() => {
+        setOutcome(result);
+        setLinks(providerLinks);
+        setGems(sugerirExperienciasLocais(destination, form.checkin));
+      });
+      void saveSearch("hospedagem", {
+        city: destination,
+        checkin: form.checkin,
+        checkout: form.checkout,
+        guests: form.adults,
+        rooms: form.rooms,
+      });
+    });
   }
 
   return (
-    <div className="space-y-8">
-      <form onSubmit={handleSubmit} className="glass-surface rounded-2xl p-6">
-        <div className="grid gap-5 md:grid-cols-2">
-          <div className="md:col-span-2">
-            <label className={labelClass} htmlFor="city">Cidade / Destino</label>
-            <input id="city" className={inputClass} placeholder="Ex.: Rio de Janeiro"
-              value={form.city} onChange={(e) => update("city", e.target.value)} />
+    <div className="space-y-10">
+      <Card className="p-6">
+        <form onSubmit={handleSubmit}>
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="sm:col-span-2">
+              <label className={labelClass} htmlFor="city">Destino</label>
+              <input id="city" className={inputClass} placeholder="Ex.: Lisboa"
+                autoComplete="off" value={form.city}
+                onChange={(e) => update("city", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="checkin">Check-in</label>
+              <input id="checkin" type="date" className={inputClass} value={form.checkin}
+                onChange={(e) => update("checkin", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="checkout">Check-out</label>
+              <input id="checkout" type="date" className={inputClass} value={form.checkout}
+                min={form.checkin || undefined}
+                onChange={(e) => update("checkout", e.target.value)} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="adults">Hóspedes</label>
+              <input id="adults" type="number" min={1} max={8} className={inputClass}
+                value={form.adults}
+                onChange={(e) => update("adults", Math.min(8, Math.max(1, Number(e.target.value) || 1)))} />
+            </div>
+            <div>
+              <label className={labelClass} htmlFor="rooms">Quartos</label>
+              <input id="rooms" type="number" min={1} max={4} className={inputClass}
+                value={form.rooms}
+                onChange={(e) => update("rooms", Math.min(4, Math.max(1, Number(e.target.value) || 1)))} />
+            </div>
           </div>
-          <div>
-            <label className={labelClass} htmlFor="checkin">Check-in</label>
-            <input id="checkin" type="date" className={inputClass}
-              value={form.checkin} onChange={(e) => update("checkin", e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="checkout">Check-out</label>
-            <input id="checkout" type="date" className={inputClass}
-              value={form.checkout} onChange={(e) => update("checkout", e.target.value)} />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="guests">Hóspedes</label>
-            <input id="guests" type="number" min={1} className={inputClass}
-              value={form.guests}
-              onChange={(e) => update("guests", Math.max(1, Number(e.target.value) || 1))} />
-          </div>
-          <div>
-            <label className={labelClass} htmlFor="rooms">Quartos</label>
-            <input id="rooms" type="number" min={1} className={inputClass}
-              value={form.rooms}
-              onChange={(e) => update("rooms", Math.max(1, Number(e.target.value) || 1))} />
-          </div>
-        </div>
 
-        <div className="mt-6 flex items-center justify-between gap-4">
-          <p className="text-xs text-foreground/70">Informe a cidade e as datas de check-in e check-out.</p>
-          <Button type="submit" variant="primary" size="lg" disabled={!canSubmit}>
-            Gerar opções
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </form>
+          <details className="mt-6 rounded-xl border border-border bg-background">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm text-muted transition-colors hover:text-heading">
+              <SlidersHorizontal className="h-4 w-4" />
+              Orçamento, nota mínima e memória da IA
+            </summary>
+            <div className="grid gap-5 border-t border-border p-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass} htmlFor="budget">Orçamento total da estadia (R$)</label>
+                <input id="budget" type="number" min={1} className={inputClass}
+                  placeholder="Ex.: 3000" value={form.budget}
+                  onChange={(e) => update("budget", e.target.value)} />
+              </div>
+              <div>
+                <label className={labelClass} htmlFor="minScore">Nota mínima (0–10)</label>
+                <input id="minScore" type="number" min={0} max={10} step={0.5} className={inputClass}
+                  placeholder="Ex.: 8" value={form.minScore}
+                  onChange={(e) => update("minScore", e.target.value)} />
+              </div>
+              <label className="flex items-center gap-2.5 text-sm text-foreground sm:col-span-2">
+                <input type="checkbox" checked={form.useMemory}
+                  onChange={(e) => update("useMemory", e.target.checked)}
+                  className="h-4 w-4 rounded border-border bg-background accent-zinc-300" />
+                Usar as preferências que a IA memorizou para preencher filtros vazios
+              </label>
+            </div>
+          </details>
 
-      {results && (
-        <section>
-          <h2 className="mb-4 flex items-center gap-2 font-serif text-2xl font-semibold text-heading">
-            <BedDouble className="h-5 w-5 text-leather" />
-            Opções de hospedagem
-          </h2>
-          {saveMsg && <p className="mb-4 text-xs text-foreground/70">{saveMsg}</p>}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {results.map((link) => (
-              <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer"
-                className="glass-surface group flex flex-col justify-between rounded-2xl p-5 transition-colors hover:ring-leather/40">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-serif text-xl font-semibold text-heading">{link.name}</span>
-                    <ExternalLink className="h-4 w-4 text-foreground/60 group-hover:text-heading" />
-                  </div>
-                  <p className="mt-1.5 text-sm text-foreground">{link.note}</p>
+          <div className="mt-6 flex flex-col-reverse gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-subtle">
+              Preço total da estadia para {form.adults} {form.adults === 1 ? "pessoa" : "pessoas"}, ordenado por custo-benefício.
+            </p>
+            <Button type="submit" variant="primary" size="lg" disabled={!canSubmit}>
+              {pending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              {pending ? "Buscando…" : "Buscar hospedagens"}
+            </Button>
+          </div>
+        </form>
+      </Card>
+
+      {pending && <ResultsSkeleton />}
+
+      {!pending && outcome && (
+        <section aria-label="Resultados de hospedagem" className="space-y-6">
+          {outcome.ok ? (
+            <>
+              <div>
+                <h2 className="flex items-center gap-2 font-serif text-2xl font-semibold">
+                  <BedDouble className="h-5 w-5 text-muted" />
+                  {outcome.data.hotels.length
+                    ? `${outcome.data.hotels.length} hospedagens em ${outcome.data.destination.name}`
+                    : `Nenhuma hospedagem em ${outcome.data.destination.name}`}
+                </h2>
+                <p className="mt-1 text-sm text-muted">
+                  {outcome.data.hotels.length
+                    ? `Melhor custo-benefício primeiro · ${outcome.data.nights} ${outcome.data.nights === 1 ? "noite" : "noites"} para ${outcome.data.adults} ${outcome.data.adults === 1 ? "pessoa" : "pessoas"}`
+                    : "Tente outras datas ou reduza a nota mínima."}
+                </p>
+              </div>
+
+              {outcome.data.appliedPreferences.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {outcome.data.appliedPreferences.map((p) => (
+                    <Badge key={p} variant="outline">
+                      <Brain className="h-3 w-3" />
+                      {p}
+                    </Badge>
+                  ))}
                 </div>
-                <span className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-leather">
-                  Abrir pesquisa
-                  <ArrowLeftRight className="h-3.5 w-3.5" />
-                </span>
-              </a>
-            ))}
-          </div>
+              )}
+              {outcome.data.budgetNotice && (
+                <p className="text-sm text-muted">{outcome.data.budgetNotice}</p>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {outcome.data.hotels.map((hotel, index) => (
+                  <HotelCard
+                    key={hotel.id}
+                    hotel={hotel}
+                    best={index === 0 && hotel.withinBudget !== false}
+                    adults={outcome.data.adults}
+                    nights={outcome.data.nights}
+                  />
+                ))}
+              </div>
+
+              <ProviderLinks title="Compare também" links={links} />
+            </>
+          ) : (
+            <Card className="space-y-5 p-6">
+              <div>
+                <h2 className="font-serif text-xl font-semibold">
+                  {outcome.error.code === "BOOKING_NOT_CONFIGURED"
+                    ? "Motor da Booking.com ainda não está ativo"
+                    : "Não foi possível buscar hospedagens"}
+                </h2>
+                <p className={cn(
+                  "mt-1.5 text-sm",
+                  outcome.error.code === "BOOKING_NOT_CONFIGURED" ? "text-muted" : "text-danger"
+                )}>
+                  {outcome.error.error}
+                </p>
+              </div>
+              <ProviderLinks title="Pesquise direto nos parceiros" links={links} />
+            </Card>
+          )}
         </section>
       )}
+
+      {gems && !pending && <LocalGems promise={gems} />}
+    </div>
+  );
+}
+
+function ResultsSkeleton() {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
+      {[0, 1, 2].map((i) => (
+        <Card key={i} className="overflow-hidden">
+          <div className="aspect-[16/10] animate-pulse bg-elevated" />
+          <div className="space-y-3 p-5">
+            <div className="h-5 w-2/3 animate-pulse rounded bg-elevated" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-elevated" />
+            <div className="h-7 w-1/3 animate-pulse rounded bg-elevated" />
+          </div>
+        </Card>
+      ))}
     </div>
   );
 }

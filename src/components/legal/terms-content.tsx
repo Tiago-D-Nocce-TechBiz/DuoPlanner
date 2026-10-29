@@ -32,8 +32,8 @@ export function TermsContent() {
         <h1 className="font-serif text-4xl font-bold text-heading">
           Termos de Uso &amp; Política de Privacidade (LGPD)
         </h1>
-        <p className="mt-2 text-sm text-foreground/70">
-          Última atualização: 28 de outubro de 2026.
+        <p className="mt-2 text-sm text-muted">
+          Última atualização: 29 de outubro de 2026.
         </p>
       </header>
 
@@ -54,12 +54,19 @@ export function TermsContent() {
         </p>
         <p>
           A partir dos dados informados por você (origem, destino, datas,
-          passageiros e preferências), geramos <strong>links pré-preenchidos
-          </strong> que direcionam a páginas de resultados de terceiros, como
+          passageiros e preferências), consultamos as APIs de parceiros
+          (<strong>Kiwi.com</strong> para voos e <strong>Booking.com</strong>,
+          via RapidAPI, para hospedagens) e geramos <strong>links
+          pré-preenchidos</strong> que direcionam a páginas de terceiros, como
           LATAM, Azul, GOL, Google Flights, Skyscanner, Airbnb, Booking.com,
           Hoteis.com e Trivago. Preços, disponibilidade, condições, reservas e
           pagamentos são de responsabilidade exclusiva dessas plataformas
           parceiras, regidos pelos termos e políticas próprios de cada uma.
+        </p>
+        <p>
+          Recursos de inteligência artificial (leitura de recibos, memória de
+          preferências e sugestões de experiências) podem conter imprecisões.
+          Confira valores, datas, horários e regras antes de decidir.
         </p>
         <p>
           O PlannerDuo não garante a exatidão, disponibilidade ou atualização
@@ -103,12 +110,14 @@ export function TermsContent() {
             número de passageiros/hóspedes, quartos e classe de viagem.
           </li>
           <li>
-            <strong>Despesas:</strong> valores, datas, estabelecimentos e
-            categorias informados ou extraídos de notas/recibos.
+            <strong>Despesas:</strong> títulos, valores, moedas e datas
+            informados ou extraídos de notas/recibos. A imagem do recibo é
+            processada para leitura e não fica armazenada.
           </li>
           <li>
-            <strong>Preferências:</strong> cidade base, aeroporto base, moeda e
-            configurações da conta.
+            <strong>Preferências e memória da IA:</strong> cidade base,
+            aeroporto base, moeda, orçamentos, limites de escala, interesses e
+            o histórico das mensagens enviadas à IA para memorizá-los.
           </li>
           <li>
             <strong>Dados de conta:</strong> nome e e-mail de cadastro.
@@ -161,7 +170,19 @@ export function TermsContent() {
         </p>
 
         <h3 className="pt-2 font-semibold text-heading">
-          5.5. Canal de contato do Controlador / Encarregado (DPO)
+          5.5. Compartilhamento com provedores
+        </h3>
+        <p>
+          Para executar as funcionalidades pedidas por você, compartilhamos o
+          mínimo necessário com operadores: <strong>Google (Gemini API)</strong>{" "}
+          recebe as imagens de recibos e os textos enviados à IA;{" "}
+          <strong>Kiwi.com</strong> e <strong>Booking.com/RapidAPI</strong>{" "}
+          recebem os parâmetros das buscas (destinos, datas e número de
+          viajantes). Nenhum desses dados é vendido ou usado para publicidade.
+        </p>
+
+        <h3 className="pt-2 font-semibold text-heading">
+          5.6. Canal de contato do Controlador / Encarregado (DPO)
         </h3>
         <p>
           Para exercer seus direitos ou esclarecer dúvidas sobre o tratamento de

@@ -3,13 +3,13 @@ import { StaySearch } from "@/components/search/stay-search";
 
 export const metadata = { title: "Buscar Hospedagem — PlannerDuo" };
 
-/** Motor de busca de hospedagens (Deep Linking Outbound + Supabase). */
+/** Motor de busca de hospedagens (Booking.com via RapidAPI + memória da IA). */
 export default function BuscarHospedagemPage() {
   return (
     <div>
       <PageHeading
         title="Buscar Hospedagem"
-        description="Informe destino e datas. Geramos links prontos para Airbnb, Booking.com, Hoteis.com e Trivago — abrem direto na página de resultados."
+        description="Hospedagens da Booking.com com o preço total para a dupla, ordenadas pelo melhor custo-benefício entre nota e preço."
       />
       <StaySearch />
     </div>

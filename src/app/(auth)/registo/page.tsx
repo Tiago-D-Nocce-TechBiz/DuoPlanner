@@ -10,7 +10,7 @@ export default function RegisterPage() {
   return (
     <div className="space-y-6">
       <div className="space-y-1 text-center">
-        <h1 className="font-serif text-3xl font-bold text-heading">
+        <h1 className="font-serif text-3xl font-semibold text-heading">
           Crie a sua conta
         </h1>
         <p className="text-sm text-foreground">
@@ -47,9 +47,9 @@ export default function RegisterPage() {
         </Button>
       </form>
 
-      <p className="text-center text-sm text-foreground">
+      <p className="text-center text-sm text-muted">
         Já tem conta?{" "}
-        <Link href="/login" className="font-medium text-leather hover:underline">
+        <Link href="/login" className="font-medium text-accent hover:text-accent-hover">
           Entrar
         </Link>
       </p>
