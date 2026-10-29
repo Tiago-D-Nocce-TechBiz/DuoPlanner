@@ -9,6 +9,23 @@
  * indisponível (modo privado), apenas ignora.
  */
 
+import { useSyncExternalStore } from "react";
+
+/**
+ * Hook `useMontado`: devolve false no servidor e no primeiro render do cliente,
+ * e true após a hidratação — sem setState em efeito (compatível com a regra
+ * react-hooks/set-state-in-effect). Use para só então ler `localStorage`,
+ * evitando hydration mismatch.
+ */
+const noop = () => () => {};
+export function useMontado(): boolean {
+  return useSyncExternalStore(
+    noop,
+    () => true, // snapshot no cliente
+    () => false // snapshot no servidor
+  );
+}
+
 export function readLocal<T>(chave: string, padrao: T): T {
   if (typeof window === "undefined") return padrao;
   try {

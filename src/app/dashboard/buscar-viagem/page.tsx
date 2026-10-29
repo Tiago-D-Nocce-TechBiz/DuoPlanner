@@ -1,27 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plane, Bus, LayoutGrid } from "lucide-react";
 import { PageHeading } from "@/components/dashboard/page-heading";
 import { FlightSearch } from "@/components/search/flight-search";
 import { BusSearch } from "@/components/search/bus-search";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { ConciergeParse } from "@/lib/concierge";
-import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { readLocal, writeLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
 import { cn } from "@/lib/utils";
-
-/** Lê (uma vez) o pré-preenchimento vindo do Concierge da página principal. */
-function lerHandoffInicial(): { dados: ConciergeParse; aba: Aba } | null {
-  const h = readLocal<{ dados: ConciergeParse; modo: string } | null>(
-    STORAGE_KEYS.concierge,
-    null
-  );
-  if (!h || h.modo !== "passagens") return null;
-  // Consome o handoff para não reaplicar em recarregamentos futuros.
-  writeLocal(STORAGE_KEYS.concierge, null);
-  const temIata = Boolean(h.dados.originIata && h.dados.destinationIata);
-  return { dados: h.dados, aba: temIata ? "voos" : "todos" };
-}
 
 type Aba = "todos" | "voos" | "onibus";
 
@@ -32,14 +19,35 @@ const ABAS: { chave: Aba; rotulo: string; icone: typeof Plane }[] = [
 ];
 
 /**
- * Buscar Passagens — abas para Todos, Voos e Ônibus, com o Concierge de IA no
- * topo para preencher a busca a partir de linguagem natural.
+ * Buscar Passagens — abas para Todos, Voos e Ônibus.
+ *
+ * O pré-preenchimento vindo do Concierge (página principal) é lido APÓS a
+ * montagem, dentro de useEffect — nunca no inicializador de useState. Isso
+ * evita divergência entre o HTML do servidor e o do cliente (hydration
+ * mismatch), que em produção aparecia como "This page couldn't load".
  */
 export default function BuscarPassagensPage() {
-  // Inicializa com o handoff do Concierge da página principal, se houver.
-  const [handoff] = useState(() => lerHandoffInicial());
-  const [aba, setAba] = useState<Aba>(handoff?.aba ?? "todos");
-  const [preenchimento] = useState<ConciergeParse | null>(handoff?.dados ?? null);
+  // `montado` é false no servidor e no 1º render do cliente (HTML idêntico →
+  // sem hydration mismatch) e true após a hidratação. Via useSyncExternalStore,
+  // sem setState em efeito.
+  const montado = useMontado();
+
+  // Leitura única do handoff, memoizada quando `montado` passa a true.
+  const handoff = useMemo(() => {
+    if (!montado) return null;
+    const h = readLocal<{ dados: ConciergeParse; modo: string } | null>(
+      STORAGE_KEYS.concierge,
+      null
+    );
+    if (!h || h.modo !== "passagens") return null;
+    writeLocal(STORAGE_KEYS.concierge, null); // consome o handoff
+    const temIata = Boolean(h.dados.originIata && h.dados.destinationIata);
+    return { dados: h.dados, aba: (temIata ? "voos" : "todos") as Aba };
+  }, [montado]);
+
+  const [abaManual, setAba] = useState<Aba | null>(null);
+  const aba: Aba = abaManual ?? handoff?.aba ?? "todos";
+  const preenchimento: ConciergeParse | null = handoff?.dados ?? null;
 
   return (
     <div className="space-y-8">

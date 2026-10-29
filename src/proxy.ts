@@ -22,8 +22,18 @@ export async function proxy(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Sem configuração do Supabase: não há como validar sessão; deixa passar.
-  if (!url || !key) return NextResponse.next();
+  // Fail-closed: sem configuração do Supabase não há como validar a sessão.
+  // Em produção, bloqueamos o painel (redireciona ao login) para não deixar
+  // /dashboard/* aberto por acidente. Só em desenvolvimento local deixamos
+  // passar, para não travar quem ainda não ligou o Auth.
+  if (!url || !key) {
+    if (process.env.NODE_ENV === "production") {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.next();
+  }
 
   // Resposta mutável para o Supabase poder atualizar cookies de sessão.
   let response = NextResponse.next({ request });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { BedDouble, Brain, Loader2, Search, SlidersHorizontal } from "lucide-react";
 import {
   sugerirExperienciasLocais,
@@ -66,25 +66,39 @@ async function requestHotels(params: URLSearchParams): Promise<Outcome> {
 }
 
 export function StaySearch() {
-  const [form, setForm] = useState(() => {
-    // Pré-preenchimento vindo do Concierge da página principal (modo hospedagem).
+  // Estado inicial determinístico (igual no servidor e no cliente).
+  const [form, setForm] = useState({
+    city: "",
+    checkin: "",
+    checkout: "",
+    adults: 2,
+    rooms: 1,
+    budget: "",
+    minScore: "",
+    useMemory: false,
+  });
+
+  // Pré-preenchimento do Concierge aplicado APÓS a montagem (evita hydration
+  // mismatch). O setState vai num microtask para não ser síncrono dentro do
+  // efeito — mantém o HTML inicial idêntico ao do servidor.
+  useEffect(() => {
     const h = readLocal<{ dados: ConciergeParse; modo: string } | null>(
       STORAGE_KEYS.concierge,
       null
     );
-    const dados = h && h.modo === "hospedagem" ? h.dados : null;
-    if (h && h.modo === "hospedagem") writeLocal(STORAGE_KEYS.concierge, null);
-    return {
-      city: dados?.destinationCity ?? "",
-      checkin: dados?.departDate ?? "",
-      checkout: dados?.returnDate ?? "",
-      adults: dados?.passengers ?? 2,
-      rooms: 1,
-      budget: "",
-      minScore: "",
-      useMemory: false,
-    };
-  });
+    if (!h || h.modo !== "hospedagem") return;
+    writeLocal(STORAGE_KEYS.concierge, null);
+    queueMicrotask(() => {
+      setForm((prev) => ({
+        ...prev,
+        city: h.dados.destinationCity ?? prev.city,
+        checkin: h.dados.departDate ?? prev.checkin,
+        checkout: h.dados.returnDate ?? prev.checkout,
+        adults: h.dados.passengers ?? prev.adults,
+      }));
+    });
+  }, []);
+
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
