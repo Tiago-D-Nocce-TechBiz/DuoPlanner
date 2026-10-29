@@ -42,7 +42,8 @@ function useIdleSpin(ref: React.RefObject<THREE.Group | null>, autoRotate: boole
 /** Modelo pronto carregado de um arquivo .glb em public/models/aviao.glb. */
 function GltfPlane({ autoRotate }: { autoRotate: boolean }) {
   const group = useRef<THREE.Group>(null);
-  const { scene } = useGLTF(MODEL_URL);
+  // Segundo argumento = true liga o decoder Draco (o .glb foi comprimido com Draco).
+  const { scene } = useGLTF(MODEL_URL, true);
   // Clona para evitar efeitos colaterais se o mesmo GLTF for reutilizado.
   const model = useMemo(() => scene.clone(true), [scene]);
   useIdleSpin(group, autoRotate);
@@ -215,6 +216,5 @@ export function PlaneScene() {
   );
 }
 
-// Pré-carrega o modelo quando ele existir (acelera a primeira exibição).
-// Seguro mesmo se o arquivo ainda não estiver presente.
-useGLTF.preload(MODEL_URL);
+// Pré-carrega o modelo (com Draco) para acelerar a primeira exibição.
+useGLTF.preload(MODEL_URL, true);
