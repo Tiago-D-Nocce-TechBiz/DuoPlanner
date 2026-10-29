@@ -1,98 +1,23 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/*
-  PlannerDuo — Fase 2: identidade "Premium Dark" (app 100% escuro).
-
-  Decisão (Tailwind v4): este projeto usa Tailwind CSS v4, que é configurado
-  em CSS. O bloco `@theme` abaixo substitui o antigo `tailwind.config.ts` e é a
-  fonte única de cores e fontes; não existe arquivo de configuração JS para
-  manter sincronizado. Cada token vira utilitário (ex.: `bg-card`,
-  `border-border`, `text-muted`, `bg-accent`).
-
-  Paleta
-    background         #09090B  zinc-950  fundo principal (quase preto)
-    card               #18181B  zinc-900  cards e painéis
-    elevated           #27272A  zinc-800  hover, chips, trilhos
-    border             #27272A  zinc-800  borda sutil de 1px
-    border-strong      #3F3F46  zinc-700  borda em foco/hover
-    foreground         #D4D4D8  zinc-300  texto do corpo (claro, nunca 100% branco)
-    heading            #F4F4F5  zinc-100  títulos
-    muted              #A1A1AA  zinc-400  texto secundário
-    subtle             #71717A  zinc-500  dicas e placeholders
-    accent             #F2EAB7  amarelo pastel (hover #FCEB88)
-    accent-foreground  #000000  texto preto sobre o acento
-
-  Regra de uso do acento: APENAS em botões de ação principal, badges e links
-  vitais. Navegação, ícones decorativos e foco usam a escala zinc.
-*/
-
-@theme {
-  --color-background: #09090b;
-  --color-foreground: #d4d4d8;
-  --color-heading: #f4f4f5;
-  --color-muted: #a1a1aa;
-  --color-subtle: #71717a;
-
-  --color-card: #18181b;
-  --color-elevated: #27272a;
-  --color-border: #27272a;
-  --color-border-strong: #3f3f46;
-
-  --color-accent: #f2eab7;
-  --color-accent-hover: #fceb88;
-  --color-accent-foreground: #000000;
-
-  /* Estado de erro (acessibilidade): vermelho suave legível sobre zinc-900. */
-  --color-danger: #fca5a5;
+@layer utilities {
+  .animate-fade-in-up {
+    animation: fadeInUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .animate-spin-slow {
+    animation: spin 3s linear infinite;
+  }
 }
 
-/* Tipografia híbrida: variáveis criadas pelo next/font no layout raiz. */
-@theme inline {
-  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
-  --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
-}
-
-@layer base {
-  /* No Tailwind v4 a borda padrão é `currentColor`; fixamos zinc-800 para que
-     qualquer `border` saia sutil por padrão. */
-  *,
-  ::before,
-  ::after {
-    border-color: var(--color-border);
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(24px);
   }
-
-  html {
-    color-scheme: dark; /* controles nativos (date, select, scrollbar) escuros */
-    background-color: var(--color-background);
-  }
-
-  body {
-    background-color: var(--color-background);
-    color: var(--color-foreground);
-    font-family: var(--font-sans);
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  h1,
-  h2 {
-    font-family: var(--font-serif);
-    color: var(--color-heading);
-    letter-spacing: -0.01em;
-  }
-
-  ::selection {
-    background-color: var(--color-border-strong);
-    color: var(--color-heading);
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-muted);
-    outline-offset: 2px;
-  }
-
-  * {
-    scrollbar-width: thin;
-    scrollbar-color: var(--color-elevated) transparent;
+  100% {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
