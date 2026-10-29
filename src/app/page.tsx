@@ -52,8 +52,8 @@ export default function LandingPage() {
 
       {/* Hero focado */}
       <main className="mx-auto w-full max-w-3xl flex-1 flex flex-col items-center justify-center text-center py-16 sm:py-20">
-        {/* Rota aérea animada com avião em 3D (decorativa) */}
-        <FlightRoute3D className="w-full max-w-xl h-40 sm:h-48 mb-6" />
+        {/* Avião 3D realista interativo (gire segurando o mouse) */}
+        <FlightRoute3D className="w-full max-w-2xl h-64 sm:h-80 mb-4" />
 
         <div className="inline-flex items-center gap-2 rounded-full glass-panel px-4 py-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-6">
           <span>🧭</span>

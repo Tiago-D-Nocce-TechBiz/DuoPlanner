@@ -13,6 +13,11 @@ interface Props {
   children: React.ReactNode;
   titulo?: string;
   descricao?: string;
+  /**
+   * Fallback customizado. Quando fornecido, substitui o painel padrão
+   * (útil para degradar silenciosamente, ex.: cair num emblema 2D).
+   */
+  fallback?: React.ReactNode;
 }
 
 interface State {
@@ -38,6 +43,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (!this.state.erro) return this.props.children;
+
+    if (this.props.fallback !== undefined) return this.props.fallback;
 
     return (
       <div className="glass-panel rounded-2xl p-8 text-center">
