@@ -35,10 +35,26 @@ async function requestHotels(params: URLSearchParams): Promise<Outcome> {
     const res = await fetch(`/api/hotels?${params}`, {
       headers: { accept: "application/json" },
     });
-    const body: unknown = await res.json();
-    return res.ok
-      ? { ok: true, data: body as HotelSearchResponse }
-      : { ok: false, error: body as SearchErrorBody };
+    // Parse defensivo: se a resposta não for JSON válido (ex.: erro 5xx com
+    // HTML), não deixamos o await lançar e derrubar o componente.
+    const texto = await res.text();
+    let body: unknown = null;
+    try {
+      body = texto ? JSON.parse(texto) : null;
+    } catch {
+      body = null;
+    }
+    if (res.ok && body) {
+      return { ok: true, data: body as HotelSearchResponse };
+    }
+    return {
+      ok: false,
+      error:
+        (body as SearchErrorBody) ?? {
+          error: "Não foi possível buscar hospedagens agora. Tente novamente.",
+          code: "UPSTREAM_ERROR",
+        },
+    };
   } catch {
     return {
       ok: false,

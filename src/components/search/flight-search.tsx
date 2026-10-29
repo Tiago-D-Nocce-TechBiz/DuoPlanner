@@ -58,10 +58,26 @@ async function requestFlights(params: URLSearchParams): Promise<Outcome> {
     const res = await fetch(`/api/flights?${params}`, {
       headers: { accept: "application/json" },
     });
-    const body: unknown = await res.json();
-    return res.ok
-      ? { ok: true, data: body as FlightSearchResponse }
-      : { ok: false, error: body as SearchErrorBody };
+    // Parse defensivo: evita que uma resposta não-JSON (ex.: erro 5xx com HTML)
+    // faça o await lançar e derrubar o componente.
+    const texto = await res.text();
+    let body: unknown = null;
+    try {
+      body = texto ? JSON.parse(texto) : null;
+    } catch {
+      body = null;
+    }
+    if (res.ok && body) {
+      return { ok: true, data: body as FlightSearchResponse };
+    }
+    return {
+      ok: false,
+      error:
+        (body as SearchErrorBody) ?? {
+          error: "Não foi possível buscar os voos agora. Tente novamente.",
+          code: "UPSTREAM_ERROR",
+        },
+    };
   } catch {
     return {
       ok: false,

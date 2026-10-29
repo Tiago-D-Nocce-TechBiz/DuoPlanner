@@ -1,5 +1,6 @@
 import { PageHeading } from "@/components/dashboard/page-heading";
 import { StaySearch } from "@/components/search/stay-search";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 
 export const metadata = { title: "Buscar Hospedagem — PlannerDuo" };
 
@@ -9,9 +10,14 @@ export default function BuscarHospedagemPage() {
     <div>
       <PageHeading
         title="Buscar Hospedagem"
-        description="Hospedagens da Booking.com com o preço total para a dupla, ordenadas pelo melhor custo-benefício entre nota e preço."
+        description="Compare hospedagens no Airbnb, Booking.com, Hoteis.com, Trivago, Decolar e mais — já com suas datas e número de hóspedes."
       />
-      <StaySearch />
+      <ErrorBoundary
+        titulo="A busca de hospedagem não carregou"
+        descricao="Tente novamente ou use os links diretos dos parceiros."
+      >
+        <StaySearch />
+      </ErrorBoundary>
     </div>
   );
 }

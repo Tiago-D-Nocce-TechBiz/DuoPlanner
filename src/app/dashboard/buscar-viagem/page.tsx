@@ -6,6 +6,7 @@ import { PageHeading } from "@/components/dashboard/page-heading";
 import { FlightSearch } from "@/components/search/flight-search";
 import { BusSearch } from "@/components/search/bus-search";
 import { ConciergeBox } from "@/components/search/concierge-box";
+import { ErrorBoundary } from "@/components/ui/error-boundary";
 import type { ConciergeParse } from "@/lib/concierge";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +74,12 @@ export default function BuscarPassagensPage() {
               <Plane className="h-5 w-5 text-muted" /> Voos
             </h2>
           )}
-          <FlightSearch preenchimento={preenchimento} />
+          <ErrorBoundary
+            titulo="A busca de voos não carregou"
+            descricao="Tente novamente ou use os links diretos das companhias."
+          >
+            <FlightSearch preenchimento={preenchimento} />
+          </ErrorBoundary>
         </section>
       )}
 
@@ -84,7 +90,12 @@ export default function BuscarPassagensPage() {
               <Bus className="h-5 w-5 text-muted" /> Ônibus
             </h2>
           )}
-          <BusSearch />
+          <ErrorBoundary
+            titulo="A busca de ônibus não carregou"
+            descricao="Tente novamente em instantes."
+          >
+            <BusSearch />
+          </ErrorBoundary>
         </section>
       )}
     </div>
