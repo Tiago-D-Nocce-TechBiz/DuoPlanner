@@ -1,82 +1,130 @@
-import Link from "next/link";
-import { ArrowRight, Brain, Hotel, Plane, Wallet } from "lucide-react";
-import { PageHeading } from "@/components/dashboard/page-heading";
-import { cardClass, Card } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
+"use client";
 
-const QUICK_ACTIONS = [
+import Link from "next/link";
+
+const ATALHOS_PAINEL = [
   {
+    codigo: "PASSAGENS • AÉREO & ÔNIBUS",
+    icone: "✈️",
+    titulo: "Buscar Passagens",
+    descricao:
+      "Gere links pré-preenchidos para LATAM, Azul, GOL, Google Flights, Guanabara, Buser, Viação UTIL e ClickBus.",
     href: "/dashboard/buscar-viagem",
-    title: "Buscar Viagem",
-    description: "Passagens da Kiwi.com com datas flexíveis e combinações low-cost.",
-    icon: Plane,
+    acao: "Abrir buscador de passagens →",
   },
   {
+    codigo: "ESTADIAS • HOTÉIS & TEMPORADA",
+    icone: "🏨",
+    titulo: "Buscar Hospedagem",
+    descricao:
+      "Compare acomodações no Airbnb, Booking.com, Hoteis.com, Trivago, Decolar e Vrbo já com check-in e hóspedes.",
     href: "/dashboard/buscar-hospedagem",
-    title: "Buscar Hospedagem",
-    description: "Booking.com com preço total para a dupla e ranking de custo-benefício.",
-    icon: Hotel,
+    acao: "Abrir buscador de hospedagem →",
   },
   {
+    codigo: "FINANÇAS • NUBANK & NF",
+    icone: "💳",
+    titulo: "Finanças Duo",
+    descricao:
+      "Importe faturas CSV do Nubank ou Notas Fiscais, oculte gastos pessoais e divida apenas as despesas da viagem.",
     href: "/dashboard/financas",
-    title: "Finanças Duo",
-    description: "Escaneie recibos com IA e divida as contas da viagem.",
-    icon: Wallet,
+    acao: "Gerenciar finanças da dupla →",
   },
 ];
 
-/** Visão geral do dashboard. */
-export default function DashboardHome() {
+export default function DashboardOverviewPage() {
   return (
-    <div>
-      <PageHeading
-        title="Olá, viajantes"
-        description="Por onde a próxima aventura a dois vai começar?"
-      />
+    <div className="space-y-8">
+      <section className="glass-panel duo-ticket-card rounded-3xl p-6 sm:p-8">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-black/5 dark:bg-white/10 px-3 py-1 text-xs font-mono uppercase tracking-wider text-[var(--color-muted)] mb-3">
+              <span>🧭 PASSAPORTE DUO ATIVO</span>
+              <span>•</span>
+              <span>SINCRONIZADO EM NUVEM</span>
+            </div>
+            <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
+              Olá, viajantes 👋
+            </h1>
+            <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)] max-w-2xl">
+              Por onde a próxima aventura a dois vai começar? Escolha seu destino, compare voos, ônibus e pousadas, e mantenha o orçamento compartilhado sob controle.
+            </p>
+          </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {QUICK_ACTIONS.map(({ href, title, description, icon: Icon }) => (
+          <div className="grid grid-cols-2 gap-3 sm:min-w-[280px]">
+            <div className="glass-panel rounded-2xl p-3.5">
+              <span className="text-[10px] font-mono uppercase text-[var(--color-subtle)]">
+                MODAIS DISPONÍVEIS
+              </span>
+              <p className="mt-1 font-serif text-lg font-bold text-[var(--color-heading)]">
+                Voos & Ônibus
+              </p>
+            </div>
+            <div className="glass-panel rounded-2xl p-3.5">
+              <span className="text-[10px] font-mono uppercase text-[var(--color-subtle)]">
+                PRIVACIDADE LGPD
+              </span>
+              <p className="mt-1 font-serif text-lg font-bold text-[var(--color-heading)]">
+                Triagem Ativa
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {ATALHOS_PAINEL.map((card) => (
           <Link
-            key={href}
-            href={href}
-            className={cn(
-              cardClass,
-              "group p-6 transition-colors hover:border-border-strong"
-            )}
+            className="glass-panel duo-ticket-card rounded-2xl p-6 flex flex-col justify-between group"
+            href={card.href}
+            key={card.titulo}
           >
-            <span className="mb-5 flex h-11 w-11 items-center justify-center rounded-xl bg-elevated">
-              <Icon className="h-5 w-5 text-heading" />
-            </span>
-            <h2 className="font-serif text-xl font-semibold">{title}</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-foreground">{description}</p>
-            <span className="mt-5 inline-flex items-center gap-1 text-sm font-medium text-muted transition-colors group-hover:text-heading">
-              Abrir
-              <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </span>
+            <div>
+              <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-subtle)]">
+                {card.codigo}
+              </span>
+
+              <div className="mt-3 h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-xl">
+                {card.icone}
+              </div>
+
+              <h2 className="mt-4 font-serif text-xl font-bold text-[var(--color-heading)]">
+                {card.titulo}
+              </h2>
+              <p className="mt-2 text-sm text-[var(--color-muted)] leading-relaxed">
+                {card.descricao}
+              </p>
+            </div>
+
+            <div className="mt-6 pt-3 border-t border-dashed border-[var(--color-border)] text-xs font-semibold text-[var(--color-heading)] flex items-center justify-between">
+              <span>{card.acao}</span>
+            </div>
           </Link>
         ))}
-      </div>
+      </section>
 
-      <Card className="mt-6 flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
+      <section className="glass-panel rounded-2xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-start gap-4">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-elevated">
-            <Brain className="h-5 w-5 text-heading" />
-          </span>
+          <div className="h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-lg shrink-0">
+            🤖
+          </div>
           <div>
-            <h2 className="font-serif text-xl font-semibold">A IA lembra de vocês</h2>
-            <p className="mt-1.5 text-sm leading-relaxed text-foreground">
-              Conte uma vez o orçamento, o limite de escalas e o que a dupla
-              gosta de fazer: as próximas buscas já vêm filtradas.
+            <h3 className="font-serif text-lg font-bold text-[var(--color-heading)]">
+              Preferências e Inteligência de Rota
+            </h3>
+            <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)]">
+              Defina sua cidade de origem padrão (ex.: Belo Horizonte - CNF), orçamento da dupla e deixe o sistema sugerir automaticamente aeroportos próximos e linhas rodoviárias (Guanabara, Buser e UTIL).
             </p>
           </div>
         </div>
+
         <Link
+          className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] whitespace-nowrap self-start sm:self-center"
           href="/dashboard/configuracoes"
-          className="shrink-0 text-sm font-medium text-accent transition-colors hover:text-accent-hover"
         >
-          Ensinar preferências →
+          Configurar preferências →
         </Link>
-      </Card>
+      </section>
     </div>
   );
 }

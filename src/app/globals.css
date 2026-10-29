@@ -1,46 +1,44 @@
 @import "tailwindcss";
 
-/* 
-  PlannerDuo — Sistema de Design Unificado (Tailwind v4)
-  Suporte nativo a Modo Claro (Alabaster & Areia) e Modo Escuro (Safira Noturno & Grafite)
-*/
-
 :root {
-  --color-background: #FAF8F5;
+  --color-background: #F8F5EE;
   --color-foreground: #1C1917;
-  --color-heading: #141210;
+  --color-heading: #12100E;
   --color-muted: #57534E;
   --color-subtle: #78716C;
 
-  --color-card: rgba(255, 255, 255, 0.68);
-  --color-elevated: rgba(255, 255, 255, 0.85);
-  --color-border: rgba(220, 213, 199, 0.85);
-  --color-border-strong: #C7B9A5;
+  --color-card: rgba(255, 252, 247, 0.76);
+  --color-elevated: rgba(255, 255, 255, 0.92);
+  --color-border: rgba(214, 203, 186, 0.85);
+  --color-border-strong: #B6A48B;
 
-  --color-accent: #1C1917;
-  --color-accent-hover: #292524;
+  --color-accent: #181512;
+  --color-accent-hover: #2B2623;
   --color-accent-foreground: #FAF8F5;
 
+  --color-brand-warm: #C87D55;
+  --color-brand-teal: #2C5E5A;
   --color-danger: #DC2626;
 }
 
 .dark {
-  --color-background: #0B0F17;
-  --color-foreground: #F4F4F5;
+  --color-background: #090D16;
+  --color-foreground: #E4E4E7;
   --color-heading: #FAFAFA;
   --color-muted: #A1A1AA;
   --color-subtle: #71717A;
 
-  /* Cartões em vidro escuro translúcido (bg-zinc-900/55) */
-  --color-card: rgba(24, 24, 27, 0.55);
-  --color-elevated: rgba(39, 39, 42, 0.70);
-  --color-border: rgba(255, 255, 255, 0.10);
-  --color-border-strong: rgba(255, 255, 255, 0.22);
+  --color-card: rgba(19, 25, 38, 0.72);
+  --color-elevated: rgba(30, 39, 56, 0.88);
+  --color-border: rgba(255, 255, 255, 0.11);
+  --color-border-strong: rgba(234, 216, 192, 0.32);
 
-  --color-accent: #F4F4F5;
-  --color-accent-hover: #E4E4E7;
-  --color-accent-foreground: #0B0F17;
+  --color-accent: #F5F2EB;
+  --color-accent-hover: #E6DEC8;
+  --color-accent-foreground: #090D16;
 
+  --color-brand-warm: #E09F7D;
+  --color-brand-teal: #5FA8A2;
   --color-danger: #FCA5A5;
 }
 
@@ -79,35 +77,62 @@
     color: var(--color-foreground);
     font-family: var(--font-sans);
     min-height: 100vh;
-    /* Modo Claro — degradê suave (#FAF8F5, #F3E9DC, #E4ECE9, #EFE4DF) com esferas de luz difusas */
     background-image:
-      radial-gradient(circle at 12% 18%, rgba(243, 233, 220, 0.70) 0%, transparent 45%),
-      radial-gradient(circle at 88% 22%, rgba(228, 236, 233, 0.65) 0%, transparent 45%),
-      radial-gradient(circle at 50% 85%, rgba(239, 228, 223, 0.60) 0%, transparent 50%);
+      radial-gradient(circle at 10% 15%, rgba(232, 209, 178, 0.55) 0%, transparent 42%),
+      radial-gradient(circle at 90% 18%, rgba(186, 214, 219, 0.45) 0%, transparent 45%),
+      radial-gradient(circle at 50% 88%, rgba(233, 198, 183, 0.40) 0%, transparent 48%),
+      radial-gradient(rgba(140, 122, 107, 0.10) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px;
     background-attachment: fixed;
     transition: background-color 0.25s ease, color 0.25s ease;
   }
 
-  /* Modo Escuro — degradê noturno (#0B0F17, #131B2E, #1F1924) com esferas difusas sutis */
   .dark body {
     background-image:
-      radial-gradient(circle at 15% 20%, rgba(19, 27, 46, 0.80) 0%, transparent 48%),
-      radial-gradient(circle at 85% 25%, rgba(31, 25, 36, 0.70) 0%, transparent 48%),
-      radial-gradient(circle at 50% 88%, rgba(19, 27, 46, 0.60) 0%, transparent 52%);
+      radial-gradient(circle at 12% 18%, rgba(26, 54, 93, 0.50) 0%, transparent 45%),
+      radial-gradient(circle at 88% 22%, rgba(74, 48, 34, 0.38) 0%, transparent 45%),
+      radial-gradient(circle at 50% 85%, rgba(44, 30, 74, 0.35) 0%, transparent 50%),
+      radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px;
   }
 }
 
-/* Utilitários de Glassmorphism compatíveis com Tailwind v4 */
 .glass-panel {
   background-color: var(--color-card);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   border: 1px solid var(--color-border);
-  box-shadow: 0 12px 36px -8px rgba(28, 25, 23, 0.07);
+  box-shadow:
+    0 14px 38px -10px rgba(28, 25, 23, 0.08),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.65);
 }
 
 .dark .glass-panel {
-  box-shadow: 0 12px 36px -8px rgba(0, 0, 0, 0.45);
+  box-shadow:
+    0 16px 42px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
+.duo-ticket-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.28s ease, box-shadow 0.28s ease;
+}
+
+.duo-ticket-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--color-brand-warm), var(--color-brand-teal));
+  opacity: 0.75;
+}
+
+.duo-ticket-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--color-border-strong);
 }
 
 .glass-input {
@@ -124,5 +149,5 @@
 .glass-input:focus {
   outline: none;
   border-color: var(--color-border-strong);
-  box-shadow: 0 0 0 3px rgba(140, 122, 107, 0.15);
+  box-shadow: 0 0 0 3px rgba(200, 125, 85, 0.15);
 }
