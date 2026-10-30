@@ -1,10 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { ConciergeBox, type ConciergeModo } from "@/components/search/concierge-box";
-import type { ConciergeParse } from "@/lib/concierge";
-import { writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { ConciergeAgent } from "@/components/search/concierge-agent";
 import {
   Plane,
   Hotel,
@@ -52,15 +49,6 @@ const ATALHOS_PAINEL: {
 ];
 
 export default function DashboardOverviewPage() {
-  const router = useRouter();
-
-  // O Concierge na página principal: salva o que entendeu e leva o usuário
-  // para a busca de passagens ou hospedagem, conforme o modo escolhido.
-  function aoInterpretar(dados: ConciergeParse, modo: ConciergeModo) {
-    writeLocal(STORAGE_KEYS.concierge, { dados, modo, ts: Date.now() });
-    router.push(modo === "hospedagem" ? "/dashboard/buscar-hospedagem" : "/dashboard/buscar-viagem");
-  }
-
   return (
     <div className="space-y-8">
       {/* Cabeçalho */}
@@ -69,13 +57,13 @@ export default function DashboardOverviewPage() {
           Olá, viajantes
         </h1>
         <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)] max-w-2xl">
-          Por onde a próxima aventura a dois vai começar? Descreva a viagem abaixo e deixe o
-          Concierge montar a busca — ou escolha uma das áreas.
+          Por onde a próxima aventura a dois vai começar? Descreva a viagem abaixo e o
+          Concierge já abre as buscas prontas — passagens e hospedagem, no período certo.
         </p>
       </section>
 
-      {/* Concierge de IA — uso livre para passagens ou hospedagem */}
-      <ConciergeBox comModos onInterpretar={aoInterpretar} />
+      {/* Concierge de IA — agente que devolve os links prontos aqui mesmo */}
+      <ConciergeAgent />
 
       {/* Atalhos principais */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
