@@ -100,8 +100,13 @@ function extrairTituloGasto(frase: string): string {
 function pareceLancamentoFinanceiro(t: string): boolean {
   const temVerbo = /\b(lance|lanca|lançar|lancar|adicione|adicionar|registre|registrar|anote|anotar|gastei|paguei)\b/.test(t);
   const temValor = /r?\$?\s*\d/.test(t);
-  const temGasto = /\b(gasto|despesa|conta)\b/.test(t);
-  return (temVerbo && temValor) || (temGasto && temValor);
+  const temGasto = /\b(gasto|despesa)\b/.test(t);
+  const temEscopo = /(compartilhad|pessoal|privad|da viagem)/.test(t);
+  // Casos que indicam lançar um gasto:
+  // - verbo + (valor OU "gasto/despesa");
+  // - "gasto/despesa" + valor;
+  // - valor + escopo explícito ("R$ 150 ... compartilhado/pessoal"), mesmo sem verbo.
+  return (temVerbo && (temValor || temGasto)) || (temGasto && temValor) || (temValor && temEscopo);
 }
 
 function pareceConsultaFinanceira(t: string): boolean {
@@ -121,8 +126,8 @@ function responderLancamento(frase: string): NoraResposta {
 
   // Escopo explícito pela frase; senão, classifica por palavra-chave.
   let escopo: Escopo | null = null;
-  if (/\b(pessoal|privad|oculto|meu|minha|so meu|só meu)\b/.test(t)) escopo = "pessoal_privado";
-  if (/\b(compartilhad|da viagem|viagem|dividir|dupla|juntos)\b/.test(t)) escopo = "viagem_compartilhado";
+  if (/(pessoal|privad|oculto|\bmeu\b|\bminha\b|s[oó] meu)/.test(t)) escopo = "pessoal_privado";
+  if (/(compartilhad|da viagem|\bviagem\b|dividir|dupla|juntos)/.test(t)) escopo = "viagem_compartilhado";
 
   const classificado = classificarItemAutomaticamente(titulo, valor, new Date().toLocaleDateString("pt-BR"), "Nora");
   const item: ItemDespesa = {
@@ -274,19 +279,19 @@ interface TopicoAjuda {
 
 const AJUDA: TopicoAjuda[] = [
   {
-    gatilhos: /\b(convid|conta compartilhad|parceir|namorad|esposa|marido|dupla junto|mesmo espaco|mesmo espaço)\b/i,
+    gatilhos: /(convid|conta compartilhad|parceir|namorad|esposa|marido|dupla junt|mesmo espa[cç]o|convite)/i,
     texto:
       "Para planejarem juntos, abra o convite: clique em \"+ Convidar Parceiro(a)\" no topo do painel e envie o link/código gerado para a pessoa. Ao aceitar, vocês compartilham o mesmo espaço — roteiro, alertas e as despesas da viagem — em tempo real.",
     atalho: { tipo: "atalho", rotulo: "Abrir Modal de Convite", acaoId: "convite" },
   },
   {
-    gatilhos: /\b(nubank|fatura|privacidade|pessoal.*aparec|aparec.*pessoal|triagem|csv|lgpd|protecao|proteção|dados)\b/i,
+    gatilhos: /(nubank|fatura|privacidade|pessoal.*aparec|aparec.*pessoal|triagem|csv|lgpd|prote[cç][ãa]o|meus dados)/i,
     texto:
       "Seus gastos pessoais ficam protegidos: ao importar o CSV do Nubank ou uma nota fiscal, cada item passa por uma triagem antes de entrar na conta compartilhada. Só o que você marca como \"da viagem\" fica visível para o parceiro(a); o que é pessoal permanece privado e nunca entra na divisão. Por segurança, o que não é reconhecido entra como pessoal por padrão. Isso segue os princípios da LGPD (minimização e consentimento).",
     atalho: { tipo: "atalho", rotulo: "Ir para Triagem Nubank", acaoId: "triagem" },
   },
   {
-    gatilhos: /\b(roteiro|passeio|itinerario|itinerário|dia a dia|programacao|programação)\b/i,
+    gatilhos: /(roteiro|passeio|itinerari|itinerári|dia a dia|programa[cç][ãa]o)/i,
     texto:
       "No Roteiro vocês montam o dia a dia da viagem a quatro mãos. Abra a aba Roteiro, adicione atividades por dia (horário, local e observações) — tudo sincroniza com o parceiro(a) automaticamente.",
     atalho: { tipo: "atalho", rotulo: "Abrir Roteiro", acaoId: "roteiro" },
@@ -319,10 +324,16 @@ export function responderNora(frase: string, ctx: NoraContexto = {}): NoraRespos
   const ajuda = responderAjuda(frase);
   if (ajuda) return ajuda;
 
-  // Sinais de viagem (origem/destino/datas/termos de passagem ou hospedagem).
+  // Sinais de viagem: só vai para a busca quando há um sinal FORTE —
+  // termos explícitos de viagem, um IATA resolvido (origem/destino), ou uma
+  // data. Um destino "adivinhado" (palavra solta sem IATA e sem termo de
+  // viagem) NÃO conta, para não tratar "obrigado" como cidade.
   const dadosPreview = interpretarBusca(frase);
-  const termosViagem = /\b(voo|voos|passagem|onibus|ônibus|hospedagem|hotel|pousada|viajar|viagem|ir para|ir a)\b/i.test(frase);
-  if (temSinalDeViagem(dadosPreview) || termosViagem) {
+  const termosViagem =
+    /\b(voo|voos|passagem|passagens|[oô]nibus|hospedagem|hotel|hoteis|hotéis|pousada|pousadas|airbnb|viajar|viagem|ir para|ir a|rumo a|destino)\b/i.test(frase);
+  const temIata = Boolean(dadosPreview.originIata || dadosPreview.destinationIata);
+  const temData = Boolean(dadosPreview.departDate);
+  if (termosViagem || temIata || temData) {
     return responderViagem(frase, ctx);
   }
 
