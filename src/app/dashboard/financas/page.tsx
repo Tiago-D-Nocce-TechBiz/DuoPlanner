@@ -1,6 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import {
+  Users,
+  ScanLine,
+  PenLine,
+  Plus,
+  CheckCircle2,
+  ShieldCheck,
+} from "@/components/ui/icons";
 
 /**
  * Finanças Duo — controle de gastos da viagem com triagem de privacidade.
@@ -83,12 +91,14 @@ function classificarItemAutomaticamente(
   return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
 }
 
+// Labels sem emoji: os <option> de um <select> nativo não renderizam ícones
+// SVG, então mantemos texto puro e monocromático.
 const CATEGORIAS: { value: Categoria; label: string }[] = [
-  { value: "Passagens & Transporte", label: "✈️ Passagens & Transporte" },
-  { value: "Hospedagem", label: "🏨 Hospedagem" },
-  { value: "Alimentação & Gastronomia", label: "🍽️ Alimentação & Gastronomia" },
-  { value: "Passeios & Lazer", label: "🎟️ Passeios & Lazer" },
-  { value: "Gasto Pessoal (Fora da Viagem)", label: "🔒 Gasto Pessoal (Privado)" },
+  { value: "Passagens & Transporte", label: "Passagens & Transporte" },
+  { value: "Hospedagem", label: "Hospedagem" },
+  { value: "Alimentação & Gastronomia", label: "Alimentação & Gastronomia" },
+  { value: "Passeios & Lazer", label: "Passeios & Lazer" },
+  { value: "Gasto Pessoal (Fora da Viagem)", label: "Gasto Pessoal (Privado)" },
 ];
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
@@ -213,8 +223,9 @@ export default function FinancasPage() {
           <span className="mt-1 block text-xs text-[var(--color-muted)]">Divisão igual dos itens da viagem</span>
         </div>
         <div className="glass-panel rounded-2xl p-6">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-            Seus gastos pessoais 🔒
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+            Seus gastos pessoais
+            <ShieldCheck className="h-3.5 w-3.5" />
           </span>
           <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-heading)]">{brl(totalPrivado)}</p>
           <span className="mt-1 block text-xs text-[var(--color-muted)]">Privado: nunca entra na divisão</span>
@@ -232,8 +243,9 @@ export default function FinancasPage() {
           </div>
 
           <div className="mt-5">
-            <label className="inline-flex px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer hover:opacity-90 transition-opacity">
-              📂 Selecionar arquivo (CSV / TXT)
+            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer hover:opacity-90 transition-opacity">
+              <ScanLine className="h-4 w-4" />
+              Selecionar arquivo (CSV / TXT)
               <input type="file" accept=".csv,.txt" onChange={handleUploadFatura} className="hidden" />
             </label>
           </div>
@@ -253,9 +265,10 @@ export default function FinancasPage() {
               type="button"
               onClick={() => extrairDoTexto(textoColado)}
               disabled={!textoColado.trim()}
-              className="mt-2 px-4 py-2 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-50"
+              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-50"
             >
-              📝 Ler texto colado
+              <PenLine className="h-4 w-4" />
+              Ler texto colado
             </button>
           </div>
         </div>
@@ -285,15 +298,16 @@ export default function FinancasPage() {
               ))}
             </select>
             <select value={escopoManual} onChange={(e) => setEscopoManual(e.target.value as Escopo)} className="glass-input">
-              <option value="viagem_compartilhado">👥 Compartilhar na viagem</option>
-              <option value="pessoal_privado">🔒 Apenas meu (privado)</option>
+              <option value="viagem_compartilhado">Compartilhar na viagem</option>
+              <option value="pessoal_privado">Apenas meu (privado)</option>
             </select>
           </div>
           <button
             type="submit"
-            className="w-full py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
+            className="inline-flex w-full items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
           >
-            + Registrar lançamento
+            <Plus className="h-4 w-4" />
+            Registrar lançamento
           </button>
         </form>
       </div>
@@ -312,8 +326,9 @@ export default function FinancasPage() {
               <button type="button" onClick={() => setItensTriagem([])} className="px-3.5 py-2 rounded-xl text-xs font-semibold glass-panel cursor-pointer">
                 Cancelar
               </button>
-              <button type="button" onClick={confirmarTriagem} className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer">
-                ✓ Confirmar
+              <button type="button" onClick={confirmarTriagem} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer">
+                <CheckCircle2 className="h-4 w-4" />
+                Confirmar
               </button>
             </div>
           </div>
@@ -329,13 +344,18 @@ export default function FinancasPage() {
                   <button
                     type="button"
                     onClick={() => alternarEscopoTriagem(item.id)}
-                    className={`px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all ${
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer transition-all ${
                       item.escopo === "viagem_compartilhado"
-                        ? "bg-emerald-600 text-white"
-                        : "bg-zinc-500/20 text-[var(--color-muted)]"
+                        ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                        : "bg-black/5 dark:bg-white/10 text-[var(--color-muted)]"
                     }`}
                   >
-                    {item.escopo === "viagem_compartilhado" ? "👥 Viagem" : "🔒 Pessoal"}
+                    {item.escopo === "viagem_compartilhado" ? (
+                      <Users className="h-3.5 w-3.5" />
+                    ) : (
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                    )}
+                    {item.escopo === "viagem_compartilhado" ? "Viagem" : "Pessoal"}
                   </button>
                 </div>
               </div>
@@ -354,7 +374,10 @@ export default function FinancasPage() {
               aba === "compartilhado" ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]" : "glass-panel text-[var(--color-muted)]"
             }`}
           >
-            👥 Compartilhados ({compartilhados.length})
+            <span className="inline-flex items-center gap-1.5">
+              <Users className="h-4 w-4" />
+              Compartilhados ({compartilhados.length})
+            </span>
           </button>
           <button
             type="button"
@@ -363,7 +386,10 @@ export default function FinancasPage() {
               aba === "privado" ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]" : "glass-panel text-[var(--color-muted)]"
             }`}
           >
-            🔒 Pessoais ({privados.length})
+            <span className="inline-flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4" />
+              Pessoais ({privados.length})
+            </span>
           </button>
         </div>
 
