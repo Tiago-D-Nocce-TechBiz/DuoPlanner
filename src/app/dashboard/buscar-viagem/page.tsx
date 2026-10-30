@@ -3,7 +3,6 @@
 import { useMemo, useState } from "react";
 import { Plane, Bus, LayoutGrid } from "@/components/ui/icons";
 import { PageHeading } from "@/components/dashboard/page-heading";
-import { ConciergeBox } from "@/components/search/concierge-box";
 import { FlightSearch } from "@/components/search/flight-search";
 import { BusSearch } from "@/components/search/bus-search";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
@@ -47,18 +46,8 @@ export default function BuscarPassagensPage() {
   }, [montado]);
 
   const [abaManual, setAba] = useState<Aba | null>(null);
-  // Preenchimento vindo do Concierge: o handoff da página inicial OU o uso
-  // direto da barra de comando aqui mesmo (prioridade para o uso direto).
-  const [conciergeDireto, setConciergeDireto] = useState<ConciergeParse | null>(null);
   const aba: Aba = abaManual ?? handoff?.aba ?? "todos";
-  const preenchimento: ConciergeParse | null = conciergeDireto ?? handoff?.dados ?? null;
-
-  // Barra de comando no topo: interpreta a frase e preenche a busca de voos.
-  function aoInterpretarConcierge(dados: ConciergeParse) {
-    setConciergeDireto(dados);
-    const temIata = Boolean(dados.originIata && dados.destinationIata);
-    setAba(temIata ? "voos" : "todos");
-  }
+  const preenchimento: ConciergeParse | null = handoff?.dados ?? null;
 
   return (
     <div className="space-y-8">
@@ -66,9 +55,6 @@ export default function BuscarPassagensPage() {
         title="Buscar Passagens"
         description="Voos (LATAM, Azul, GOL, Google Flights, Skyscanner, Decolar) e ônibus (Guanabara, Buser, UTIL, ClickBus, DeÔnibus, FlixBus, Gontijo, Cometa) em um só lugar."
       />
-
-      {/* Concierge de IA — barra de comando inteligente no topo */}
-      <ConciergeBox onInterpretar={aoInterpretarConcierge} />
 
       {/* Abas */}
       <div
