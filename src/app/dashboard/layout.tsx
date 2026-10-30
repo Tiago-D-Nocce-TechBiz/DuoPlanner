@@ -149,8 +149,8 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header Superior */}
         <header className="glass-panel chrome-surface border-b border-[var(--color-border)] px-6 py-3.5 flex items-center justify-between gap-4">
-          <div className="text-xs sm:text-sm text-[var(--color-muted)] font-medium truncate">
-            Planejamento de viagens <span className="text-[var(--color-heading)] font-semibold">DuoPlanner</span>
+          <div className="text-xs sm:text-sm text-[var(--color-heading)] font-semibold truncate">
+            Planejamento de Viagens e Finanças
           </div>
 
           <div className="flex items-center gap-3">
