@@ -59,6 +59,33 @@
 
   --font-sans: var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
   --font-serif: var(--font-playfair), ui-serif, Georgia, serif;
+  --font-brand: var(--font-brand), var(--font-playfair), ui-serif, Georgia, serif;
+}
+
+/**
+ * Wordmark da marca "DuoPlanner".
+ *
+ * Usa a fonte display Cormorant Garamond (serifada, elegante) com tracking
+ * aberto para dar um ar profissional e sofisticado. "Duo" ganha peso e um
+ * leve destaque; "Planner" fica mais leve. Tudo monocromático (tokens de tema).
+ */
+.brand-wordmark {
+  font-family: var(--font-brand);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--color-heading);
+  font-feature-settings: "liga" 1, "dlig" 1;
+}
+
+.brand-wordmark .brand-duo {
+  font-weight: 700;
+}
+
+.brand-wordmark .brand-planner {
+  font-weight: 500;
+  font-style: italic;
+  color: var(--color-muted);
 }
 
 @layer base {

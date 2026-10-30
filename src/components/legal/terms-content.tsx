@@ -190,7 +190,7 @@ export function TermsContent() {
         </p>
         <ul className="list-none space-y-1 pl-0">
           <li><strong>Responsável:</strong> Tiago D. Nocce (desenvolvedor e controlador)</li>
-          <li><strong>E-mail do Encarregado (DPO):</strong> dpo@plannerduo.app</li>
+          <li><strong>E-mail do Encarregado (DPO):</strong> dpo@duoplanner.app</li>
         </ul>
         <p>
           As solicitações serão respondidas nos prazos e na forma previstos pela
