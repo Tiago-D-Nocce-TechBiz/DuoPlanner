@@ -169,3 +169,24 @@
 .dark .chrome-surface {
   background-color: var(--color-card);
 }
+
+/* Piscar dos "olhos" da Nora (avatar do agente de IA). */
+@keyframes nora-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.12); }
+}
+
+/* Painel lateral da Nora: slide-in da direita. */
+@keyframes nora-slide-in {
+  from { transform: translateX(100%); }
+  to { transform: translateX(0); }
+}
+
+.nora-drawer-enter {
+  animation: nora-slide-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nora-drawer-enter { animation: none; }
+  .animate-\[nora-blink_3\.2s_ease-in-out_infinite\] { animation: none; }
+}

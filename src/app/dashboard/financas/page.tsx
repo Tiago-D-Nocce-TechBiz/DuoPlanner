@@ -9,87 +9,25 @@ import {
   CheckCircle2,
   ShieldCheck,
 } from "@/components/ui/icons";
+import {
+  useDespesas,
+  setDespesas as salvarDespesas,
+  classificarItemAutomaticamente,
+  idAleatorio,
+  type Categoria,
+  type Escopo,
+  type ItemDespesa,
+} from "@/lib/finance/store";
 
 /**
  * Finanças Duo — controle de gastos da viagem com triagem de privacidade.
  *
  * Importa uma fatura (CSV/TXT) ou texto colado, classifica os itens por
  * categoria e separa o que é da viagem (compartilhado) do que é pessoal
- * (privado, nunca entra na divisão da dupla). Começa vazio, pronto para dados
- * reais — sem marcas de bancos nem dados de exemplo.
+ * (privado, nunca entra na divisão da dupla). A lista fica no store
+ * compartilhado (`@/lib/finance/store`), então a Nora (agente de IA) e esta
+ * página enxergam os mesmos dados.
  */
-
-type Categoria =
-  | "Passagens & Transporte"
-  | "Hospedagem"
-  | "Alimentação & Gastronomia"
-  | "Passeios & Lazer"
-  | "Gasto Pessoal (Fora da Viagem)";
-
-type Escopo = "viagem_compartilhado" | "pessoal_privado";
-
-interface ItemDespesa {
-  id: string;
-  data: string;
-  estabelecimento: string;
-  valor: number;
-  categoriaDestino: Categoria;
-  escopo: Escopo;
-  origem: string;
-}
-
-function idAleatorio() {
-  return Math.random().toString(36).substring(2, 9);
-}
-
-/**
- * Classifica automaticamente um item por palavras-chave:
- * transporte, hospedagem, lazer, alimentação ou pessoal (privado por padrão
- * quando não reconhecido, para nunca vazar um gasto particular).
- */
-function classificarItemAutomaticamente(
-  titulo: string,
-  valor: number,
-  data: string,
-  origem = "Importado"
-): ItemDespesa {
-  const t = titulo.toLowerCase();
-  const base = { id: idAleatorio(), data, estabelecimento: titulo, valor, origem };
-
-  const transporte = [
-    "latam", "azul", "gol", "voeazul", "voegol", "decolar", "skyscanner",
-    "buser", "guanabara", "util", "clickbus", "flixbus", "deonibus", "gontijo",
-    "cometa", "viacao", "viação", "rodoviaria", "rodoviária",
-    "uber", "99", "99app", "cabify", "pedagio", "pedágio", "sem parar", "conectcar",
-    "posto", "combustivel", "combustível", "shell", "ipiranga", "petrobras",
-  ];
-  const hospedagem = [
-    "airbnb", "booking", "hoteis", "hotéis", "hotel", "pousada", "resort",
-    "hospedagem", "hostel", "vrbo", "expedia", "trivago", "flat",
-  ];
-  const lazer = [
-    "ingresso", "ingressos", "parque", "tour", "passeio", "museu", "cinema",
-    "show", "balada", "ticket", "beach club", "mergulho", "escuna", "trilha",
-  ];
-  const alimentacao = [
-    "restaurante", "bar ", "boteco", "praia", "quiosque", "padaria",
-    "lanchonete", "ifood", "mercado", "supermercado", "cafe", "café",
-    "pizzaria", "hamburgueria", "churrascaria", "sorveteria", "food",
-  ];
-  const pessoal = [
-    "academia", "farmacia", "farmácia", "drogaria", "assinatura", "streaming",
-    "mensalidade", "consulta", "plano de saude",
-  ];
-
-  const casa = (lista: string[]) => lista.some((k) => t.includes(k));
-
-  if (casa(pessoal)) return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
-  if (casa(transporte)) return { ...base, categoriaDestino: "Passagens & Transporte", escopo: "viagem_compartilhado" };
-  if (casa(hospedagem)) return { ...base, categoriaDestino: "Hospedagem", escopo: "viagem_compartilhado" };
-  if (casa(lazer)) return { ...base, categoriaDestino: "Passeios & Lazer", escopo: "viagem_compartilhado" };
-  if (casa(alimentacao)) return { ...base, categoriaDestino: "Alimentação & Gastronomia", escopo: "viagem_compartilhado" };
-  return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
-}
 
 // Labels sem emoji: os <option> de um <select> nativo não renderizam ícones
 // SVG, então mantemos texto puro e monocromático.
@@ -104,8 +42,9 @@ const CATEGORIAS: { value: Categoria; label: string }[] = [
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
 export default function FinancasPage() {
-  // Começa vazio — pronto para receber dados reais.
-  const [despesas, setDespesas] = useState<ItemDespesa[]>([]);
+  // Lista vem do store compartilhado (reativo): a Nora e esta página
+  // escrevem/leem o mesmo localStorage e todas as telas se atualizam.
+  const despesas = useDespesas();
   const [itensTriagem, setItensTriagem] = useState<ItemDespesa[]>([]);
   const [textoColado, setTextoColado] = useState("");
   const [aba, setAba] = useState<"compartilhado" | "privado">("compartilhado");
@@ -167,7 +106,7 @@ export default function FinancasPage() {
     );
 
   const confirmarTriagem = () => {
-    setDespesas((prev) => [...itensTriagem, ...prev]);
+    salvarDespesas([...itensTriagem, ...despesas]);
     setItensTriagem([]);
   };
 
@@ -184,7 +123,7 @@ export default function FinancasPage() {
       escopo: escopoManual,
       origem: "Manual",
     };
-    setDespesas((prev) => [nova, ...prev]);
+    salvarDespesas([nova, ...despesas]);
     setTituloManual("");
     setValorManual("");
   };

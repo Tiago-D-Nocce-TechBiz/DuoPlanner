@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { InviteButton } from "@/components/dashboard/invite-button";
 import { BrandLogo } from "@/components/brand/logo";
+import { NoraProvider } from "@/components/ai/nora-provider";
+import { NoraTrigger } from "@/components/ai/nora-trigger";
+import { NoraDrawer } from "@/components/ai/nora-drawer";
 import { logoutAction } from "@/app/(auth)/actions";
 import {
   LayoutDashboard,
@@ -73,6 +76,7 @@ export default function DashboardLayout({
   };
 
   return (
+    <NoraProvider>
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Sidebar Lateral */}
       <aside className="w-full md:w-64 glass-panel chrome-surface md:min-h-screen flex flex-col justify-between p-4 sm:p-5 shrink-0 border-b md:border-b-0 md:border-r border-[var(--color-border)]">
@@ -146,6 +150,7 @@ export default function DashboardLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            <NoraTrigger />
             <InviteButton />
             <div className="hidden md:block">
               <ThemeToggle />
@@ -198,6 +203,9 @@ export default function DashboardLayout({
         </div>
       )}
 
+      {/* Painel lateral da Nora — acessível de qualquer rota do dashboard */}
+      <NoraDrawer />
     </div>
+    </NoraProvider>
   );
 }

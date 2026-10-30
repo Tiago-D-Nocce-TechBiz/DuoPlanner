@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { ConciergeAgent } from "@/components/search/concierge-agent";
 import {
   Plane,
   Hotel,
@@ -57,13 +56,11 @@ export default function DashboardOverviewPage() {
           Olá, viajantes
         </h1>
         <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)] max-w-2xl">
-          Por onde a próxima aventura a dois vai começar? Descreva a viagem abaixo e o
-          Concierge já abre as buscas prontas — passagens e hospedagem, no período certo.
+          Por onde a próxima aventura a dois vai começar? Fale com a <strong>Nora</strong> no
+          botão <em>&quot;Perguntar à Nora&quot;</em> no topo — ela monta passagens, hospedagem
+          e finanças para vocês. Ou escolha uma das áreas abaixo.
         </p>
       </section>
-
-      {/* Concierge de IA — agente que devolve os links prontos aqui mesmo */}
-      <ConciergeAgent />
 
       {/* Atalhos principais */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">

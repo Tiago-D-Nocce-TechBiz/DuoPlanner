@@ -497,5 +497,46 @@ export function Plus(p: IconProps) {
   );
 }
 
+/** Microfone (ditado por voz — Web Speech API). */
+export function Mic(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 11a7 7 0 0 0 14 0" />
+      <path d="M12 18v4M8 22h8" />
+    </Icon>
+  );
+}
+
+/** Seta para cima (enviar mensagem). */
+export function ArrowUp(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </Icon>
+  );
+}
+
+/** Expandir / recolher a largura do painel (setas diagonais). */
+export function Expand(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M4 14v6h6M20 10V4h-6" />
+      <path d="M14 10l6-6M10 14l-6 6" />
+    </Icon>
+  );
+}
+
+/** Varinha mágica (menu de prompts prontos). */
+export function Wand(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M15 4V2M15 10V8M12 7h-2M20 7h-2" />
+      <path d="M3 21l12-12-2-2L1 19z" />
+      <path d="M12.5 7.5l2 2" />
+    </Icon>
+  );
+}
+
 /** Tipo compatível com o antigo `LucideIcon` (um componente de ícone). */
 export type AppIcon = (props: IconProps) => React.ReactElement;

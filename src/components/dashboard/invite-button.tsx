@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { gerarConvite } from "@/app/dashboard/workspace-actions";
 
 /**
@@ -18,6 +18,13 @@ export function InviteButton({
   const [link, setLink] = useState("");
   const [mensagem, setMensagem] = useState("");
   const [copiado, setCopiado] = useState(false);
+
+  // A Nora (agente de IA) pode abrir este modal via evento global.
+  useEffect(() => {
+    const abrir = () => setAberto(true);
+    window.addEventListener("nora:abrir-convite", abrir);
+    return () => window.removeEventListener("nora:abrir-convite", abrir);
+  }, []);
 
   function gerar() {
     setMensagem("");
