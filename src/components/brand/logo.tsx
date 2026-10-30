@@ -120,9 +120,8 @@ export function BrandLogo({
   const conteudo = (
     <span className={cn("flex items-center gap-2.5", className)}>
       <BrandIcon className={cn("h-8 w-8", iconClassName)} />
-      <span className="brand-wordmark text-2xl sm:text-3xl">
-        <span className="brand-duo">Duo</span>
-        <span className="brand-planner">Planner</span>
+      <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-heading)]">
+        DuoPlanner
       </span>
     </span>
   );

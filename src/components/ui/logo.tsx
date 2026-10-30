@@ -7,9 +7,13 @@ import { cn } from "@/lib/utils";
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
-    <span className={cn("brand-wordmark text-2xl sm:text-3xl", className)}>
-      <span className="brand-duo">Duo</span>
-      <span className="brand-planner">Planner</span>
+    <span
+      className={cn(
+        "font-serif text-2xl font-semibold tracking-tight text-heading",
+        className
+      )}
+    >
+      <span className="font-normal italic text-muted">Duo</span>Planner
     </span>
   );
 }

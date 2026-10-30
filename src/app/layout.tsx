@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Playfair_Display, Cormorant_Garamond } from "next/font/google";
+import { Manrope, Playfair_Display } from "next/font/google";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -11,15 +11,6 @@ const manrope = Manrope({
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
-  display: "swap",
-});
-
-// Fonte display da marca "DuoPlanner": serifada refinada, com ar editorial e
-// sofisticado — reservada ao wordmark (classe utilitária `.brand-wordmark`).
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["500", "600", "700"],
-  variable: "--font-brand",
   display: "swap",
 });
 
@@ -58,7 +49,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
       </head>
-      <body className={`${manrope.variable} ${playfair.variable} ${cormorant.variable} antialiased`}>
+      <body className={`${manrope.variable} ${playfair.variable} antialiased`}>
         {children}
       </body>
     </html>
