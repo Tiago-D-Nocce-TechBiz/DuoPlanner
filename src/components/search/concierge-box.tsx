@@ -1,35 +1,39 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Plane, Hotel } from "@/components/ui/icons";
+import { Sparkles } from "@/components/ui/icons";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { interpretarBusca, type ConciergeParse } from "@/lib/concierge";
-import { cn } from "@/lib/utils";
+import {
+  interpretarBusca,
+  inferirIntencao,
+  type ConciergeParse,
+} from "@/lib/concierge";
 
 export type ConciergeModo = "passagens" | "hospedagem";
 
 /**
- * Agente Concierge de linguagem natural.
+ * Agente Concierge de linguagem natural — uso GERAL.
  *
- * O usuário descreve a viagem em uma frase; o concierge extrai origem, destino,
- * datas e passageiros e entrega via `onInterpretar`. Quando `comModos` é true,
- * mostra a escolha Passagens/Hospedagem e informa o modo escolhido — útil na
- * página principal para decidir para onde levar o usuário.
+ * O usuário descreve a viagem em uma frase (sem escolher "Passagens" ou
+ * "Hospedagem"). O concierge extrai origem, destino, datas e passageiros e,
+ * quando `comModos` é true (página principal), infere automaticamente a
+ * intenção pela frase — menção a hotel/pousada/diárias leva à Hospedagem;
+ * caso contrário, à busca de Passagens. O resultado chega via `onInterpretar`.
  *
  * Interpretação determinística (src/lib/concierge.ts): funciona sem chave de IA.
  */
 export function ConciergeBox({
   onInterpretar,
   comModos = false,
-  exemplo = "Ex.: quero ir de Belo Horizonte para o Rio de Janeiro de 10/07 a 15/07, 2 pessoas",
+  exemplo = "Ex.: de Belo Horizonte para o Rio de 10/07 a 15/07, ou \"hotel em Búzios para 2 pessoas\"",
 }: {
   onInterpretar: (dados: ConciergeParse, modo: ConciergeModo) => void;
+  /** Quando true, infere automaticamente Passagens vs. Hospedagem pela frase. */
   comModos?: boolean;
   exemplo?: string;
 }) {
   const [frase, setFrase] = useState("");
-  const [modo, setModo] = useState<ConciergeModo>("passagens");
   const [aviso, setAviso] = useState<string | null>(null);
 
   function interpretar() {
@@ -41,10 +45,14 @@ export function ConciergeBox({
       dados.destinationIata ||
       dados.departDate;
     if (!achouAlgo) {
-      setAviso('Não consegui entender. Tente algo como: "de São Paulo para Recife dia 12/08".');
+      setAviso(
+        'Não consegui entender. Tente algo como: "de São Paulo para Recife dia 12/08" ou "hotel em Gramado para 2 pessoas".'
+      );
       return;
     }
     setAviso(null);
+    // Modo geral: a intenção é inferida da frase (não escolhida pelo usuário).
+    const modo: ConciergeModo = comModos ? inferirIntencao(frase) : "passagens";
     onInterpretar(dados, modo);
   }
 
@@ -57,38 +65,10 @@ export function ConciergeBox({
         <div>
           <h2 className="font-serif text-lg font-semibold text-heading">Concierge de IA</h2>
           <p className="text-xs text-muted">
-            Descreva a viagem em uma frase e eu monto a busca para você.
+            Descreva a viagem em uma frase — passagens ou hospedagem — e eu monto a busca para você.
           </p>
         </div>
       </div>
-
-      {comModos && (
-        <div
-          role="radiogroup"
-          aria-label="Buscar o quê"
-          className="mb-3 inline-flex rounded-xl border border-border bg-background p-1"
-        >
-          {([
-            { key: "passagens", label: "Passagens", icon: Plane },
-            { key: "hospedagem", label: "Hospedagem", icon: Hotel },
-          ] as const).map((t) => (
-            <button
-              key={t.key}
-              type="button"
-              role="radio"
-              aria-checked={modo === t.key}
-              onClick={() => setModo(t.key)}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-4 py-1.5 text-sm transition-colors",
-                modo === t.key ? "bg-elevated font-medium text-heading" : "text-muted hover:text-heading"
-              )}
-            >
-              <t.icon className="h-4 w-4" />
-              {t.label}
-            </button>
-          ))}
-        </div>
-      )}
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <input
@@ -102,7 +82,7 @@ export function ConciergeBox({
         />
         <Button type="button" variant="primary" onClick={interpretar} disabled={!frase.trim()}>
           <Sparkles className="h-4 w-4" />
-          {comModos ? "Buscar" : "Interpretar"}
+          Buscar
         </Button>
       </div>
 

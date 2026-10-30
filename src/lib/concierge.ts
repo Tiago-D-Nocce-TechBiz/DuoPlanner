@@ -92,6 +92,37 @@ export function iataDaCidade(cidade: string): string | undefined {
   return IATA_CONHECIDOS[norm(cidade)];
 }
 
+/** Intenção de busca inferida da frase, sem o usuário escolher um modo. */
+export type ConciergeIntencao = "passagens" | "hospedagem";
+
+/** Palavras que indicam busca de hospedagem. */
+const PISTAS_HOSPEDAGEM = [
+  "hospedagem", "hospedar", "hotel", "hoteis", "hotéis", "pousada", "pousadas",
+  "airbnb", "booking", "resort", "hostel", "flat", "chalé", "chale", "chalés",
+  "quarto", "quartos", "diaria", "diária", "diarias", "diárias", "estadia",
+  "acomodacao", "acomodação", "acomodacoes", "acomodações", "dormir", "ficar em",
+  "noites", "check-in", "checkin", "casa de temporada", "apartamento",
+];
+
+/** Palavras que indicam busca de passagens (voo/ônibus). */
+const PISTAS_PASSAGENS = [
+  "passagem", "passagens", "voo", "voos", "voar", "aviao", "avião", "aereo",
+  "aéreo", "aerea", "aérea", "onibus", "ônibus", "rodoviaria", "rodoviária",
+  "viajar de", "ida e volta", "so ida", "só ida", "voe", "latam", "gol", "azul",
+];
+
+/**
+ * Infere se a frase trata de HOSPEDAGEM ou PASSAGENS a partir de palavras-chave.
+ * Sem pistas claras, assume "passagens" (ponto de partida natural da viagem).
+ */
+export function inferirIntencao(frase: string): ConciergeIntencao {
+  const t = norm(frase);
+  const pontosHosp = PISTAS_HOSPEDAGEM.reduce((n, k) => (t.includes(norm(k)) ? n + 1 : n), 0);
+  const pontosPass = PISTAS_PASSAGENS.reduce((n, k) => (t.includes(norm(k)) ? n + 1 : n), 0);
+  if (pontosHosp > pontosPass) return "hospedagem";
+  return "passagens";
+}
+
 /** Normaliza datas em dd/mm, dd/mm/aaaa ou aaaa-mm-dd para ISO yyyy-mm-dd. */
 function normalizaData(bruto: string): string | undefined {
   const t = bruto.trim();
@@ -152,15 +183,17 @@ function recortaTrechoRota(texto: string): string {
   // parte da origem/destino (ex.: "quero ir de ...", "gostaria de viajar
   // para ..."). Para no conector que define a rota ("de/para/pra/a" seguido
   // de uma palavra que não seja outro verbo de abertura).
-  const INTRO = /^\s*(?:quero|queria|gostaria|vou|vamos|preciso|procuro|busco|buscar|pesquisar|me\s+leve|passagem|passagens|passagem\s+aerea|viagem|viajar|ir|voar|voo)\b\s*/i;
+  const INTRO = /^\s*(?:quero|queria|gostaria|vou|vamos|preciso|procuro|busco|buscar|pesquisar|me\s+leve|me\s+hospedar|hospedar(?:-me)?|ficar|dormir|passagem|passagens|passagem\s+aerea|viagem|viajar|ir|voar|voo|voos|onibus|ônibus|hotel|hoteis|hotéis|pousada|pousadas|airbnb|booking|hospedagem|acomodacao|acomodação|estadia|reservar|reserva)\b\s*/i;
   let anterior = "";
   while (base !== anterior) {
     anterior = base;
     base = base.replace(INTRO, "");
   }
+  // Remove conector pendurado no fim ("...gramado para" → "...gramado"), que
+  // sobra quando a parte de passageiros/datas foi recortada após o conector.
+  base = base.replace(/\s+(?:para|pra|a|até|ate|de|em|no|na|rumo a|com destino a)\s*$/i, "");
   // Se sobrou um "de " logo no início (ex.: "de Belo Horizonte"), ele é o
-  // marcador de origem e será tratado adiante; mantemos. Mas removemos um "de"
-  // órfão que tenha ficado colado sem valor (caso raro).
+  // marcador de origem e será tratado adiante; mantemos.
   return base.replace(/[,.;]+\s*$/g, "").trim();
 }
 
@@ -185,9 +218,10 @@ export function interpretarBusca(frase: string): ConciergeParse {
     out.destinationCity = d.city;
     out.destinationIata = d.iata;
   } else {
-    // 2) Só destino: "para/pra/conhecer/visitar <lugar>" até o fim do trecho.
+    // 2) Só destino: "para/pra/conhecer/visitar/em/no/na <lugar>" até o fim.
+    //    Inclui "em/no/na" para frases de hospedagem ("hotel em Gramado").
     const soDestino = trecho.match(
-      /\b(?:para|pra|até|ate|conhecer|visitar|ir a|ir para|rumo a|destino)\s+(?:o\s+|a\s+|ao\s+)?(.+)$/i
+      /\b(?:para|pra|até|ate|conhecer|visitar|ir a|ir para|rumo a|destino|em|no|na|nos|nas)\s+(?:o\s+|a\s+|ao\s+)?(.+)$/i
     );
     if (soDestino && soDestino[1].trim()) {
       const d = resolveLocal(soDestino[1]);
@@ -252,6 +286,9 @@ export function interpretarBusca(frase: string): ConciergeParse {
 
 function limpaCidade(s: string): string {
   return s
+    // Remove preposições/artigos de ligação no início (de, em, no, na, para…).
+    .replace(/^\s*(?:de|do|da|dos|das|em|no|na|nos|nas|para|pra|ao|aos|a)\s+/i, "")
+    // Remove artigos/qualificadores soltos no meio.
     .replace(/\b(o|a|os|as|uma|um|minha|nossa)\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
