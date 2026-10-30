@@ -17,7 +17,10 @@ import { cn } from "@/lib/utils";
  * (recomendado: PNG quadrado com fundo transparente, >= 256x256).
  */
 
-const LOGO_SRC = "/brand/logo.png";
+// O sufixo `?v=` força o navegador a buscar a imagem nova e ignorar qualquer
+// versão antiga em cache (inclusive o 404 de quando o arquivo ainda não
+// existia). Incremente este número sempre que a logo for trocada.
+const LOGO_SRC = "/brand/logo.png?v=2";
 
 /** Símbolo vetorial de reserva, exibido se o PNG ainda não foi salvo. */
 function BrandIconFallback({ className }: { className?: string }) {
