@@ -9,8 +9,10 @@
   --color-muted: #57534E;
   --color-subtle: #78716C;
 
-  --color-card: rgba(255, 252, 247, 0.76);
-  --color-elevated: rgba(255, 255, 255, 0.92);
+  /* Cards quase sólidos: evita que o conteúdo apareça "vazando" por trás
+     (sem transparência incômoda), mantendo o leve efeito frosted. */
+  --color-card: #FBF9F4;
+  --color-elevated: #FFFFFF;
   --color-border: rgba(214, 203, 186, 0.85);
   --color-border-strong: #B6A48B;
 
@@ -30,8 +32,8 @@
   --color-muted: #A1A1AA;
   --color-subtle: #71717A;
 
-  --color-card: rgba(19, 25, 38, 0.72);
-  --color-elevated: rgba(30, 39, 56, 0.88);
+  --color-card: #131926;
+  --color-elevated: #1E2738;
   --color-border: rgba(255, 255, 255, 0.11);
   --color-border-strong: rgba(234, 216, 192, 0.32);
 

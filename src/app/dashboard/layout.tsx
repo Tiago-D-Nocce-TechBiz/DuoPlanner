@@ -24,6 +24,8 @@ import {
   Settings,
   ShieldCheck,
   LogOut,
+  Compass,
+  Users,
   type AppIcon,
 } from "@/components/ui/icons";
 
@@ -55,6 +57,8 @@ const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone:
     secao: "Conta",
     itens: [
       { href: "/dashboard/configuracoes", label: "Configurações", icone: Settings },
+      { href: "/dashboard/sobre", label: "Sobre Nós", icone: Compass },
+      { href: "/dashboard/contato", label: "Fale Conosco", icone: Users },
     ],
   },
 ];
@@ -146,7 +150,7 @@ export default function DashboardLayout({
         {/* Header Superior */}
         <header className="glass-panel chrome-surface border-b border-[var(--color-border)] px-6 py-3.5 flex items-center justify-between gap-4">
           <div className="text-xs sm:text-sm text-[var(--color-muted)] font-medium truncate">
-            Espaço Sincronizado • <span className="text-[var(--color-heading)] font-semibold">Conta Principal & Convidado(a)</span>
+            Planejamento de viagens <span className="text-[var(--color-heading)] font-semibold">DuoPlanner</span>
           </div>
 
           <div className="flex items-center gap-3">

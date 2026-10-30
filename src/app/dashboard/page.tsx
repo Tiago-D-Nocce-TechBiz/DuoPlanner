@@ -56,7 +56,7 @@ export default function DashboardOverviewPage() {
           Olá, viajantes
         </h1>
         <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)] max-w-2xl">
-          Por onde a próxima aventura a dois vai começar? Fale com a <strong>Nora</strong> no
+          Por onde a próxima viagem vai começar? Fale com a <strong>Nora</strong> no
           botão <em>&quot;Perguntar à Nora&quot;</em> no topo — ela monta passagens, hospedagem
           e finanças para vocês. Ou escolha uma das áreas abaixo.
         </p>
