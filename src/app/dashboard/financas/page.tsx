@@ -198,7 +198,8 @@ export default function FinancasPage() {
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
+        <span className="bento-index text-xs sm:text-sm">Finanças Duo</span>
+        <h1 className="mt-2 font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
           Finanças Duo
         </h1>
         <p className="mt-2 text-sm text-[var(--color-muted)] max-w-2xl">
@@ -206,37 +207,47 @@ export default function FinancasPage() {
         </p>
       </div>
 
-      {/* Resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="glass-panel rounded-2xl p-6">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-            Total da viagem (compartilhado)
-          </span>
-          <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-heading)]">{brl(totalCompartilhado)}</p>
-          <span className="mt-1 block text-xs text-[var(--color-muted)]">Visível para as duas contas</span>
+      {/* Resumo — 3 cartões métricos com forte hierarquia tipográfica (Bento) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bento-cell p-6">
+          <div className="flex items-start justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              Total da viagem (compartilhado)
+            </span>
+            <span className="bento-index text-base">01</span>
+          </div>
+          <p className="mt-4 font-serif text-4xl font-bold text-[var(--color-heading)] leading-none">{brl(totalCompartilhado)}</p>
+          <span className="mt-2 block text-xs text-[var(--color-muted)]">Visível para as duas contas</span>
         </div>
-        <div className="glass-panel rounded-2xl p-6">
-          <span className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-            Sua parte (50%)
-          </span>
-          <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-heading)]">{brl(totalCompartilhado / 2)}</p>
-          <span className="mt-1 block text-xs text-[var(--color-muted)]">Divisão igual dos itens da viagem</span>
+        <div className="bento-cell p-6">
+          <div className="flex items-start justify-between">
+            <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              Sua parte (50%)
+            </span>
+            <span className="bento-index text-base">02</span>
+          </div>
+          <p className="mt-4 font-serif text-4xl font-bold text-[var(--color-heading)] leading-none">{brl(totalCompartilhado / 2)}</p>
+          <span className="mt-2 block text-xs text-[var(--color-muted)]">Divisão igual dos itens da viagem</span>
         </div>
-        <div className="glass-panel rounded-2xl p-6">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-            Seus gastos pessoais
-            <ShieldCheck className="h-3.5 w-3.5" />
-          </span>
-          <p className="mt-2 font-serif text-3xl font-bold text-[var(--color-heading)]">{brl(totalPrivado)}</p>
-          <span className="mt-1 block text-xs text-[var(--color-muted)]">Privado: nunca entra na divisão</span>
+        <div className="bento-cell p-6">
+          <div className="flex items-start justify-between">
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-[var(--color-muted)]">
+              Gastos pessoais
+              <ShieldCheck className="h-3.5 w-3.5" />
+            </span>
+            <span className="bento-index text-base">🔒</span>
+          </div>
+          <p className="mt-4 font-serif text-4xl font-bold text-[var(--color-heading)] leading-none">{brl(totalPrivado)}</p>
+          <span className="mt-2 block text-xs text-[var(--color-muted)]">Oculto: nunca entra na divisão</span>
         </div>
       </div>
 
-      {/* Importar + Lançar manual */}
+      {/* Importar + Lançar manual — dois blocos claros */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="glass-panel rounded-2xl p-6 flex flex-col justify-between">
           <div>
-            <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Importar fatura ou recibo</h2>
+            <span className="bento-index text-xs">Importação inteligente</span>
+            <h2 className="mt-1.5 font-serif text-xl font-bold text-[var(--color-heading)]">Nubank CSV / NF / Texto</h2>
             <p className="mt-1.5 text-xs sm:text-sm text-[var(--color-muted)] leading-relaxed">
               Envie um arquivo CSV/TXT ou cole o texto. Você revisa a triagem antes de confirmar.
             </p>
@@ -274,7 +285,10 @@ export default function FinancasPage() {
         </div>
 
         <form onSubmit={adicionarDespesaManual} className="glass-panel rounded-2xl p-6 space-y-4">
-          <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Adicionar gasto manualmente</h2>
+          <div>
+            <span className="bento-index text-xs">Lançamento rápido</span>
+            <h2 className="mt-1.5 font-serif text-xl font-bold text-[var(--color-heading)]">Adicionar gasto manualmente</h2>
+          </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
