@@ -123,13 +123,45 @@ function resolveLocal(bruto: string): {
 } {
   const limpo = limpaCidade(bruto);
   if (!limpo) return {};
-  // Código IATA digitado diretamente (3 letras).
-  if (/^[a-z]{3}$/i.test(limpo)) return { iata: limpo.toUpperCase() };
+  // Cidade/apelido conhecido tem prioridade (ex.: "rio", "sp", "bh" são
+  // apelidos de cidade, não códigos IATA).
+  const iataConhecido = iataDaCidade(limpo);
+  if (iataConhecido) return { city: capitaliza(limpo), iata: iataConhecido };
   // Conceito amplo (praia, nordeste, serra...).
   const conceito = CONCEITOS[norm(limpo)];
   if (conceito) return { city: conceito, iata: iataDaCidade(conceito) };
-  // Cidade/apelido conhecido.
-  return { city: capitaliza(limpo), iata: iataDaCidade(limpo) };
+  // Código IATA digitado diretamente (3 letras) quando não é apelido conhecido.
+  if (/^[a-z]{3}$/i.test(limpo)) return { iata: limpo.toUpperCase() };
+  // Cidade desconhecida: mantém o nome (a busca por deep link aceita cidade).
+  return { city: capitaliza(limpo) };
+}
+
+/**
+ * Remove a parte de datas/passageiros do fim da frase, deixando só o trecho de
+ * rota (origem/destino). Assim "belo horizonte para cabo frio dia 12/08, 2
+ * pessoas" vira "belo horizonte para cabo frio" antes de separar origem/destino.
+ */
+function recortaTrechoRota(texto: string): string {
+  // Corta a partir do primeiro marcador de data/período/passageiros.
+  const corte = texto.search(
+    /\b(?:de\s+\d|dia\s+\d|em\s+\d|no dia|entre|a partir|\d{1,2}[/\-]\d|\d+\s*(?:pessoa|passageiro|adulto|h[óo]spede)|em\s+(?:janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro))/i
+  );
+  let base = corte >= 0 ? texto.slice(0, corte) : texto;
+
+  // Remove, de forma iterativa, aberturas comuns empilhadas que não fazem
+  // parte da origem/destino (ex.: "quero ir de ...", "gostaria de viajar
+  // para ..."). Para no conector que define a rota ("de/para/pra/a" seguido
+  // de uma palavra que não seja outro verbo de abertura).
+  const INTRO = /^\s*(?:quero|queria|gostaria|vou|vamos|preciso|procuro|busco|buscar|pesquisar|me\s+leve|passagem|passagens|passagem\s+aerea|viagem|viajar|ir|voar|voo)\b\s*/i;
+  let anterior = "";
+  while (base !== anterior) {
+    anterior = base;
+    base = base.replace(INTRO, "");
+  }
+  // Se sobrou um "de " logo no início (ex.: "de Belo Horizonte"), ele é o
+  // marcador de origem e será tratado adiante; mantemos. Mas removemos um "de"
+  // órfão que tenha ficado colado sem valor (caso raro).
+  return base.replace(/[,.;]+\s*$/g, "").trim();
 }
 
 /** Interpreta uma frase livre e devolve os campos reconhecidos. */
@@ -137,34 +169,50 @@ export function interpretarBusca(frase: string): ConciergeParse {
   const texto = frase.trim();
   const out: ConciergeParse = {};
 
-  // 1) Origem/destino no formato "de X para/até/a Y".
-  const rota = texto.match(
-    /\bde\s+(.+?)\s+(?:para|pra|até|ate|a)\s+(?:o\s+|a\s+)?(.+?)(?:\s+(?:de|dia|em|no dia|entre|a partir|,|\.|$))/i
-  );
-  if (rota) {
-    const o = resolveLocal(rota[1]);
-    const d = resolveLocal(rota[2]);
+  const trecho = recortaTrechoRota(texto);
+
+  // 1) Rota "de X para/até/a Y" OU "X para/até/pra/-> Y" (o "de" é opcional).
+  //    Separa pelo conector e resolve cada lado, sem depender de delimitador
+  //    final — por isso funciona mesmo quando o destino termina a frase.
+  const conector = /\s+(?:para|pra|até|ate|->|➜|→|rumo a|com destino a)\s+(?:o\s+|a\s+|ao\s+|os\s+|as\s+)?/i;
+  const partesRota = trecho.replace(/^de\s+/i, "").split(conector);
+
+  if (partesRota.length >= 2 && partesRota[0].trim() && partesRota[1].trim()) {
+    const o = resolveLocal(partesRota[0]);
+    const d = resolveLocal(partesRota[1]);
     out.originCity = o.city;
     out.originIata = o.iata;
     out.destinationCity = d.city;
     out.destinationIata = d.iata;
   } else {
-    // 2) Só destino: "para/pra <lugar>" ou "quero <conceito>".
-    const soDestino = texto.match(
-      /\b(?:para|pra|até|ate|conhecer|visitar|ir a|ir para)\s+(?:o\s+|a\s+)?(.+?)(?:\s+(?:de|dia|em|no dia|entre|a partir|,|\.|$))/i
+    // 2) Só destino: "para/pra/conhecer/visitar <lugar>" até o fim do trecho.
+    const soDestino = trecho.match(
+      /\b(?:para|pra|até|ate|conhecer|visitar|ir a|ir para|rumo a|destino)\s+(?:o\s+|a\s+|ao\s+)?(.+)$/i
     );
-    if (soDestino) {
+    if (soDestino && soDestino[1].trim()) {
       const d = resolveLocal(soDestino[1]);
       out.destinationCity = d.city;
       out.destinationIata = d.iata;
     } else {
       // 3) Conceito solto na frase ("uma praia no nordeste").
+      let achouConceito = false;
       for (const chave of Object.keys(CONCEITOS)) {
         if (norm(texto).includes(chave)) {
           const cidade = CONCEITOS[chave];
           out.destinationCity = cidade;
           out.destinationIata = iataDaCidade(cidade);
+          achouConceito = true;
           break;
+        }
+      }
+      // 4) Último recurso: uma única cidade conhecida citada na frase vira o
+      //    destino (ex.: "quero ir para Salvador" sem conector reconhecido, ou
+      //    apenas "Fortaleza").
+      if (!achouConceito) {
+        const soCidade = resolveLocal(trecho);
+        if (soCidade.city || soCidade.iata) {
+          out.destinationCity = soCidade.city;
+          out.destinationIata = soCidade.iata;
         }
       }
     }

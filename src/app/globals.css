@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  /* Fundo geral mais escuro que o chrome (#F2F1EE), para o menu lateral e o
-     cabeçalho não ficarem mais escuros que a área principal. */
-  --color-background: #DAD6CC;
+  /* Fundo geral: mais claro que antes, porém ainda um pouco mais escuro que o
+     chrome (~#F4F2ED), para o menu lateral e o cabeçalho continuarem acima. */
+  --color-background: #EAE7E0;
   --color-foreground: #1C1917;
   --color-heading: #12100E;
   --color-muted: #57534E;
