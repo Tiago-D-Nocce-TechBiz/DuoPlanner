@@ -64,9 +64,12 @@ export function NoraAvatar({
     <span
       ref={ref}
       className={cn(
-        // Círculo BRANCO nos dois temas, com borda e sombra sutis para se
-        // destacar também sobre fundos claros.
-        "relative inline-flex items-center justify-center rounded-full bg-white shrink-0 overflow-hidden ring-1 ring-black/10 shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
+        // Tema Claro: círculo PRETO com olhos BRANCOS.
+        // Tema Escuro: círculo BRANCO com olhos AZUIS.
+        // Borda + sombra sutis garantem destaque nos dois fundos.
+        "relative inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden",
+        "bg-black ring-1 ring-black/10 shadow-[0_2px_8px_rgba(0,0,0,0.25)]",
+        "dark:bg-white dark:ring-white/20 dark:shadow-[0_2px_10px_rgba(0,0,0,0.5)]",
         className
       )}
       style={{ width: tamanho, height: tamanho }}
@@ -74,7 +77,7 @@ export function NoraAvatar({
     >
       <span className="flex items-center" style={{ gap }}>
         <span
-          className="block rounded-full bg-blue-600 transition-transform duration-75 ease-out"
+          className="block rounded-full bg-white dark:bg-blue-600 transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
@@ -82,7 +85,7 @@ export function NoraAvatar({
           }}
         />
         <span
-          className="block rounded-full bg-blue-600 transition-transform duration-75 ease-out"
+          className="block rounded-full bg-white dark:bg-blue-600 transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
