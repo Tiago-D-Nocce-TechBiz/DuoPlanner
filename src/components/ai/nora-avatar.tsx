@@ -64,7 +64,9 @@ export function NoraAvatar({
     <span
       ref={ref}
       className={cn(
-        "relative inline-flex items-center justify-center rounded-full bg-zinc-950 dark:bg-black shadow-inner shrink-0 overflow-hidden",
+        // Círculo BRANCO nos dois temas, com borda e sombra sutis para se
+        // destacar também sobre fundos claros.
+        "relative inline-flex items-center justify-center rounded-full bg-white shrink-0 overflow-hidden ring-1 ring-black/10 shadow-[0_2px_8px_rgba(0,0,0,0.18)]",
         className
       )}
       style={{ width: tamanho, height: tamanho }}
@@ -72,7 +74,7 @@ export function NoraAvatar({
     >
       <span className="flex items-center" style={{ gap }}>
         <span
-          className="block rounded-full bg-white transition-transform duration-75 ease-out"
+          className="block rounded-full bg-blue-600 transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
@@ -80,7 +82,7 @@ export function NoraAvatar({
           }}
         />
         <span
-          className="block rounded-full bg-white transition-transform duration-75 ease-out"
+          className="block rounded-full bg-blue-600 transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
