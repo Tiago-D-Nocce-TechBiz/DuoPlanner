@@ -151,3 +151,19 @@
   border-color: var(--color-border-strong);
   box-shadow: 0 0 0 3px rgba(200, 125, 85, 0.15);
 }
+
+/**
+ * Superfície do "chrome" (menu lateral + cabeçalho).
+ *
+ * No tema Claro, troca o fundo creme do `.glass-panel` por um cinza bem claro,
+ * quase branco — mais neutro. No tema Escuro, nada muda (mantém o vidro
+ * escuro). Aplicada apenas na sidebar e no header; os cards do painel seguem
+ * usando `--color-card` normalmente.
+ */
+.chrome-surface {
+  background-color: #F2F1EE;
+}
+
+.dark .chrome-surface {
+  background-color: var(--color-card);
+}

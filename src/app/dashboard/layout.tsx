@@ -75,7 +75,7 @@ export default function DashboardLayout({
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       {/* Sidebar Lateral */}
-      <aside className="w-full md:w-64 glass-panel md:min-h-screen flex flex-col justify-between p-4 sm:p-5 shrink-0 border-b md:border-b-0 md:border-r border-[var(--color-border)]">
+      <aside className="w-full md:w-64 glass-panel chrome-surface md:min-h-screen flex flex-col justify-between p-4 sm:p-5 shrink-0 border-b md:border-b-0 md:border-r border-[var(--color-border)]">
         <div>
           {/* Logo que pergunta antes de voltar para a Landing Page */}
           <div className="flex items-center justify-between md:block mb-6">
@@ -140,7 +140,7 @@ export default function DashboardLayout({
       {/* Área Principal */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Header Superior */}
-        <header className="glass-panel border-b border-[var(--color-border)] px-6 py-3.5 flex items-center justify-between gap-4">
+        <header className="glass-panel chrome-surface border-b border-[var(--color-border)] px-6 py-3.5 flex items-center justify-between gap-4">
           <div className="text-xs sm:text-sm text-[var(--color-muted)] font-medium truncate">
             Espaço Sincronizado • <span className="text-[var(--color-heading)] font-semibold">Conta Principal & Convidado(a)</span>
           </div>
