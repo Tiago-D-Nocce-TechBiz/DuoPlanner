@@ -32,10 +32,12 @@
   --color-muted: #A1A1AA;
   --color-subtle: #71717A;
 
-  --color-card: #131926;
-  --color-elevated: #1E2738;
-  --color-border: rgba(255, 255, 255, 0.11);
-  --color-border-strong: rgba(234, 216, 192, 0.32);
+  /* Cards um pouco mais claros que o fundo (#090D16) para "destacar" sem
+     afundar no tema escuro. */
+  --color-card: #1A2234;
+  --color-elevated: #222C40;
+  --color-border: rgba(255, 255, 255, 0.14);
+  --color-border-strong: rgba(234, 216, 192, 0.38);
 
   --color-accent: #F5F2EB;
   --color-accent-hover: #E6DEC8;
@@ -230,4 +232,10 @@
 }
 .dark .nora-eye {
   background-color: #2563eb;
+}
+
+/* Indicador de "pensando" da Nora (três pontinhos). */
+@keyframes nora-think {
+  0%, 80%, 100% { opacity: 0.25; transform: translateY(0); }
+  40% { opacity: 1; transform: translateY(-3px); }
 }

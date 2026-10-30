@@ -219,16 +219,17 @@ export function NoraDrawer() {
   const [texto, setTexto] = useState("");
   const [ouvindo, setOuvindo] = useState(false);
   const [menuPrompts, setMenuPrompts] = useState(false);
+  const [pensando, setPensando] = useState(false);
 
   const reconhecimentoRef = useRef<SpeechRecognitionLike | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Rola para a última mensagem quando a conversa cresce.
+  // Rola para a última mensagem quando a conversa cresce ou a Nora pensa.
   useEffect(() => {
     if (aberta) fimRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [mensagens, aberta]);
+  }, [mensagens, aberta, pensando]);
 
   // Fecha com ESC.
   useEffect(() => {
@@ -242,13 +243,22 @@ export function NoraDrawer() {
 
   function enviar(mensagem?: string) {
     const conteudo = (mensagem ?? texto).trim();
-    if (!conteudo) return;
+    if (!conteudo || pensando) return;
     const msgUser: NoraMensagem = { id: idMsg(), papel: "user", texto: conteudo };
-    const resposta = responderNora(conteudo, contextoConta());
-    const msgNora: NoraMensagem = { id: idMsg(), papel: "nora", texto: resposta.texto, resposta };
-    setMensagens((prev) => [...prev, msgUser, msgNora]);
+    setMensagens((prev) => [...prev, msgUser]);
     setTexto("");
     setMenuPrompts(false);
+
+    // A Nora "pensa" por alguns segundos antes de responder — tempo proporcional
+    // ao tamanho da pergunta (mín. ~1,4s, máx. ~3s), para parecer deliberada.
+    setPensando(true);
+    const resposta = responderNora(conteudo, contextoConta());
+    const atraso = Math.min(3000, 1400 + conteudo.length * 18);
+    window.setTimeout(() => {
+      const msgNora: NoraMensagem = { id: idMsg(), papel: "nora", texto: resposta.texto, resposta };
+      setMensagens((prev) => [...prev, msgNora]);
+      setPensando(false);
+    }, atraso);
   }
 
   function alternarMicrofone() {
@@ -401,6 +411,18 @@ export function NoraDrawer() {
                   </div>
                 )
               )}
+              {pensando && (
+                <div className="flex gap-2.5">
+                  <NoraAvatar tamanho={28} className="mt-0.5" />
+                  <div className="rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-background px-4 py-3">
+                    <span className="flex items-center gap-1" aria-label="Nora está pensando">
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-muted)] animate-[nora-think_1.2s_ease-in-out_infinite]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-muted)] animate-[nora-think_1.2s_ease-in-out_0.2s_infinite]" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-muted)] animate-[nora-think_1.2s_ease-in-out_0.4s_infinite]" />
+                    </span>
+                  </div>
+                </div>
+              )}
               <div ref={fimRef} />
             </div>
           )}
@@ -493,7 +515,7 @@ export function NoraDrawer() {
                 <button
                   type="button"
                   onClick={() => enviar()}
-                  disabled={!texto.trim()}
+                  disabled={!texto.trim() || pensando}
                   title="Enviar"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-[var(--color-accent)] text-[var(--color-accent-foreground)] disabled:opacity-40 hover:opacity-90 transition-opacity"
                 >

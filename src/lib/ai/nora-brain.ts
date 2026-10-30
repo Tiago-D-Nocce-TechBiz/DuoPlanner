@@ -74,6 +74,39 @@ function norm(s: string): string {
   return s.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+/** Escolhe uma variação de frase de forma estável a partir da entrada (dá a
+ *  sensação de variedade sem aleatoriedade que quebraria testes). */
+function escolher(opcoes: string[], semente: string): string {
+  let h = 0;
+  for (let i = 0; i < semente.length; i++) h = (h * 31 + semente.charCodeAt(i)) >>> 0;
+  return opcoes[h % opcoes.length];
+}
+
+/** Recomendação de agente de viagens conforme intenção/destino/datas. */
+function recomendacaoViagem(
+  intencao: "passagens" | "hospedagem",
+  destino: string,
+  temData: boolean
+): string {
+  const dicas: string[] = [];
+  if (intencao === "passagens") {
+    dicas.push(
+      "Dica: comparar terça e quarta costuma render tarifas mais baixas; se tiverem flexibilidade de datas, vale checar a semana toda."
+    );
+    if (!temData) dicas.push("Comprar com 4 a 8 semanas de antecedência ajuda no preço.");
+  } else {
+    dicas.push(
+      "Dica: reservas com cancelamento grátis dão margem para ajustar o roteiro depois."
+    );
+  }
+  const d = norm(destino);
+  if (["cabo frio", "buzios", "búzios", "arraial"].some((x) => d.includes(x))) {
+    dicas.push("Na Região dos Lagos, hospedagem perto do centro ou da praia principal economiza no transporte.");
+  }
+  // Uma dica só, para não poluir.
+  return dicas[0] ?? "";
+}
+
 /* -------------------------------- Finanças -------------------------------- */
 
 /** Extrai um valor em reais da frase (ex.: "R$ 150", "150,90", "90 reais"). */
@@ -191,12 +224,14 @@ function responderViagem(frase: string, ctx: NoraContexto): NoraResposta {
 
   if (!temSinalDeViagem(dados)) {
     return {
-      texto: "Me diga a viagem em uma frase, por exemplo: \"de Belo Horizonte para Búzios de 08/07 a 31/07, 2 pessoas\" ou \"pousadas em Cabo Frio no Réveillon\".",
+      texto:
+        "Vou montar isso com você. Me conta três coisas: para onde querem ir, de onde saem e em quais datas (e quantas pessoas). Por exemplo: \"de Belo Horizonte para Búzios, 08 a 15/07, 2 pessoas\".",
       acoes: [],
     };
   }
 
   const intencao = inferirIntencao(frase);
+  const temDataExplicita = Boolean(dados.departDate);
   const depart = dados.departDate ?? addDays(todayInSaoPaulo(), 14);
   const retorno = dados.returnDate ?? addDays(depart, 5);
   const pax = Math.max(1, dados.passengers ?? 2);
@@ -250,10 +285,33 @@ function responderViagem(frase: string, ctx: NoraContexto): NoraResposta {
   if (destinationCity) partes.push(`para ${destinationCity}`);
   const resumoViagem = `${partes.join(" ")} em ${monthLabel(depart)}, ${pax} ${pax > 1 ? "pessoas" : "pessoa"}`;
 
-  const texto =
-    grupos.length > 0
-      ? `Encontrei as melhores opções ${resumoViagem}. Toque em um parceiro para abrir a busca já preenchida${avisos.length ? ". " + avisos.join(" ") : "."}`
-      : `Entendi ${resumoViagem}, mas preciso de mais detalhes para montar os links. ${avisos.join(" ")}`;
+  // Perguntas de acompanhamento quando falta informação (postura de agente).
+  const perguntas: string[] = [];
+  if (!temDataExplicita) perguntas.push("Já têm datas em mente? Sugeri um período, mas posso ajustar.");
+  if (intencao === "passagens" && !originIata && !originCity)
+    perguntas.push("De qual cidade vocês partem?");
+  if (!dados.passengers) perguntas.push("A viagem é para quantas pessoas?");
+
+  // Recomendação contextual (postura de agente de viagens).
+  const recomendacao = recomendacaoViagem(intencao, destinationCity, temDataExplicita);
+
+  let texto: string;
+  if (grupos.length > 0) {
+    const aberturas = [
+      `Boa! Preparei as opções ${resumoViagem}.`,
+      `Separei o que encontrei ${resumoViagem}.`,
+      `Aqui vão as opções ${resumoViagem}.`,
+    ];
+    texto = escolher(aberturas, frase);
+    texto += " Toque em um parceiro para abrir a busca já preenchida.";
+    if (recomendacao) texto += ` ${recomendacao}`;
+    if (avisos.length) texto += ` ${avisos.join(" ")}`;
+    if (perguntas.length) texto += ` ${perguntas[0]}`;
+  } else {
+    texto = `Entendi ${resumoViagem}, mas preciso de um detalhe a mais para montar os links. ${
+      [...avisos, ...perguntas].join(" ") || "Pode me dizer a cidade de destino?"
+    }`;
+  }
 
   const acoes: NoraAcao[] = [];
   if (grupos.length > 0) {
@@ -337,10 +395,27 @@ export function responderNora(frase: string, ctx: NoraContexto = {}): NoraRespos
     return responderViagem(frase, ctx);
   }
 
-  // Conversa geral / saudação.
+  // Saudações diretas.
+  if (/^\s*(oi|ol[áa]|e a[íi]|bom dia|boa tarde|boa noite|tudo bem|hey)\b/i.test(frase)) {
+    return {
+      texto:
+        "Oi! Sou a Nora, sua agente de viagens e finanças aqui no DuoPlanner. Posso achar passagens e hospedagens, organizar os gastos da dupla e tirar dúvidas. Por onde começamos — já têm um destino em mente?",
+      acoes: [],
+    };
+  }
+
+  // Agradecimentos.
+  if (/(obrigad|valeu|muito bom|perfeit|\bshow\b)/i.test(frase)) {
+    return {
+      texto: "Imagina! Quando quiser montar passagens, hospedagem ou acertar as contas da viagem, é só chamar. 😊",
+      acoes: [],
+    };
+  }
+
+  // Conversa geral: postura de agente, convida a dar o próximo passo.
   return {
     texto:
-      "Posso ajudar com passagens e hospedagens (ex.: \"de BH para Búzios de 08/07 a 31/07, 2 pessoas\"), organizar as finanças da viagem (ex.: \"lance R$ 150 de almoço compartilhado\") ou tirar dúvidas sobre o sistema. O que você precisa?",
+      "Posso te ajudar de três formas: encontrar passagens e hospedagens (ex.: \"de BH para Búzios, 08 a 15/07, 2 pessoas\"), organizar as finanças da viagem (ex.: \"lance R$ 150 de almoço compartilhado\") ou explicar como o sistema funciona. Me conta o que você quer fazer que eu cuido do resto.",
     acoes: [],
   };
 }

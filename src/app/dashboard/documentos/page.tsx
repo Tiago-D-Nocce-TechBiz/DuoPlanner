@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { readLocal, writeLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
+import { adicionarNotificacao } from "@/lib/notifications/store";
 import { ShieldCheck } from "@/components/ui/icons";
 
 /**
@@ -64,6 +65,13 @@ export default function DocumentosPage() {
     e.preventDefault();
     if (!form.titular.trim() && !form.numero.trim()) return;
     persistir([{ id: novoId(), ...form }, ...docs]);
+    adicionarNotificacao({
+      tipo: "documento",
+      titulo: "Documento anexado",
+      descricao: `${form.tipo}${form.titular ? ` de ${form.titular}` : ""} foi guardado no cofre da viagem.`,
+      href: "/dashboard/documentos",
+      origem: "Documentos",
+    });
     setForm({ tipo: TIPOS[0], titular: "", numero: "", observacao: "" });
   };
   const remover = (id: string) => persistir(docs.filter((d) => d.id !== id));

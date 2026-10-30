@@ -109,7 +109,31 @@ export function setDespesas(lista: ItemDespesa[]): void {
 export function adicionarDespesa(item: ItemDespesa): ItemDespesa {
   const atual = getDespesas();
   setDespesas([item, ...atual]);
+  // Avisa (sino de notificações) quando um gasto COMPARTILHADO é vinculado ao
+  // espaço da dupla — representa o parceiro(a) vinculando algo para você.
+  if (item.escopo === "viagem_compartilhado") {
+    notificarGastoCompartilhado(item);
+  }
   return item;
+}
+
+// Importação tardia evita ciclo entre os stores no carregamento do módulo.
+function notificarGastoCompartilhado(item: ItemDespesa) {
+  import("@/lib/notifications/store")
+    .then(({ adicionarNotificacao }) => {
+      adicionarNotificacao({
+        tipo: "financas",
+        titulo: "Novo gasto compartilhado",
+        descricao: `${item.estabelecimento} — ${brlInterno(item.valor)} entrou na divisão da viagem.`,
+        href: "/dashboard/financas",
+        origem: "Finanças Duo",
+      });
+    })
+    .catch(() => {});
+}
+
+function brlInterno(v: number): string {
+  return `R$ ${v.toFixed(2).replace(".", ",")}`;
 }
 
 /** Resumo financeiro (compartilhado, metade, pessoal) + agregados. */

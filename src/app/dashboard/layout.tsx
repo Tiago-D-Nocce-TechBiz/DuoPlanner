@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { InviteButton } from "@/components/dashboard/invite-button";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 import { BrandLogo } from "@/components/brand/logo";
 import { NoraProvider } from "@/components/ai/nora-provider";
 import { NoraTrigger } from "@/components/ai/nora-trigger";
@@ -156,6 +157,7 @@ export default function DashboardLayout({
           <div className="flex items-center gap-3">
             <NoraTrigger />
             <InviteButton />
+            <NotificationBell />
             <div className="hidden md:block">
               <ThemeToggle />
             </div>
