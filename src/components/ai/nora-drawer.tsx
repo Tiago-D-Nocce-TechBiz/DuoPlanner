@@ -23,18 +23,13 @@ import {
 import { NoraAvatar } from "./nora-avatar";
 import { useNora, type NoraMensagem } from "./nora-provider";
 import { responderNora, type NoraAcao, type GrupoIcone } from "@/lib/ai/nora-brain";
-import { writeLocal, readLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
+import { writeLocal, readLocal, STORAGE_KEYS } from "@/lib/local-store";
 import { cn } from "@/lib/utils";
 
 /* ----------------------------- Utilidades UI ------------------------------ */
 
 function idMsg() {
   return Math.random().toString(36).substring(2, 9);
-}
-
-function nomeUsuario(): string {
-  const conta = readLocal<{ viajante1?: string; nomeConta?: string }>(STORAGE_KEYS.conta, {});
-  return (conta.viajante1 || conta.nomeConta || "viajante").trim() || "viajante";
 }
 
 function contextoConta() {
@@ -220,14 +215,11 @@ function criarReconhecimento(): SpeechRecognitionLike | null {
 /* --------------------------------- Drawer --------------------------------- */
 
 export function NoraDrawer() {
-  const { aberta, expandida, mensagens, fechar, alternarExpandir, novaConversa, setMensagens } = useNora();
+  const { aberta, expandida, mensagens, nomeUsuario: nome, fechar, alternarExpandir, novaConversa, setMensagens } = useNora();
   const [texto, setTexto] = useState("");
   const [ouvindo, setOuvindo] = useState(false);
   const [menuPrompts, setMenuPrompts] = useState(false);
-  // Nome do usuário só no cliente (useMontado evita leitura de localStorage no
-  // prerender e o setState-em-efeito proibido pelo lint).
-  const montado = useMontado();
-  const nome = montado ? nomeUsuario() : "viajante";
+
   const reconhecimentoRef = useRef<SpeechRecognitionLike | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
