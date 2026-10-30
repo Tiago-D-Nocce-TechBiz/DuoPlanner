@@ -82,13 +82,18 @@ function BrandIconFallback({ className }: { className?: string }) {
  */
 export function BrandIcon({ className }: { className?: string }) {
   return (
-    <span className={cn("relative inline-block h-8 w-8 shrink-0", className)}>
+    <span
+      className={cn(
+        "relative inline-block h-8 w-8 shrink-0 overflow-hidden rounded-xl",
+        className,
+      )}
+    >
       <BrandIconFallback className="absolute inset-0 h-full w-full" />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={LOGO_SRC}
         alt="PlannerDuo"
-        className="absolute inset-0 h-full w-full object-contain"
+        className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
     </span>
