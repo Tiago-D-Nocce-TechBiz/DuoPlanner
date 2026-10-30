@@ -1,17 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { BrandLogo } from "@/components/brand/logo";
 import { FlightRoute3D } from "@/components/marketing/flight-route-3d";
 import { QuestionsAccordion } from "@/components/marketing/questions-accordion";
-import {
-  Reveal,
-  RevealStagger,
-  RevealItem,
-  MaskReveal,
-} from "@/components/marketing/motion-reveal";
 import {
   Plane,
   Hotel,
@@ -93,19 +86,11 @@ const RECURSOS: {
 ];
 
 export default function LandingPage() {
-  const reduzido = useReducedMotion() ?? false;
-  const easeSaida = [0.22, 1, 0.36, 1] as const;
-
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
       <div className="mx-auto w-full max-w-6xl">
         {/* ============================= NAVBAR ============================ */}
-        <motion.header
-          className="sticky top-4 z-50 mb-8"
-          initial={reduzido ? false : { opacity: 0, y: -16 }}
-          animate={reduzido ? undefined : { opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, ease: easeSaida }}
-        >
+        <header className="sticky top-4 z-50 mb-8">
           <nav className="glass-panel rounded-2xl px-5 py-3.5 flex items-center justify-between gap-4 bg-[var(--color-elevated)] shadow-lg">
             <BrandLogo href="/" />
             <div className="flex items-center gap-3">
@@ -124,10 +109,10 @@ export default function LandingPage() {
               </Link>
             </div>
           </nav>
-        </motion.header>
+        </header>
 
         {/* ======================= HERO MONUMENTAL ======================== */}
-        <Reveal as="section" className="grid-frame">
+        <section className="grid-frame animate-rise">
           {/* Faixa superior: rótulo editorial + status, dentro da grade. */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b grid-rule px-6 sm:px-10 py-4">
             <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[var(--color-subtle)]">
@@ -142,13 +127,11 @@ export default function LandingPage() {
           {/* Wordmark gigante + manifesto. */}
           <div className="grid lg:grid-cols-12">
             <div className="lg:col-span-12 px-6 sm:px-10 pt-10 sm:pt-14">
-              <MaskReveal>
-                <h1 className="brand-monumental text-6xl sm:text-8xl lg:text-[7.5rem]">
-                  <span className="mono-duo">Duo</span>
-                  <span className="mono-planner">Planner</span>
-                  <span className="mono-tm">™</span>
-                </h1>
-              </MaskReveal>
+              <h1 className="brand-monumental text-6xl sm:text-8xl lg:text-[7.5rem]">
+                <span className="mono-duo">Duo</span>
+                <span className="mono-planner">Planner</span>
+                <span className="mono-tm">™</span>
+              </h1>
             </div>
 
             {/* Linha-guia horizontal antes do corpo da Hero. */}
@@ -185,53 +168,52 @@ export default function LandingPage() {
               </div>
             </div>
           </div>
-        </Reveal>
+        </section>
 
         {/* ===================== BENTO GRID — RECURSOS ==================== */}
         <section className="mt-8">
-          <Reveal className="flex items-end justify-between gap-4 mb-5 px-1">
+          <div className="flex items-end justify-between gap-4 mb-5 px-1">
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-[var(--color-heading)] tracking-tight">
               Tudo para a viagem a dois
             </h2>
             <span className="bento-index text-xs sm:text-sm hidden sm:block">
               Recursos / 05
             </span>
-          </Reveal>
+          </div>
 
-          <RevealStagger className="grid grid-cols-1 lg:grid-cols-6 gap-4 auto-rows-[minmax(0,1fr)]">
+          <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 auto-rows-[minmax(0,1fr)]">
             {RECURSOS.map((r) => {
               const Icone = r.icone;
               return (
-                <RevealItem key={r.indice} className={`${r.span} h-full`}>
-                  <Link
-                    href="/login"
-                    className={`bento-cell group p-6 sm:p-7 flex flex-col justify-between min-h-[200px] h-full ${
-                      r.destaque ? "sm:min-h-[240px]" : ""
-                    }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <span className="h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-[var(--color-heading)]">
-                        <Icone className="h-5 w-5" />
-                      </span>
-                      <span className="bento-index text-base">{r.indice}</span>
-                    </div>
-                    <div className="mt-6">
-                      <h3 className="font-serif text-xl sm:text-2xl font-bold text-[var(--color-heading)] leading-tight">
-                        {r.titulo}
-                      </h3>
-                      <p className="mt-2.5 text-sm leading-relaxed text-[var(--color-muted)]">
-                        {r.descricao}
-                      </p>
-                    </div>
-                  </Link>
-                </RevealItem>
+                <Link
+                  key={r.indice}
+                  href="/login"
+                  className={`bento-cell group p-6 sm:p-7 flex flex-col justify-between min-h-[200px] ${r.span} ${
+                    r.destaque ? "sm:min-h-[240px]" : ""
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <span className="h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-[var(--color-heading)]">
+                      <Icone className="h-5 w-5" />
+                    </span>
+                    <span className="bento-index text-base">{r.indice}</span>
+                  </div>
+                  <div className="mt-6">
+                    <h3 className="font-serif text-xl sm:text-2xl font-bold text-[var(--color-heading)] leading-tight">
+                      {r.titulo}
+                    </h3>
+                    <p className="mt-2.5 text-sm leading-relaxed text-[var(--color-muted)]">
+                      {r.descricao}
+                    </p>
+                  </div>
+                </Link>
               );
             })}
-          </RevealStagger>
+          </div>
         </section>
 
         {/* ================= ACORDEÃO — PERGUNTAS / COMO FUNCIONA ========= */}
-        <Reveal as="section" className="mt-10 grid lg:grid-cols-12 gap-x-10 gap-y-6">
+        <section className="mt-10 grid lg:grid-cols-12 gap-x-10 gap-y-6">
           <div className="lg:col-span-4">
             <span className="bento-index text-xs sm:text-sm">Perguntas</span>
             <h2 className="mt-2 font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)] tracking-tight leading-tight">
@@ -245,39 +227,30 @@ export default function LandingPage() {
           <div className="lg:col-span-8">
             <QuestionsAccordion />
           </div>
-        </Reveal>
+        </section>
 
         {/* ================= BLOCO FINAL DE ALTO CONTRASTE =============== */}
-        <Reveal as="section" className="mt-10 rounded-3xl bg-[var(--color-accent)] text-[var(--color-accent-foreground)] overflow-hidden">
+        <section className="mt-10 rounded-3xl bg-[var(--color-accent)] text-[var(--color-accent-foreground)] overflow-hidden">
           <div className="px-6 sm:px-12 py-14 sm:py-20 flex flex-col items-center text-center gap-6">
             <span className="text-[11px] font-semibold uppercase tracking-[0.25em] opacity-70">
               Comecem agora, juntos
             </span>
-            <MaskReveal>
-              <h2 className="brand-monumental text-4xl sm:text-6xl lg:text-7xl text-[var(--color-accent-foreground)]">
-                A próxima viagem a dois
-              </h2>
-            </MaskReveal>
+            <h2 className="brand-monumental text-4xl sm:text-6xl lg:text-7xl text-[var(--color-accent-foreground)]">
+              A próxima viagem a dois
+            </h2>
             <p className="max-w-xl text-sm sm:text-base leading-relaxed opacity-80">
               Criem a conta compartilhada e planejem passagens, hospedagem,
               roteiro e despesas em um só lugar — sincronizado e privado.
             </p>
-            <motion.div
-              whileHover={reduzido ? undefined : { scale: 1.02 }}
-              whileTap={reduzido ? undefined : { scale: 0.98 }}
-              transition={{ duration: 0.25, ease: easeSaida }}
-              className="mt-2"
+            <Link
+              href="/login"
+              className="mt-2 inline-flex items-center gap-3 px-8 py-4 rounded-xl font-semibold text-sm bg-[var(--color-background)] text-[var(--color-heading)] shadow-lg hover:scale-[1.02] transition-transform"
             >
-              <Link
-                href="/login"
-                className="inline-flex items-center gap-3 px-8 py-4 rounded-xl font-semibold text-sm bg-[var(--color-background)] text-[var(--color-heading)] shadow-lg transition-transform"
-              >
-                Criar nossa conta
-                <ArrowUpRight className="h-4 w-4" />
-              </Link>
-            </motion.div>
+              Criar nossa conta
+              <ArrowUpRight className="h-4 w-4" />
+            </Link>
           </div>
-        </Reveal>
+        </section>
 
         {/* ============================= RODAPÉ =========================== */}
         <footer className="mt-8 pt-8 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-muted)]">
