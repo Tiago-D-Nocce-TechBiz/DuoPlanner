@@ -25,11 +25,10 @@ export interface ConviteResult {
   mensagem: string;
 }
 
-// Preferimos sempre NEXT_PUBLIC_SITE_URL. O fallback é o domínio ATUAL do
-// deploy na Vercel (ainda "plannerduo-vert"); ao renomear o projeto na Vercel
-// para DuoPlanner, atualize a env NEXT_PUBLIC_SITE_URL (e este fallback).
+// Preferimos sempre NEXT_PUBLIC_SITE_URL. O fallback é o domínio de produção
+// na Vercel. (O antigo "plannerduo-vert" segue ativo com redirect 307 para cá.)
 const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://plannerduo-vert.vercel.app";
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://duoplanner-vert.vercel.app";
 
 /** Gera um código de convite curto e legível (ex.: DUO-7FK3Q2). */
 function gerarCodigoLocal(): string {
