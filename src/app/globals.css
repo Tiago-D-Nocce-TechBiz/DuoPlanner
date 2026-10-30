@@ -190,3 +190,12 @@
   .nora-drawer-enter { animation: none; }
   .animate-\[nora-blink_3\.2s_ease-in-out_infinite\] { animation: none; }
 }
+
+/* Superfície do painel da Nora: fundo SÓLIDO (sem transparência). */
+.nora-surface {
+  background-color: #F4F2ED;
+}
+
+.dark .nora-surface {
+  background-color: #0B1120;
+}

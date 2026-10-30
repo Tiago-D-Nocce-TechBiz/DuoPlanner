@@ -315,7 +315,7 @@ export function NoraDrawer() {
         role="dialog"
         aria-label="Nora — assistente de IA"
         className={cn(
-          "fixed top-0 right-0 z-[61] h-screen w-full glass-panel border-l border-[var(--color-border)] flex flex-col transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+          "nora-surface fixed top-0 right-0 z-[61] h-screen w-full border-l border-[var(--color-border)] flex flex-col transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] shadow-2xl",
           expandida ? "sm:w-[600px]" : "sm:w-[420px]",
           aberta ? "translate-x-0" : "translate-x-full"
         )}
@@ -324,7 +324,7 @@ export function NoraDrawer() {
         <div className="border-b border-[var(--color-border)] px-4 pt-4 pb-3">
           <div className="flex items-center justify-between">
             <div className="group flex items-center gap-2.5">
-              <NoraAvatar tamanho={34} piscando />
+              <NoraAvatar tamanho={34} />
               <span className="font-serif text-base font-semibold text-[var(--color-heading)]">Nora</span>
             </div>
             <div className="flex items-center gap-1.5">
@@ -375,7 +375,7 @@ export function NoraDrawer() {
         <div className="flex-1 overflow-y-auto px-4 py-5">
           {semMensagens ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
-              <NoraAvatar tamanho={64} piscando className="mb-6" />
+              <NoraAvatar tamanho={64} className="mb-6" />
               <h2 className="bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent font-serif text-2xl font-bold leading-snug px-4">
                 {saudacao} {nome},
                 <br /> como posso ajudar você hoje?
