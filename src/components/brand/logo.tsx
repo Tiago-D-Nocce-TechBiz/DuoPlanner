@@ -2,18 +2,25 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Ícone e logotipo originais do PlannerDuo.
+ * Logo oficial do PlannerDuo.
  *
- * Conceito do símbolo (desenho próprio, não baseado em marca existente):
- * - Um losango/pino de mapa (viagem) formado por dois triângulos espelhados,
- *   que também sugerem a "dupla" (duo) e a cauda de um avião em ascensão.
- * - Uma trilha pontilhada diagonal cruza o símbolo (a rota da viagem).
- * - No centro, um ponto que remete a uma moeda/indicador financeiro.
- * Cores vêm das variáveis de tema (warm → teal), então funciona em claro e
- * escuro. É um ícone único, reutilizado em todo o sistema.
+ * A marca definitiva é uma imagem (PNG) em `public/brand/logo.png` — o
+ * monograma "PD" com o avião em ascensão e o gráfico de crescimento.
+ *
+ * Como a imagem é um arquivo que o mantenedor salva manualmente (igual ao
+ * modelo 3D `public/models/aviao.glb`), o ícone degrada com elegância: se o
+ * PNG ainda não existir, o símbolo vetorial de reserva (`BrandIconFallback`)
+ * aparece por baixo e o build nunca quebra. Quando a imagem existe, ela cobre
+ * totalmente o fallback.
+ *
+ * Caminho esperado do arquivo: `public/brand/logo.png`
+ * (recomendado: PNG quadrado com fundo transparente, >= 256x256).
  */
 
-export function BrandIcon({ className }: { className?: string }) {
+const LOGO_SRC = "/brand/logo.png";
+
+/** Símbolo vetorial de reserva, exibido se o PNG ainda não foi salvo. */
+function BrandIconFallback({ className }: { className?: string }) {
   return (
     <svg
       viewBox="0 0 48 48"
@@ -30,11 +37,8 @@ export function BrandIcon({ className }: { className?: string }) {
         </linearGradient>
       </defs>
 
-      {/* Base arredondada do ícone */}
       <rect x="2" y="2" width="44" height="44" rx="12" fill="url(#pdBrandGrad)" />
 
-      {/* Pino de mapa / "duo": dois triângulos espelhados que formam um losango,
-          também lembrando asas/cauda de avião em ascensão. */}
       <path
         d="M24 10 L33 24 L24 21 L15 24 Z"
         fill="var(--color-accent-foreground)"
@@ -46,7 +50,6 @@ export function BrandIcon({ className }: { className?: string }) {
         opacity="0.72"
       />
 
-      {/* Ponto central = moeda / indicador financeiro */}
       <circle cx="24" cy="24" r="2.6" fill="url(#pdBrandGrad)" />
       <circle
         cx="24"
@@ -57,7 +60,6 @@ export function BrandIcon({ className }: { className?: string }) {
         strokeWidth="1.1"
       />
 
-      {/* Trilha da rota (pontilhada diagonal) */}
       <path
         d="M11 37 L37 11"
         stroke="var(--color-accent-foreground)"
@@ -67,6 +69,29 @@ export function BrandIcon({ className }: { className?: string }) {
         opacity="0.6"
       />
     </svg>
+  );
+}
+
+/**
+ * Ícone da marca: a imagem PNG oficial sobre o fallback vetorial.
+ *
+ * Usamos `<img>` nativo (não `next/image`) de propósito: o caminho é estático
+ * e servido direto de `public/`, e assim o build não falha caso o arquivo
+ * ainda não tenha sido salvo. Se a imagem falhar ao carregar, ela fica
+ * invisível e o SVG de reserva — posicionado por baixo — aparece.
+ */
+export function BrandIcon({ className }: { className?: string }) {
+  return (
+    <span className={cn("relative inline-block h-8 w-8 shrink-0", className)}>
+      <BrandIconFallback className="absolute inset-0 h-full w-full" />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={LOGO_SRC}
+        alt="PlannerDuo"
+        className="absolute inset-0 h-full w-full object-contain"
+        draggable={false}
+      />
+    </span>
   );
 }
 
@@ -86,7 +111,7 @@ export function BrandLogo({
 }) {
   const conteudo = (
     <span className={cn("flex items-center gap-2.5", className)}>
-      <BrandIcon className={cn("h-8 w-8 shrink-0", iconClassName)} />
+      <BrandIcon className={cn("h-8 w-8", iconClassName)} />
       <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-heading)]">
         PlannerDuo
       </span>
