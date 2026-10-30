@@ -59,8 +59,12 @@ export async function cadastroAction(
   if (!email || !senha) {
     return { erro: "Informe e-mail e senha para criar a conta." };
   }
-  if (senha.length < 6) {
-    return { erro: "A senha deve ter pelo menos 6 caracteres." };
+  if (senha.length < 8) {
+    return { erro: "A senha deve ter pelo menos 8 caracteres." };
+  }
+  // Exige ao menos uma letra e um número, para reduzir senhas fracas.
+  if (!/[a-zA-Z]/.test(senha) || !/\d/.test(senha)) {
+    return { erro: "Use ao menos uma letra e um número na senha." };
   }
 
   const supabase = await createSupabaseServerClient();
@@ -124,8 +128,19 @@ export async function aceitarConvitePorCodigo(
     .eq("codigo", codigo)
     .maybeSingle();
 
-  if (!convite || convite.status === "revogado") {
-    return { ok: false, mensagem: "Convite inválido ou revogado." };
+  // Só aceita convites PENDENTES (não revogados nem já aceitos), evitando
+  // reuso indevido de códigos.
+  if (!convite) {
+    return { ok: false, mensagem: "Convite inválido." };
+  }
+  if (convite.status !== "pendente") {
+    return {
+      ok: false,
+      mensagem:
+        convite.status === "revogado"
+          ? "Este convite foi revogado."
+          : "Este convite já foi utilizado.",
+    };
   }
 
   const { error: erroMembro } = await supabase
@@ -148,7 +163,7 @@ function traduzErroSupabase(msg: string): string {
   if (m.includes("user already registered") || m.includes("already been registered"))
     return "Este e-mail já tem uma conta. Tente entrar.";
   if (m.includes("email not confirmed")) return "Confirme seu e-mail antes de entrar.";
-  if (m.includes("password")) return "Senha inválida (mínimo de 6 caracteres).";
+  if (m.includes("password")) return "Senha inválida (mínimo de 8 caracteres, com letra e número).";
   if (m.includes("rate limit")) return "Muitas tentativas. Aguarde um instante.";
   return "Não foi possível concluir. Tente novamente.";
 }

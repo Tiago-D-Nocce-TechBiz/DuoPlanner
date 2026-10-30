@@ -26,6 +26,31 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Cabeçalhos de segurança HTTP aplicados a todas as rotas. Mantemos um
+  // conjunto conservador (sem CSP estrita) para não quebrar scripts inline do
+  // Next, fontes do Google, Supabase e o WebGL do avião 3D. A microfone é
+  // liberada para o ditado por voz da Nora (Web Speech API).
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "on" },
+          {
+            key: "Strict-Transport-Security",
+            value: "max-age=63072000; includeSubDomains; preload",
+          },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), geolocation=(), microphone=(self)",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
