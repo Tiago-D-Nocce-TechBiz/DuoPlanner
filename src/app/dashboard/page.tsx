@@ -66,7 +66,7 @@ export default function DashboardOverviewPage() {
       {/* Cabeçalho */}
       <section className="glass-panel rounded-3xl p-6 sm:p-8">
         <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
-          Olá, viajantes.
+          Olá, viajantes
         </h1>
         <p className="mt-2 text-sm sm:text-base text-[var(--color-muted)] max-w-2xl">
           Por onde a próxima aventura a dois vai começar? Descreva a viagem abaixo e deixe o
