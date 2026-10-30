@@ -64,12 +64,10 @@ export function NoraAvatar({
     <span
       ref={ref}
       className={cn(
-        // Tema Claro: círculo PRETO com olhos BRANCOS.
-        // Tema Escuro: círculo BRANCO com olhos AZUIS.
-        // Borda + sombra sutis garantem destaque nos dois fundos.
-        "relative inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden",
-        "bg-black ring-1 ring-black/10 shadow-[0_2px_8px_rgba(0,0,0,0.25)]",
-        "dark:bg-white dark:ring-white/20 dark:shadow-[0_2px_10px_rgba(0,0,0,0.5)]",
+        // Cores controladas por .nora-face / .nora-eye no globals.css, que
+        // respondem à classe .dark do tema (o dark: do Tailwind aqui seguiria
+        // o SO, não o tema do app).
+        "nora-face relative inline-flex items-center justify-center rounded-full shrink-0 overflow-hidden",
         className
       )}
       style={{ width: tamanho, height: tamanho }}
@@ -77,7 +75,7 @@ export function NoraAvatar({
     >
       <span className="flex items-center" style={{ gap }}>
         <span
-          className="block rounded-full bg-white dark:bg-blue-600 transition-transform duration-75 ease-out"
+          className="nora-eye block rounded-full transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
@@ -85,7 +83,7 @@ export function NoraAvatar({
           }}
         />
         <span
-          className="block rounded-full bg-white dark:bg-blue-600 transition-transform duration-75 ease-out"
+          className="nora-eye block rounded-full transition-transform duration-75 ease-out"
           style={{
             width: olhoW,
             height: olhoH,
