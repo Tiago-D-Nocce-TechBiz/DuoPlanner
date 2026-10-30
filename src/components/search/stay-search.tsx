@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
-import { BedDouble, Brain, Loader2, Search, SlidersHorizontal } from "lucide-react";
+import { BedDouble, Brain, Loader2, Search, SlidersHorizontal } from "@/components/ui/icons";
 import {
   sugerirExperienciasLocais,
   type LocalGemsResult,

@@ -8,7 +8,7 @@ import {
   Plus,
   ScanLine,
   Sparkles,
-} from "lucide-react";
+} from "@/components/ui/icons";
 import {
   processReceiptImage,
   type ReceiptScanResult,

@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, use } from "react";
-import { Clock, Compass, Lightbulb, Sparkles, Wallet } from "lucide-react";
+import { Clock, Compass, Lightbulb, Sparkles, Wallet } from "@/components/ui/icons";
 import type { LocalGemsResult } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { Brain, Loader2 } from "lucide-react";
+import { Brain, Loader2 } from "@/components/ui/icons";
 import {
   ensinarPreferenciasAction,
   type TeachMemoryState,

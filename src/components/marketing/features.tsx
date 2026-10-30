@@ -1,4 +1,4 @@
-import { Brain, Compass, Hotel, Plane, ScanLine, ShieldCheck } from "lucide-react";
+import { Brain, Compass, Hotel, Plane, ScanLine, ShieldCheck } from "@/components/ui/icons";
 import { Card } from "@/components/ui/card";
 import { Container } from "@/components/ui/container";
 

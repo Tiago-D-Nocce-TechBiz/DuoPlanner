@@ -10,14 +10,14 @@ import {
   Handshake,
   Coins,
   Settings,
-  type LucideIcon,
-} from "lucide-react";
+  type AppIcon,
+} from "@/components/ui/icons";
 
 /** Item de navegação. */
 export interface NavItem {
   href: string;
   label: string;
-  icon: LucideIcon;
+  icon: AppIcon;
 }
 
 /** Grupo de navegação (seção do menu lateral). */

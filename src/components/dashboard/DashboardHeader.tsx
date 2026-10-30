@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { LogOut, Menu, Plane, Users } from "lucide-react";
+import { LogOut, Menu, Plane, Users } from "@/components/ui/icons";
 import { NAV_ITEMS } from "./nav-items";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";

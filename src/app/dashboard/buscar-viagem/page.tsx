@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Plane, Bus, LayoutGrid } from "lucide-react";
+import { Plane, Bus, LayoutGrid } from "@/components/ui/icons";
 import { PageHeading } from "@/components/dashboard/page-heading";
 import { FlightSearch } from "@/components/search/flight-search";
 import { BusSearch } from "@/components/search/bus-search";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/ui/icons";
 import { cardClass } from "./card";
 import { cn } from "@/lib/utils";
 

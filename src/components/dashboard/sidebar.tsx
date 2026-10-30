@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "./nav-items";
 import { LogoutLogo } from "./logout-logo";
 import { cn } from "@/lib/utils";
-import { X, ScrollText } from "lucide-react";
+import { X, ScrollText } from "@/components/ui/icons";
 
 /**
  * Barra lateral (Premium Dark).

@@ -1,4 +1,4 @@
-import { Brain, Database, History, X } from "lucide-react";
+import { Brain, Database, History, X } from "@/components/ui/icons";
 import { esquecerPreferenciaAction } from "@/app/dashboard/configuracoes/actions";
 import { Card } from "@/components/ui/card";
 import { loadDuoMemory } from "@/lib/memory/store";

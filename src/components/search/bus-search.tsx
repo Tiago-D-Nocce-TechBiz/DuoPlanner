@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Bus, Search } from "lucide-react";
+import { Bus, Search } from "@/components/ui/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { ArrowUpRight, BedDouble, Star } from "lucide-react";
+import { ArrowUpRight, BedDouble, Star } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import { cardClass } from "@/components/ui/card";
 import type { HotelOffer } from "@/lib/travel/types";

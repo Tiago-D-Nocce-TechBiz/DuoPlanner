@@ -1,4 +1,4 @@
-import { AlertTriangle, ArrowUpRight, Shuffle } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Shuffle } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import { cardClass } from "@/components/ui/card";
 import { daysBetween } from "@/lib/dates";

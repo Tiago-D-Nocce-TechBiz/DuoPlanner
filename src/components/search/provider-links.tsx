@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@/components/ui/icons";
 import type { ProviderLink } from "@/lib/deep-links";
 
 /**

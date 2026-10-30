@@ -1,4 +1,4 @@
-import { Database, PenLine, ReceiptText, Sparkles } from "lucide-react";
+import { Database, PenLine, ReceiptText, Sparkles } from "@/components/ui/icons";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { getExpenses } from "@/lib/finance/expenses";

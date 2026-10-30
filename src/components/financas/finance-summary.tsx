@@ -1,4 +1,4 @@
-import { Receipt, TrendingUp, Users } from "lucide-react";
+import { Receipt, TrendingUp, Users } from "@/components/ui/icons";
 import { Card } from "@/components/ui/card";
 import { getExpenses, summarizeExpenses } from "@/lib/finance/expenses";
 import { formatCurrency } from "@/lib/utils";

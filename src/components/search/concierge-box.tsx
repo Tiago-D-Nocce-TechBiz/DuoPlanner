@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Plane, Hotel } from "lucide-react";
+import { Sparkles, Plane, Hotel } from "@/components/ui/icons";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { interpretarBusca, type ConciergeParse } from "@/lib/concierge";
