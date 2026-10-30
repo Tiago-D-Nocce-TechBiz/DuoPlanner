@@ -5,10 +5,28 @@ import { useRouter } from "next/navigation";
 import { ConciergeBox, type ConciergeModo } from "@/components/search/concierge-box";
 import type { ConciergeParse } from "@/lib/concierge";
 import { writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import {
+  Plane,
+  Hotel,
+  Wallet,
+  Map,
+  Luggage,
+  FileText,
+  Bell,
+  Handshake,
+  Coins,
+  type AppIcon,
+} from "@/components/ui/icons";
 
-const ATALHOS_PAINEL = [
+const ATALHOS_PAINEL: {
+  icone: AppIcon;
+  titulo: string;
+  descricao: string;
+  href: string;
+  acao: string;
+}[] = [
   {
-    icone: "✈️",
+    icone: Plane,
     titulo: "Buscar Passagens",
     descricao:
       "Links pré-preenchidos para LATAM, Azul, GOL, Google Flights, Skyscanner e viações de ônibus.",
@@ -16,7 +34,7 @@ const ATALHOS_PAINEL = [
     acao: "Abrir buscador de passagens →",
   },
   {
-    icone: "🏨",
+    icone: Hotel,
     titulo: "Buscar Hospedagem",
     descricao:
       "Compare acomodações no Airbnb, Booking.com, Hoteis.com, Trivago, Decolar e Vrbo com suas datas.",
@@ -24,7 +42,7 @@ const ATALHOS_PAINEL = [
     acao: "Abrir buscador de hospedagem →",
   },
   {
-    icone: "💳",
+    icone: Wallet,
     titulo: "Finanças Duo",
     descricao:
       "Importe uma fatura ou lance gastos, separe o que é pessoal e divida apenas as despesas da viagem.",
@@ -61,15 +79,17 @@ export default function DashboardOverviewPage() {
 
       {/* Atalhos principais */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {ATALHOS_PAINEL.map((card) => (
+        {ATALHOS_PAINEL.map((card) => {
+          const Icone = card.icone;
+          return (
           <Link
             className="glass-panel duo-ticket-card rounded-2xl p-6 flex flex-col justify-between group"
             href={card.href}
             key={card.titulo}
           >
             <div>
-              <div className="h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-xl">
-                {card.icone}
+              <div className="h-11 w-11 rounded-xl glass-panel flex items-center justify-center text-[var(--color-heading)]">
+                <Icone className="h-5 w-5" />
               </div>
               <h2 className="mt-4 font-serif text-xl font-bold text-[var(--color-heading)]">
                 {card.titulo}
@@ -82,7 +102,8 @@ export default function DashboardOverviewPage() {
               {card.acao}
             </div>
           </Link>
-        ))}
+          );
+        })}
       </section>
 
       {/* Ferramentas da viagem — acesso rápido às funcionalidades */}
@@ -91,27 +112,30 @@ export default function DashboardOverviewPage() {
           Ferramentas da viagem
         </h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {FERRAMENTAS.map((f) => (
+          {FERRAMENTAS.map((f) => {
+            const Icone = f.icone;
+            return (
             <Link
               key={f.href}
               href={f.href}
-              className="glass-panel rounded-2xl p-4 flex flex-col items-center gap-2 text-center hover:ring-1 hover:ring-[var(--color-border-strong)] transition-all"
+              className="glass-panel rounded-2xl p-4 flex flex-col items-center gap-2 text-center text-[var(--color-heading)] hover:ring-1 hover:ring-[var(--color-border-strong)] transition-all"
             >
-              <span className="text-2xl">{f.icone}</span>
+              <Icone className="h-6 w-6" />
               <span className="text-xs font-semibold text-[var(--color-heading)]">{f.label}</span>
             </Link>
-          ))}
+            );
+          })}
         </div>
       </section>
     </div>
   );
 }
 
-const FERRAMENTAS = [
-  { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
-  { href: "/dashboard/checklist", label: "Checklist", icone: "🧳" },
-  { href: "/dashboard/documentos", label: "Documentos", icone: "📄" },
-  { href: "/dashboard/alertas", label: "Alertas de Preço", icone: "🔔" },
-  { href: "/dashboard/acerto", label: "Acerto de Contas", icone: "🤝" },
-  { href: "/dashboard/conversor", label: "Conversor", icone: "💱" },
+const FERRAMENTAS: { href: string; label: string; icone: AppIcon }[] = [
+  { href: "/dashboard/roteiro", label: "Roteiro", icone: Map },
+  { href: "/dashboard/checklist", label: "Checklist", icone: Luggage },
+  { href: "/dashboard/documentos", label: "Documentos", icone: FileText },
+  { href: "/dashboard/alertas", label: "Alertas de Preço", icone: Bell },
+  { href: "/dashboard/acerto", label: "Acerto de Contas", icone: Handshake },
+  { href: "/dashboard/conversor", label: "Conversor", icone: Coins },
 ];

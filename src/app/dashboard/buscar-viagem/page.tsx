@@ -14,8 +14,8 @@ type Aba = "todos" | "voos" | "onibus";
 
 const ABAS: { chave: Aba; rotulo: string; icone: typeof Plane }[] = [
   { chave: "todos", rotulo: "Todos", icone: LayoutGrid },
-  { chave: "voos", rotulo: "Voos ✈️", icone: Plane },
-  { chave: "onibus", rotulo: "Ônibus 🚌", icone: Bus },
+  { chave: "voos", rotulo: "Voos", icone: Plane },
+  { chave: "onibus", rotulo: "Ônibus", icone: Bus },
 ];
 
 /**

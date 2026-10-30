@@ -8,6 +8,7 @@ import {
 } from "@/lib/deep-links";
 import { iataDaCidade } from "@/lib/concierge";
 import { readLocal, writeLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
+import { Bell, Plane, Hotel } from "@/components/ui/icons";
 
 /**
  * Alertas de Preço.
@@ -110,7 +111,7 @@ export default function AlertasPage() {
       </div>
 
       <div className="glass-panel rounded-2xl p-4 flex items-start gap-3 ring-1 ring-[var(--color-border-strong)]">
-        <span className="text-lg">🔔</span>
+        <Bell className="h-5 w-5 shrink-0 text-[var(--color-heading)]" />
         <p className="text-xs text-[var(--color-muted)]">
           Nesta fase, cada alerta abre a busca pré-preenchida para você conferir o
           preço. O monitoramento automático com aviso por e-mail chega na próxima fase.
@@ -133,7 +134,14 @@ export default function AlertasPage() {
                   : "text-[var(--color-muted)]"
               }`}
             >
-              {t === "voo" ? "✈️ Voo" : "🏨 Hospedagem"}
+              <span className="inline-flex items-center gap-1.5">
+                {t === "voo" ? (
+                  <Plane className="h-4 w-4" />
+                ) : (
+                  <Hotel className="h-4 w-4" />
+                )}
+                {t === "voo" ? "Voo" : "Hospedagem"}
+              </span>
             </button>
           ))}
         </div>
@@ -194,8 +202,13 @@ export default function AlertasPage() {
               <div key={a.id} className="glass-panel rounded-2xl p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <span className="text-[10px] font-mono uppercase tracking-wider text-[var(--color-subtle)]">
-                      {a.tipo === "voo" ? "✈️ Voo" : "🏨 Hospedagem"}
+                    <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--color-subtle)]">
+                      {a.tipo === "voo" ? (
+                        <Plane className="h-3 w-3" />
+                      ) : (
+                        <Hotel className="h-3 w-3" />
+                      )}
+                      {a.tipo === "voo" ? "Voo" : "Hospedagem"}
                     </span>
                     <p className="mt-1 font-serif text-lg font-bold text-[var(--color-heading)]">
                       {a.tipo === "voo" ? `${a.origem || "?"} → ${a.destino}` : a.destino}

@@ -7,33 +7,51 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { InviteButton } from "@/components/dashboard/invite-button";
 import { BrandLogo } from "@/components/brand/logo";
 import { logoutAction } from "@/app/(auth)/actions";
+import {
+  LayoutDashboard,
+  Plane,
+  Hotel,
+  Map,
+  Luggage,
+  FileText,
+  Bell,
+  Wallet,
+  Handshake,
+  Coins,
+  Settings,
+  ShieldCheck,
+  LogOut,
+  type AppIcon,
+} from "@/components/ui/icons";
 
 // Menu agrupado por seções para acomodar as novas funcionalidades sem poluir.
-const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone: string }[] }[] = [
+// Ícones próprios do sistema (monocromáticos, herdam a cor do texto: pretos no
+// tema Claro, brancos no Escuro).
+const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone: AppIcon }[] }[] = [
   {
     secao: "Planejar",
     itens: [
-      { href: "/dashboard", label: "Visão geral", icone: "⊞" },
-      { href: "/dashboard/buscar-viagem", label: "Buscar Passagens", icone: "✈️" },
-      { href: "/dashboard/buscar-hospedagem", label: "Buscar Hospedagem", icone: "🏨" },
-      { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
-      { href: "/dashboard/checklist", label: "Checklist", icone: "🧳" },
-      { href: "/dashboard/documentos", label: "Documentos", icone: "📄" },
-      { href: "/dashboard/alertas", label: "Alertas de Preço", icone: "🔔" },
+      { href: "/dashboard", label: "Visão geral", icone: LayoutDashboard },
+      { href: "/dashboard/buscar-viagem", label: "Buscar Passagens", icone: Plane },
+      { href: "/dashboard/buscar-hospedagem", label: "Buscar Hospedagem", icone: Hotel },
+      { href: "/dashboard/roteiro", label: "Roteiro", icone: Map },
+      { href: "/dashboard/checklist", label: "Checklist", icone: Luggage },
+      { href: "/dashboard/documentos", label: "Documentos", icone: FileText },
+      { href: "/dashboard/alertas", label: "Alertas de Preço", icone: Bell },
     ],
   },
   {
     secao: "Finanças",
     itens: [
-      { href: "/dashboard/financas", label: "Finanças Duo", icone: "💳" },
-      { href: "/dashboard/acerto", label: "Acerto de Contas", icone: "🤝" },
-      { href: "/dashboard/conversor", label: "Conversor de Moedas", icone: "💱" },
+      { href: "/dashboard/financas", label: "Finanças Duo", icone: Wallet },
+      { href: "/dashboard/acerto", label: "Acerto de Contas", icone: Handshake },
+      { href: "/dashboard/conversor", label: "Conversor de Moedas", icone: Coins },
     ],
   },
   {
     secao: "Conta",
     itens: [
-      { href: "/dashboard/configuracoes", label: "Configurações", icone: "⚙️" },
+      { href: "/dashboard/configuracoes", label: "Configurações", icone: Settings },
     ],
   },
 ];
@@ -85,6 +103,7 @@ export default function DashboardLayout({
                     item.href === "/dashboard"
                       ? pathname === "/dashboard"
                       : pathname?.startsWith(item.href);
+                  const Icone = item.icone;
 
                   return (
                     <Link
@@ -96,7 +115,7 @@ export default function DashboardLayout({
                           : "text-[var(--color-muted)] hover:text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/5"
                       }`}
                     >
-                      <span>{item.icone}</span>
+                      <Icone className="h-[18px] w-[18px]" />
                       <span>{item.label}</span>
                     </Link>
                   );
@@ -112,7 +131,7 @@ export default function DashboardLayout({
             href="/termos"
             className="flex items-center gap-2 text-xs font-medium text-[var(--color-muted)] hover:text-[var(--color-heading)] transition-colors"
           >
-            <span>🛡️</span>
+            <ShieldCheck className="h-4 w-4" />
             <span>Termos de uso & LGPD</span>
           </Link>
         </div>
@@ -134,9 +153,10 @@ export default function DashboardLayout({
             <button
               type="button"
               onClick={() => setModalSairAberto(true)}
-              className="px-3.5 py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
             >
-              ↪ Sair
+              <LogOut className="h-3.5 w-3.5" />
+              Sair
             </button>
           </div>
         </header>
