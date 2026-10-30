@@ -155,15 +155,15 @@
 }
 
 /**
- * Superfície do "chrome" (menu lateral + cabeçalho).
+ * Superfície do "chrome" (menu lateral, cabeçalho e rodapé da sidebar).
  *
- * No tema Claro, troca o fundo creme do `.glass-panel` por um cinza bem claro,
- * quase branco — mais neutro. No tema Escuro, nada muda (mantém o vidro
- * escuro). Aplicada apenas na sidebar e no header; os cards do painel seguem
- * usando `--color-card` normalmente.
+ * No tema Claro usa um cinza translúcido um pouco mais escuro que o fundo
+ * geral, mantendo o glassmorphism ativo (o fundo borrado aparece por trás via
+ * o `backdrop-filter` do `.glass-panel`). No tema Escuro mantém o vidro
+ * escuro. Aplicada só no chrome; os cards do painel seguem `--color-card`.
  */
 .chrome-surface {
-  background-color: #F2F1EE;
+  background-color: rgba(222, 219, 211, 0.72);
 }
 
 .dark .chrome-surface {
