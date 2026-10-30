@@ -8,13 +8,33 @@ import { InviteButton } from "@/components/dashboard/invite-button";
 import { BrandLogo } from "@/components/brand/logo";
 import { logoutAction } from "@/app/(auth)/actions";
 
-const MENU_ITENS = [
-  { href: "/dashboard", label: "Visão geral", icone: "⊞" },
-  { href: "/dashboard/buscar-viagem", label: "Buscar Passagens", icone: "✈️" },
-  { href: "/dashboard/buscar-hospedagem", label: "Buscar Hospedagem", icone: "🏨" },
-  { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
-  { href: "/dashboard/financas", label: "Finanças Duo", icone: "💳" },
-  { href: "/dashboard/configuracoes", label: "Configurações", icone: "⚙️" },
+// Menu agrupado por seções para acomodar as novas funcionalidades sem poluir.
+const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone: string }[] }[] = [
+  {
+    secao: "Planejar",
+    itens: [
+      { href: "/dashboard", label: "Visão geral", icone: "⊞" },
+      { href: "/dashboard/buscar-viagem", label: "Buscar Passagens", icone: "✈️" },
+      { href: "/dashboard/buscar-hospedagem", label: "Buscar Hospedagem", icone: "🏨" },
+      { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
+      { href: "/dashboard/checklist", label: "Checklist", icone: "🧳" },
+      { href: "/dashboard/documentos", label: "Documentos", icone: "📄" },
+    ],
+  },
+  {
+    secao: "Finanças",
+    itens: [
+      { href: "/dashboard/financas", label: "Finanças Duo", icone: "💳" },
+      { href: "/dashboard/acerto", label: "Acerto de Contas", icone: "🤝" },
+      { href: "/dashboard/conversor", label: "Conversor de Moedas", icone: "💱" },
+    ],
+  },
+  {
+    secao: "Conta",
+    itens: [
+      { href: "/dashboard/configuracoes", label: "Configurações", icone: "⚙️" },
+    ],
+  },
 ];
 
 export default function DashboardLayout({
@@ -53,28 +73,35 @@ export default function DashboardLayout({
             </div>
           </div>
 
-          <nav className="flex md:flex-col gap-1.5 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
-            {MENU_ITENS.map((item) => {
-              const ativo =
-                item.href === "/dashboard"
-                  ? pathname === "/dashboard"
-                  : pathname?.startsWith(item.href);
+          <nav className="flex md:flex-col gap-4 overflow-x-auto md:overflow-visible pb-2 md:pb-0">
+            {GRUPOS_MENU.map((grupo) => (
+              <div key={grupo.secao} className="flex md:flex-col gap-1.5">
+                <span className="hidden md:block px-3.5 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-subtle)]">
+                  {grupo.secao}
+                </span>
+                {grupo.itens.map((item) => {
+                  const ativo =
+                    item.href === "/dashboard"
+                      ? pathname === "/dashboard"
+                      : pathname?.startsWith(item.href);
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
-                    ativo
-                      ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm"
-                      : "text-[var(--color-muted)] hover:text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/5"
-                  }`}
-                >
-                  <span>{item.icone}</span>
-                  <span>{item.label}</span>
-                </Link>
-              );
-            })}
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                        ativo
+                          ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <span>{item.icone}</span>
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            ))}
           </nav>
         </div>
 

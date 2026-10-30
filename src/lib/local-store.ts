@@ -50,4 +50,7 @@ export const STORAGE_KEYS = {
   conta: "pd-configuracoes-conta",
   roteiro: "pd-roteiro",
   concierge: "pd-concierge-preenchimento",
+  checklist: "pd-checklist",
+  documentos: "pd-documentos",
+  viagem: "pd-viagem-resumo",
 } as const;

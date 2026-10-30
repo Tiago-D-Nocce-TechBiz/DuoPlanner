@@ -59,7 +59,7 @@ export default function DashboardOverviewPage() {
       {/* Concierge de IA — uso livre para passagens ou hospedagem */}
       <ConciergeBox comModos onInterpretar={aoInterpretar} />
 
-      {/* Atalhos */}
+      {/* Atalhos principais */}
       <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {ATALHOS_PAINEL.map((card) => (
           <Link
@@ -84,6 +84,34 @@ export default function DashboardOverviewPage() {
           </Link>
         ))}
       </section>
+
+      {/* Ferramentas da viagem — acesso rápido às funcionalidades */}
+      <section>
+        <h2 className="mb-4 font-serif text-xl font-bold text-[var(--color-heading)]">
+          Ferramentas da viagem
+        </h2>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+          {FERRAMENTAS.map((f) => (
+            <Link
+              key={f.href}
+              href={f.href}
+              className="glass-panel rounded-2xl p-4 flex flex-col items-center gap-2 text-center hover:ring-1 hover:ring-[var(--color-border-strong)] transition-all"
+            >
+              <span className="text-2xl">{f.icone}</span>
+              <span className="text-xs font-semibold text-[var(--color-heading)]">{f.label}</span>
+            </Link>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
+
+const FERRAMENTAS = [
+  { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
+  { href: "/dashboard/checklist", label: "Checklist", icone: "🧳" },
+  { href: "/dashboard/documentos", label: "Documentos", icone: "📄" },
+  { href: "/dashboard/acerto", label: "Acerto de Contas", icone: "🤝" },
+  { href: "/dashboard/conversor", label: "Conversor", icone: "💱" },
+  { href: "/dashboard/configuracoes", label: "Configurações", icone: "⚙️" },
+];
