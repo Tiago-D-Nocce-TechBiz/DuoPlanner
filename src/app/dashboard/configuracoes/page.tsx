@@ -3,7 +3,7 @@ import { PageHeading } from "@/components/dashboard/page-heading";
 import { MemoryPanel, MemoryPanelSkeleton } from "@/components/memory/memory-panel";
 import { AccountForm } from "@/components/configuracoes/account-form";
 
-export const metadata = { title: "Configurações — PlannerDuo" };
+export const metadata = { title: "Configurações — DuoPlanner" };
 
 /**
  * Configurações da conta + Memória da IA.

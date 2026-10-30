@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Botão do sistema de design PlannerDuo (Premium Dark).
+ * Botão do sistema de design DuoPlanner (Premium Dark).
  *
  * Variantes:
  * - "primary": amarelo pastel (#F2EAB7) com texto preto. Use só na ação

@@ -9,7 +9,7 @@ import { Moon, Sun } from "@/components/ui/icons";
  * Usa `useSyncExternalStore` para ler o tema atual diretamente do DOM/sistema
  * externo (a classe `.dark` no <html>, aplicada pelo script anti-flash do
  * layout), evitando setState dentro de efeitos. A preferência persiste em
- * localStorage["plannerduo-theme"]. O padrão inicial é o Modo Claro.
+ * localStorage["duoplanner-theme"]. O padrão inicial é o Modo Claro.
  */
 
 type Theme = "light" | "dark";
@@ -38,7 +38,7 @@ export function ThemeToggle() {
     const proximo: Theme = isDark ? "light" : "dark";
     document.documentElement.classList.toggle("dark", proximo === "dark");
     try {
-      localStorage.setItem("plannerduo-theme", proximo);
+      localStorage.setItem("duoplanner-theme", proximo);
     } catch {
       // localStorage pode estar indisponível (modo privado); ignorar.
     }

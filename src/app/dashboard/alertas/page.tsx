@@ -14,7 +14,7 @@ import { Bell, Plane, Hotel } from "@/components/ui/icons";
  * Alertas de Preço.
  *
  * O usuário cria alertas (voo ou hospedagem) com destino, datas e preço-alvo.
- * Como esta é a Fase Front, o PlannerDuo não monitora preços automaticamente
+ * Como esta é a Fase Front, o DuoPlanner não monitora preços automaticamente
  * ainda; cada alerta vira um atalho que abre a BUSCA JÁ PRÉ-PREENCHIDA no
  * parceiro para o usuário conferir o preço atual com um clique. O monitoramento
  * automático (e-mail/notificação) entra na Fase Back.

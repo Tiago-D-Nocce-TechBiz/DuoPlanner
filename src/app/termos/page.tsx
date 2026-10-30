@@ -3,7 +3,7 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { BrandLogo } from "@/components/brand/logo";
 import { TermsContent } from "@/components/legal/terms-content";
 
-export const metadata = { title: "Termos de uso & LGPD — PlannerDuo" };
+export const metadata = { title: "Termos de uso & LGPD — DuoPlanner" };
 
 // Ano de copyright como constante (evita new Date() no prerender).
 const COPYRIGHT_YEAR = 2026;
@@ -41,7 +41,7 @@ export default function TermosPublicPage() {
 
       {/* Rodapé */}
       <footer className="mx-auto w-full max-w-4xl mt-16 pt-8 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-muted)]">
-        <span>© {COPYRIGHT_YEAR} PlannerDuo. Todos os direitos reservados.</span>
+        <span>© {COPYRIGHT_YEAR} DuoPlanner. Todos os direitos reservados.</span>
         <div className="flex items-center gap-6">
           <Link className="hover:underline" href="/login">
             Entrar

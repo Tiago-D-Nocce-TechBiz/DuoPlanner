@@ -11,7 +11,7 @@ export function PlaneEmblem({ className }: { className?: string }) {
       viewBox="0 0 160 160"
       className={className}
       role="img"
-      aria-label="Emblema de viagem PlannerDuo"
+      aria-label="Emblema de viagem DuoPlanner"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >

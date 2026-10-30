@@ -2,7 +2,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Logo oficial do PlannerDuo.
+ * Logo oficial do DuoPlanner.
  *
  * A marca definitiva é uma imagem (PNG) em `public/brand/logo.png` — o
  * monograma "PD" com o avião em ascensão e o gráfico de crescimento.
@@ -29,7 +29,7 @@ function BrandIconFallback({ className }: { className?: string }) {
       viewBox="0 0 48 48"
       className={className}
       role="img"
-      aria-label="PlannerDuo"
+      aria-label="DuoPlanner"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -95,7 +95,7 @@ export function BrandIcon({ className }: { className?: string }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={LOGO_SRC}
-        alt="PlannerDuo"
+        alt="DuoPlanner"
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />
@@ -104,7 +104,7 @@ export function BrandIcon({ className }: { className?: string }) {
 }
 
 /**
- * Logotipo completo: ícone + wordmark "PlannerDuo".
+ * Logotipo completo: ícone + wordmark "DuoPlanner".
  * `href` torna-o clicável (padrão: início). Passe `href={null}` para usar só
  * como marca estática (ex.: quando a logo abre um modal de sair).
  */
@@ -121,14 +121,14 @@ export function BrandLogo({
     <span className={cn("flex items-center gap-2.5", className)}>
       <BrandIcon className={cn("h-8 w-8", iconClassName)} />
       <span className="font-serif text-xl sm:text-2xl font-bold tracking-tight text-[var(--color-heading)]">
-        PlannerDuo
+        DuoPlanner
       </span>
     </span>
   );
 
   if (href === null) return conteudo;
   return (
-    <Link href={href} aria-label="PlannerDuo — início" className="inline-flex">
+    <Link href={href} aria-label="DuoPlanner — início" className="inline-flex">
       {conteudo}
     </Link>
   );

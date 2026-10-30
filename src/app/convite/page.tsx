@@ -9,7 +9,7 @@ import {
 } from "@/lib/supabase/server";
 import { aceitarConvitePorCodigo } from "@/app/(auth)/actions";
 
-export const metadata = { title: "Convite — PlannerDuo" };
+export const metadata = { title: "Convite — DuoPlanner" };
 
 /**
  * Página de convite: /convite?code=CODIGO (ou ?convite=CODIGO).

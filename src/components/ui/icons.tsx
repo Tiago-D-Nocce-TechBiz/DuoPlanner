@@ -2,7 +2,7 @@ import type { SVGProps } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Ícones próprios do PlannerDuo.
+ * Ícones próprios do DuoPlanner.
  *
  * Conjunto desenhado para o sistema (não usa biblioteca de terceiros). Todos
  * os traços usam `currentColor`, então o ícone herda a cor do texto ao redor

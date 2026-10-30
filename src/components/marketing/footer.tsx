@@ -28,7 +28,7 @@ export function Footer() {
         </nav>
 
         <p className="text-xs text-subtle">
-          © {COPYRIGHT_YEAR} PlannerDuo — Uso pessoal, não corporativo.
+          © {COPYRIGHT_YEAR} DuoPlanner — Uso pessoal, não corporativo.
         </p>
       </Container>
     </footer>

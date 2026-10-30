@@ -1,5 +1,5 @@
 /**
- * Conteúdo jurídico dos Termos de Uso + LGPD do PlannerDuo.
+ * Conteúdo jurídico dos Termos de Uso + LGPD do DuoPlanner.
  * Reutilizado na rota pública (/termos) e no painel (/dashboard/termos).
  *
  * AVISO: texto-modelo para um app pessoal e gratuito. Não substitui
@@ -39,7 +39,7 @@ export function TermsContent() {
 
       <Section title="1. Aceitação dos Termos">
         <p>
-          Ao acessar e utilizar o PlannerDuo (&quot;Plataforma&quot;), você
+          Ao acessar e utilizar o DuoPlanner (&quot;Plataforma&quot;), você
           declara ter lido, compreendido e aceitado integralmente estes Termos
           de Uso. Caso não concorde, não utilize a Plataforma.
         </p>
@@ -47,7 +47,7 @@ export function TermsContent() {
 
       <Section title="2. Natureza do serviço — agregador e redirecionador">
         <p>
-          O PlannerDuo é uma ferramenta pessoal e gratuita de planejamento de
+          O DuoPlanner é uma ferramenta pessoal e gratuita de planejamento de
           viagens que funciona como <strong>agregador e redirecionador de
           buscas</strong> (deep linking). A Plataforma não vende passagens,
           não intermedeia reservas e não processa pagamentos.
@@ -69,7 +69,7 @@ export function TermsContent() {
           Confira valores, datas, horários e regras antes de decidir.
         </p>
         <p>
-          O PlannerDuo não garante a exatidão, disponibilidade ou atualização
+          O DuoPlanner não garante a exatidão, disponibilidade ou atualização
           das informações exibidas pelos sites de destino e não se
           responsabiliza por eventuais divergências, falhas ou prejuízos
           decorrentes das transações realizadas com terceiros.

@@ -67,7 +67,7 @@ export function AccountForm() {
     <form onSubmit={salvar} className="space-y-6">
       <Card className="p-6">
         <h2 className="font-serif text-xl font-semibold">Dados da conta</h2>
-        <p className="mt-1 text-sm text-muted">Como vocês aparecem no PlannerDuo.</p>
+        <p className="mt-1 text-sm text-muted">Como vocês aparecem no DuoPlanner.</p>
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
           <ControlledField id="nomeConta" label="Nome da conta" {...campo("nomeConta")} />
           <ControlledField id="emailParceiro" label="E-mail do parceiro(a)" type="email" placeholder="parceiro@exemplo.com" {...campo("emailParceiro")} />

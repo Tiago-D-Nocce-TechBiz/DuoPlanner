@@ -1,5 +1,5 @@
 /**
- * Utilitários partilhados do PlannerDuo.
+ * Utilitários partilhados do DuoPlanner.
  */
 
 /**

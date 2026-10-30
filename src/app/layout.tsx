@@ -15,7 +15,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "PlannerDuo — Planejamento de Viagens e Finanças a Dois",
+  title: "DuoPlanner — Planejamento de Viagens e Finanças a Dois",
   description:
     "Planeje passagens aéreas, ônibus, hospedagens, roteiro diário e divida despesas da viagem com privacidade e conformidade LGPD.",
 };
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 const themeInitScript = `
 (function() {
   try {
-    var t = localStorage.getItem('plannerduo-theme');
+    var t = localStorage.getItem('duoplanner-theme');
     if (t === 'dark') {
       document.documentElement.classList.add('dark');
     } else if (t !== 'light') {

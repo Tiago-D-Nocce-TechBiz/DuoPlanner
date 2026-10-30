@@ -1,8 +1,8 @@
-# PlannerDuo
+# DuoPlanner
 
 App **pessoal e 100% gratuito** de planejamento de viagens a dois, construído em **Next.js (App Router)** + **TypeScript** + **Tailwind CSS v4**. Uso estritamente não corporativo. Interface 100% em **Português Brasileiro (PT-BR)**.
 
-Repositório: `Tiago-D-Nocce-TechBiz/PlannerDuo.0`.
+Repositório: `Tiago-D-Nocce-TechBiz/DuoPlanner.0`.
 
 ## Stack
 
@@ -66,7 +66,7 @@ supabase/
 
 ### Dois motores de busca (Deep Linking Outbound)
 
-O PlannerDuo **não** faz pesquisa interna. A partir dos dados informados, gera
+O DuoPlanner **não** faz pesquisa interna. A partir dos dados informados, gera
 links pré-preenchidos que abrem numa nova aba as páginas de resultados dos
 parceiros, e **salva a busca no Supabase** (tabela `viagens`).
 

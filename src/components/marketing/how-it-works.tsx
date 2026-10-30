@@ -12,7 +12,7 @@ const STEPS = [
     n: "02",
     title: "Receba as melhores opções",
     description:
-      "O PlannerDuo consulta Kiwi.com e Booking.com, ordena por preço e custo-benefício e sugere passeios baratos.",
+      "O DuoPlanner consulta Kiwi.com e Booking.com, ordena por preço e custo-benefício e sugere passeios baratos.",
   },
   {
     n: "03",

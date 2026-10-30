@@ -1,7 +1,7 @@
 import { TermsContent } from "@/components/legal/terms-content";
 import { Card } from "@/components/ui/card";
 
-export const metadata = { title: "Termos de uso & LGPD — PlannerDuo" };
+export const metadata = { title: "Termos de uso & LGPD — DuoPlanner" };
 
 /** Termos de Uso e LGPD dentro do painel. */
 export default function TermosDashboardPage() {

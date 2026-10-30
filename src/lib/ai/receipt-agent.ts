@@ -71,7 +71,7 @@ const ReceiptState = new StateSchema({
 
 type State = typeof ReceiptState.State;
 
-const SYSTEM_PROMPT = `Você é o Agente de Leitura de Recibos do PlannerDuo, um app de viagens a dois.
+const SYSTEM_PROMPT = `Você é o Agente de Leitura de Recibos do DuoPlanner, um app de viagens a dois.
 Leia a imagem (ou PDF) de um recibo, nota fiscal, cupom ou comprovante e extraia:
 - titulo: descrição curta da despesa em português, com o nome do estabelecimento quando houver (ex.: "Jantar — Restaurante Aprazível", "Uber para o aeroporto").
 - valor: o TOTAL efetivamente pago (após descontos; inclua taxa de serviço ou gorjeta se fizerem parte do total).

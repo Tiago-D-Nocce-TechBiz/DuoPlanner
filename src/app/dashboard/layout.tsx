@@ -175,7 +175,7 @@ export default function DashboardLayout({
               Deseja realmente encerrar a sessão?
             </h3>
             <p className="mt-2 text-sm text-[var(--color-muted)]">
-              Ao confirmar, sua sessão atual será encerrada e você retornará à página inicial (Landing Page) do PlannerDuo.
+              Ao confirmar, sua sessão atual será encerrada e você retornará à página inicial (Landing Page) do DuoPlanner.
             </p>
             <div className="mt-6 flex items-center justify-end gap-3">
               <button

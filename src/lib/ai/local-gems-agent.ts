@@ -43,7 +43,7 @@ const gemsOutputSchema = z.object({
   experiencias: z.array(localGemSchema).min(3).max(3),
 });
 
-const SYSTEM_PROMPT = `Você é o curador de "Experiências Ocultas" do PlannerDuo, um app de viagens a dois.
+const SYSTEM_PROMPT = `Você é o curador de "Experiências Ocultas" do DuoPlanner, um app de viagens a dois.
 Sugira exatamente 3 atividades GRATUITAS ou de BAIXO CUSTO no destino informado, fugindo do roteiro de cartão-postal.
 Priorize lugares reais e consolidados, fáceis de verificar: mirantes, feiras, bairros, trilhas urbanas, museus com dia de entrada gratuita, eventos recorrentes.
 Não cite lugares de cuja existência você não tenha certeza. Adapte as sugestões ao mês da viagem e ao contexto da dupla.

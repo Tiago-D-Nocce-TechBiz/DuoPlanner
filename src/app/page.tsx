@@ -87,7 +87,7 @@ export default function LandingPage() {
 
       {/* Rodapé */}
       <footer className="mx-auto w-full max-w-5xl pt-8 border-t border-[var(--color-border)] flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[var(--color-muted)]">
-        <span>© {COPYRIGHT_YEAR} PlannerDuo. Todos os direitos reservados.</span>
+        <span>© {COPYRIGHT_YEAR} DuoPlanner. Todos os direitos reservados.</span>
         <Link className="hover:underline" href="/termos">
           Termos de Uso & LGPD
         </Link>

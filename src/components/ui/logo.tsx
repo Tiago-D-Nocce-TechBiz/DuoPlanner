@@ -2,9 +2,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Marca do PlannerDuo: "Planner" em Playfair (zinc-100) + "Duo" em itálico
- * zinc-400. O acento amarelo fica reservado para ações, então a marca é
- * monocromática.
+ * Marca do DuoPlanner: "Duo" em itálico (tom suave) + "Planner" em Playfair.
+ * Monocromática — segue os tokens de tema (heading/muted).
  */
 export function LogoMark({ className }: { className?: string }) {
   return (
@@ -14,7 +13,7 @@ export function LogoMark({ className }: { className?: string }) {
         className
       )}
     >
-      Planner<span className="font-normal italic text-muted">Duo</span>
+      <span className="font-normal italic text-muted">Duo</span>Planner
     </span>
   );
 }
@@ -27,7 +26,7 @@ export function Logo({
   className?: string;
 }) {
   return (
-    <Link href={href} aria-label="PlannerDuo — início">
+    <Link href={href} aria-label="DuoPlanner — início">
       <LogoMark className={className} />
     </Link>
   );

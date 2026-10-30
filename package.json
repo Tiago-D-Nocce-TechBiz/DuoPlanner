@@ -1,8 +1,8 @@
 {
-  "name": "plannerduo",
+  "name": "duoplanner",
   "version": "0.0.0",
   "private": true,
-  "description": "PlannerDuo — aplicativo pessoal e gratuito de planejamento de viagens (Next.js App Router).",
+  "description": "DuoPlanner — solução de negócios para viagens e finanças a dois, em um só lugar (Next.js App Router).",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

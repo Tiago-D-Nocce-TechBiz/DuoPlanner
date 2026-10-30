@@ -2,7 +2,7 @@ import { PageHeading } from "@/components/dashboard/page-heading";
 import { StaySearch } from "@/components/search/stay-search";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 
-export const metadata = { title: "Buscar Hospedagem — PlannerDuo" };
+export const metadata = { title: "Buscar Hospedagem — DuoPlanner" };
 
 /** Motor de busca de hospedagens (Booking.com via RapidAPI + memória da IA). */
 export default function BuscarHospedagemPage() {

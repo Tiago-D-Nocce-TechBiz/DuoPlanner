@@ -98,7 +98,7 @@ const MemoryState = new StateSchema({
 
 type State = typeof MemoryState.State;
 
-const SYSTEM_PROMPT = `Você é a memória do PlannerDuo, um planejador de viagens para uma dupla.
+const SYSTEM_PROMPT = `Você é a memória do DuoPlanner, um planejador de viagens para uma dupla.
 Sua tarefa: ler a mensagem da dupla e registrar preferências de viagem em campos tipados.
 Regras:
 - Preencha apenas campos que a mensagem afirma ou altera. Omita todo o resto.

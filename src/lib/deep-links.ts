@@ -1,7 +1,7 @@
 /**
  * Motor de Busca — Deep Linking Outbound.
  *
- * O PlannerDuo NÃO executa pesquisa interna. A partir dos dados fornecidos pelo
+ * O DuoPlanner NÃO executa pesquisa interna. A partir dos dados fornecidos pelo
  * usuário, gera URLs de pesquisa pré-preenchidas para plataformas parceiras e
  * abre-as numa nova aba.
  *
