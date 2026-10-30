@@ -32,13 +32,6 @@ function idMsg() {
   return Math.random().toString(36).substring(2, 9);
 }
 
-function saudacaoHorario(): string {
-  const h = new Date().getHours();
-  if (h < 12) return "Bom dia";
-  if (h < 18) return "Boa tarde";
-  return "Boa noite";
-}
-
 function nomeUsuario(): string {
   const conta = readLocal<{ viajante1?: string; nomeConta?: string }>(STORAGE_KEYS.conta, {});
   return (conta.viajante1 || conta.nomeConta || "viajante").trim() || "viajante";
@@ -231,10 +224,9 @@ export function NoraDrawer() {
   const [texto, setTexto] = useState("");
   const [ouvindo, setOuvindo] = useState(false);
   const [menuPrompts, setMenuPrompts] = useState(false);
-  // Saudação e nome só no cliente (useMontado evita new Date()/localStorage no
+  // Nome do usuário só no cliente (useMontado evita leitura de localStorage no
   // prerender e o setState-em-efeito proibido pelo lint).
   const montado = useMontado();
-  const saudacao = montado ? saudacaoHorario() : "Olá";
   const nome = montado ? nomeUsuario() : "viajante";
   const reconhecimentoRef = useRef<SpeechRecognitionLike | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
@@ -376,8 +368,8 @@ export function NoraDrawer() {
           {semMensagens ? (
             <div className="flex h-full flex-col items-center justify-center text-center">
               <NoraAvatar tamanho={64} className="mb-6" />
-              <h2 className="bg-gradient-to-r from-blue-600 to-indigo-500 bg-clip-text text-transparent font-serif text-2xl font-bold leading-snug px-4">
-                {saudacao} {nome},
+              <h2 className="font-serif text-2xl font-bold leading-snug px-4 text-[var(--color-heading)]">
+                Olá {nome},
                 <br /> como posso ajudar você hoje?
               </h2>
               <div className="mt-8 flex w-full flex-col gap-2.5">
