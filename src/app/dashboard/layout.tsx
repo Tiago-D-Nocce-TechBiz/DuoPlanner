@@ -74,8 +74,8 @@ export default function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
-      {/* Sidebar Lateral */}
-      <aside className="w-full md:w-64 glass-panel md:min-h-screen flex flex-col justify-between p-4 sm:p-5 shrink-0 border-b md:border-b-0 md:border-r border-[var(--color-border)]">
+      {/* Sidebar Lateral — sempre escura (Safira Noturno) nos dois temas */}
+      <aside className="sidebar-dark w-full md:w-64 md:min-h-screen flex flex-col justify-between p-4 sm:p-5 shrink-0 border-b md:border-b-0 md:border-r border-[var(--color-border)]">
         <div>
           {/* Logo que pergunta antes de voltar para a Landing Page */}
           <div className="flex items-center justify-between md:block mb-6">
@@ -109,10 +109,10 @@ export default function DashboardLayout({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
+                      className={`nav-item flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all ${
                         ativo
                           ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm"
-                          : "text-[var(--color-muted)] hover:text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/5"
+                          : "text-[var(--color-muted)] hover:text-[var(--color-heading)]"
                       }`}
                     >
                       <Icone className="h-[18px] w-[18px]" />
