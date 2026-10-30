@@ -163,7 +163,7 @@
  * escuro. Aplicada só no chrome; os cards do painel seguem `--color-card`.
  */
 .chrome-surface {
-  background-color: rgba(222, 219, 211, 0.72);
+  background-color: rgba(244, 242, 237, 0.78);
 }
 
 .dark .chrome-surface {
