@@ -5,6 +5,7 @@ import {
   Map,
   Luggage,
   FileText,
+  Bell,
   Wallet,
   Handshake,
   Coins,
@@ -36,6 +37,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/dashboard/roteiro", label: "Roteiro", icon: Map },
       { href: "/dashboard/checklist", label: "Checklist", icon: Luggage },
       { href: "/dashboard/documentos", label: "Documentos", icon: FileText },
+      { href: "/dashboard/alertas", label: "Alertas de Preço", icon: Bell },
     ],
   },
   {

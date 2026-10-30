@@ -53,4 +53,5 @@ export const STORAGE_KEYS = {
   checklist: "pd-checklist",
   documentos: "pd-documentos",
   viagem: "pd-viagem-resumo",
+  alertas: "pd-alertas-preco",
 } as const;

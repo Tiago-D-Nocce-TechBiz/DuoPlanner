@@ -19,6 +19,7 @@ const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone:
       { href: "/dashboard/roteiro", label: "Roteiro", icone: "🗺️" },
       { href: "/dashboard/checklist", label: "Checklist", icone: "🧳" },
       { href: "/dashboard/documentos", label: "Documentos", icone: "📄" },
+      { href: "/dashboard/alertas", label: "Alertas de Preço", icone: "🔔" },
     ],
   },
   {
