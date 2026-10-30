@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { AlertTriangle } from "@/components/ui/icons";
 
 /**
  * Error Boundary genérico (client).
@@ -48,8 +49,8 @@ export class ErrorBoundary extends React.Component<Props, State> {
 
     return (
       <div className="glass-panel rounded-2xl p-8 text-center">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/10 text-xl">
-          ⚠️
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/10 text-[var(--color-heading)]">
+          <AlertTriangle className="h-6 w-6" />
         </div>
         <h2 className="font-serif text-xl font-semibold text-[var(--color-heading)]">
           {this.props.titulo ?? "Algo não carregou como esperado"}

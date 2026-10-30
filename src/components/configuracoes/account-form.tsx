@@ -88,7 +88,7 @@ export function AccountForm() {
       </Card>
 
       <div className="flex items-center justify-end gap-3">
-        {salvo && <span className="text-sm text-emerald-600 dark:text-emerald-400">✓ Alterações salvas</span>}
+        {salvo && <span className="text-sm text-[var(--color-heading)]">✓ Alterações salvas</span>}
         <Button type="button" variant="secondary" onClick={cancelar}>
           Cancelar
         </Button>

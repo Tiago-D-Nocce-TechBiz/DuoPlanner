@@ -165,10 +165,10 @@ export function InteractiveFlightRoute() {
           <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span>
             {isDragging
-              ? `🕹️ Controle manual ativo • Proa ${Math.round(
+              ? `Controle manual ativo • Proa ${Math.round(
                   (planeAngle + 360) % 360
                 )}° (Solte o mouse para retomar a rota)`
-              : "✈️ Segure e arraste o avião com o mouse para girar e pilotar"}
+              : "Segure e arraste o avião com o mouse para girar e pilotar"}
           </span>
         </div>
 

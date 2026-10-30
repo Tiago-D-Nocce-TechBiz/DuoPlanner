@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { readLocal, writeLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
+import { ShieldCheck } from "@/components/ui/icons";
 
 /**
  * Cofre de Documentos da viagem.
@@ -79,7 +80,7 @@ export default function DocumentosPage() {
       </div>
 
       <div className="glass-panel rounded-2xl p-4 flex items-start gap-3 ring-1 ring-[var(--color-border-strong)]">
-        <span className="text-lg">🔒</span>
+        <ShieldCheck className="h-5 w-5 shrink-0 text-[var(--color-heading)]" />
         <p className="text-xs text-[var(--color-muted)]">
           Nesta fase, os dados ficam apenas neste dispositivo. Evite guardar
           senhas ou informações sensíveis até o armazenamento seguro ser

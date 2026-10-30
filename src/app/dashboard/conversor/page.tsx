@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Shuffle } from "@/components/ui/icons";
 
 /**
  * Conversor de Moedas.
@@ -12,13 +13,13 @@ import { useMemo, useState } from "react";
 
 // Taxas aproximadas em relação ao Real (1 unidade da moeda = X reais).
 // Editáveis pelo usuário; servem só de referência inicial.
-const MOEDAS: { codigo: string; nome: string; emoji: string; emReais: number }[] = [
-  { codigo: "BRL", nome: "Real", emoji: "🇧🇷", emReais: 1 },
-  { codigo: "USD", nome: "Dólar americano", emoji: "🇺🇸", emReais: 5.4 },
-  { codigo: "EUR", nome: "Euro", emoji: "🇪🇺", emReais: 5.9 },
-  { codigo: "GBP", nome: "Libra", emoji: "🇬🇧", emReais: 6.9 },
-  { codigo: "ARS", nome: "Peso argentino", emoji: "🇦🇷", emReais: 0.0055 },
-  { codigo: "CLP", nome: "Peso chileno", emoji: "🇨🇱", emReais: 0.0057 },
+const MOEDAS: { codigo: string; nome: string; emReais: number }[] = [
+  { codigo: "BRL", nome: "Real", emReais: 1 },
+  { codigo: "USD", nome: "Dólar americano", emReais: 5.4 },
+  { codigo: "EUR", nome: "Euro", emReais: 5.9 },
+  { codigo: "GBP", nome: "Libra", emReais: 6.9 },
+  { codigo: "ARS", nome: "Peso argentino", emReais: 0.0055 },
+  { codigo: "CLP", nome: "Peso chileno", emReais: 0.0057 },
 ];
 
 export default function ConversorPage() {
@@ -63,7 +64,7 @@ export default function ConversorPage() {
               <input value={valor} onChange={(e) => setValor(e.target.value)} className="glass-input" placeholder="100" />
               <select value={de} onChange={(e) => setDe(e.target.value)} className="glass-input sm:max-w-[120px]">
                 {MOEDAS.map((m) => (
-                  <option key={m.codigo} value={m.codigo}>{m.emoji} {m.codigo}</option>
+                  <option key={m.codigo} value={m.codigo}>{m.codigo}</option>
                 ))}
               </select>
             </div>
@@ -73,16 +74,16 @@ export default function ConversorPage() {
             type="button"
             onClick={inverter}
             aria-label="Inverter moedas"
-            className="h-11 w-11 self-end rounded-xl glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer text-lg"
+            className="flex h-11 w-11 self-end items-center justify-center rounded-xl glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer text-[var(--color-heading)]"
           >
-            ⇄
+            <Shuffle className="h-4 w-4" />
           </button>
 
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-1.5">Convertido para</label>
             <select value={para} onChange={(e) => setPara(e.target.value)} className="glass-input">
               {MOEDAS.map((m) => (
-                <option key={m.codigo} value={m.codigo}>{m.emoji} {m.nome}</option>
+                <option key={m.codigo} value={m.codigo}>{m.nome}</option>
               ))}
             </select>
           </div>
@@ -104,7 +105,7 @@ export default function ConversorPage() {
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {MOEDAS.filter((m) => m.codigo !== "BRL").map((m) => (
             <div key={m.codigo} className="flex items-center gap-2 rounded-xl border border-[var(--color-border)] px-3 py-2">
-              <span className="text-sm text-[var(--color-foreground)] flex-1">{m.emoji} 1 {m.codigo} =</span>
+              <span className="text-sm text-[var(--color-foreground)] flex-1">1 {m.codigo} =</span>
               <input
                 type="number"
                 step="0.0001"

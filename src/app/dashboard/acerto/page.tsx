@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { CheckCircle2 } from "@/components/ui/icons";
 
 /**
  * Acerto de Contas — "quem deve a quem".
@@ -70,7 +71,10 @@ export default function AcertoPage() {
         {total === 0 ? (
           <p className="text-sm text-[var(--color-muted)]">Adicione lançamentos para calcular o acerto.</p>
         ) : saldo1 === 0 ? (
-          <p className="font-serif text-xl font-bold text-[var(--color-heading)]">Contas equilibradas! Ninguém deve nada. 🎉</p>
+          <p className="inline-flex items-center justify-center gap-2 font-serif text-xl font-bold text-[var(--color-heading)]">
+            <CheckCircle2 className="h-5 w-5" />
+            Contas equilibradas! Ninguém deve nada.
+          </p>
         ) : (
           <>
             <p className="text-sm text-[var(--color-muted)]">Acerto final</p>

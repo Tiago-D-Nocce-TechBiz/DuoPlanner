@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { Map } from "@/components/ui/icons";
 
 /**
  * Roteiro funcional — organiza a viagem em dias, cada um com itens
@@ -97,8 +98,8 @@ export default function RoteiroPage() {
 
       {dias.length === 0 ? (
         <div className="glass-panel rounded-2xl p-16 text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/10 text-xl">
-            🗓️
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/10 text-[var(--color-heading)]">
+            <Map className="h-6 w-6" />
           </div>
           <h2 className="font-serif text-2xl font-semibold text-[var(--color-heading)]">Ainda sem roteiro</h2>
           <p className="mt-2 max-w-sm mx-auto text-sm text-[var(--color-muted)]">
