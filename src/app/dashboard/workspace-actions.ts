@@ -5,17 +5,19 @@ import {
   getCurrentUserId,
 } from "@/lib/supabase/server";
 import { getWorkspaceAtual } from "@/lib/supabase/workspace";
+import { SITE_URL } from "@/lib/auth/seguranca";
 
 /**
  * Ações de compartilhamento de conta (workspace) usadas pelo painel.
  *
- * - `gerarConvite`: cria (ou reaproveita) um convite real no banco para o
- *   workspace do usuário logado e devolve o código + o link pronto.
+ * - `gerarConvite`: cria um convite real no banco para o workspace do usuário
+ *   logado e devolve o código + o link pronto.
  * - `estadoCompartilhamento`: informa se há sessão, o código do workspace e
  *   quantas pessoas já estão no espaço — para a UI mostrar dados reais.
  *
- * Tudo degrada com mensagens claras quando não há Supabase/sessão, para a UI
- * não quebrar em modo demonstração.
+ * Quando algo falha, a resposta diz o que aconteceu (ok: false). Antes, um
+ * código aleatório que não existia no banco era devolvido como sucesso, e o
+ * convite falhava só do lado de quem o recebia.
  */
 
 export interface ConviteResult {
@@ -25,79 +27,51 @@ export interface ConviteResult {
   mensagem: string;
 }
 
-// Preferimos sempre NEXT_PUBLIC_SITE_URL. O fallback é o domínio de produção
-// na Vercel. (O antigo "plannerduo-vert" segue ativo com redirect 307 para cá.)
-const BASE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://duoplanner-vert.vercel.app";
+const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
 
-/** Gera um código de convite curto e legível (ex.: DUO-7FK3Q2). */
-function gerarCodigoLocal(): string {
-  const aleatorio = Math.random().toString(36).toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6);
-  return `DUO-${aleatorio || "CONVITE"}`;
-}
-
-/** Monta a resposta de sucesso a partir de um código. */
-function sucesso(codigo: string, mensagem: string): ConviteResult {
-  return {
-    ok: true,
-    codigo,
-    link: `${BASE_URL}/convite?code=${encodeURIComponent(codigo)}`,
-    mensagem,
-  };
-}
-
-/**
- * Gera um link de convite.
- *
- * Caminho ideal (Supabase + sessão ativa): cria um convite real na tabela
- * `convites`, vinculado ao workspace do usuário. Sem Supabase ou sem sessão,
- * degrada para um convite LOCAL (código gerado na hora) para que a
- * funcionalidade continue utilizável — o parceiro(a) abre o link, cria a conta
- * e, com o Auth ativo, passa a compartilhar o mesmo espaço.
- */
+/** Gera um link de convite (convite real, salvo na tabela `convites`). */
 export async function gerarConvite(emailConvidado?: string): Promise<ConviteResult> {
   const supabase = await createSupabaseServerClient();
-  const userId = supabase ? await getCurrentUserId(supabase) : null;
+  if (!supabase) {
+    return { ok: false, mensagem: "O compartilhamento está indisponível no momento. Tente mais tarde." };
+  }
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) {
+    return { ok: false, mensagem: "Sua sessão expirou. Entre de novo para convidar alguém." };
+  }
 
-  // Sem Supabase ou sem sessão: convite local funcional.
-  if (!supabase || !userId) {
-    return sucesso(
-      gerarCodigoLocal(),
-      "Link de convite gerado. Envie para seu parceiro(a) — ao criar a conta com este link, vocês compartilham o mesmo espaço."
-    );
+  const email = emailConvidado?.trim() ?? "";
+  if (email && !EMAIL.test(email)) {
+    return { ok: false, mensagem: "Confira o e-mail da pessoa convidada (ou deixe em branco)." };
   }
 
   const ws = await getWorkspaceAtual();
-  // Mesmo logado, se o workspace ainda não resolve, não travamos o usuário.
   if (!ws) {
-    return sucesso(
-      gerarCodigoLocal(),
-      "Link de convite gerado. Envie para seu parceiro(a) para compartilhar o planejamento."
-    );
+    return { ok: false, mensagem: "Não foi possível preparar o espaço da dupla. Tente de novo em instantes." };
   }
 
   const { data, error } = await supabase
     .from("convites")
     .insert({
       workspace_id: ws.id,
-      email_convidado: emailConvidado?.trim() || null,
+      email_convidado: email || null,
       convidado_por: userId,
     })
     .select("codigo")
     .single();
 
-  // Falha ao persistir: ainda assim entregamos um link utilizável.
   if (error || !data) {
-    return sucesso(
-      gerarCodigoLocal(),
-      "Link de convite gerado. Envie para seu parceiro(a) para compartilhar o planejamento."
-    );
+    if (error) console.error("[convites] falha ao criar convite:", error.message);
+    return { ok: false, mensagem: "Não foi possível criar o convite agora. Tente de novo em instantes." };
   }
 
-  return sucesso(
-    String(data.codigo),
-    "Convite criado! Compartilhe o link com seu parceiro(a)."
-  );
+  const codigo = String(data.codigo);
+  return {
+    ok: true,
+    codigo,
+    link: `${SITE_URL}/convite?code=${encodeURIComponent(codigo)}`,
+    mensagem: "Convite criado! Compartilhe o link com seu parceiro(a).",
+  };
 }
 
 export interface EstadoCompartilhamento {

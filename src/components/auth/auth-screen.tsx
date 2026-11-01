@@ -19,12 +19,18 @@ export function AuthScreen({
   modoInicial?: "login" | "cadastro";
 }) {
   const params = useSearchParams();
-  const conviteUrl = params.get("convite") ?? params.get("code") ?? "";
+  // Só "?convite=": o "?code=" que o Supabase acrescenta ao confirmar o e-mail
+  // é um código de sessão, não de convite.
+  const conviteUrl = params.get("convite") ?? "";
+  // Destino pedido pelo proxy (/login?redirect=/dashboard/...); o servidor valida.
+  const redirectUrl = params.get("redirect") ?? "";
+  const emailConfirmado = params.get("confirmado") === "1";
 
-  // Com convite na URL, a aba inicial é "cadastro"; caso contrário, o modo
-  // pedido pela rota. Calculado no estado inicial, sem efeito de sincronização.
+  // Com convite na URL, a aba inicial é "cadastro" (salvo se o e-mail acabou de
+  // ser confirmado: aí a conta já existe). Calculado no estado inicial, sem
+  // efeito de sincronização.
   const [modo, setModo] = useState<"login" | "cadastro">(
-    conviteUrl ? "cadastro" : modoInicial
+    emailConfirmado ? "login" : conviteUrl ? "cadastro" : modoInicial
   );
 
   const [estadoLogin, submitLogin, loginPendente] = useActionState<AuthState, FormData>(
@@ -90,7 +96,21 @@ export function AuthScreen({
             </button>
           </div>
 
+          {modo === "login" && (emailConfirmado || conviteUrl) && (
+            <p role="status" className="mb-4 text-xs text-[var(--color-muted)] text-center">
+              {emailConfirmado ? "E-mail confirmado! Entre para continuar." : null}
+              {emailConfirmado && conviteUrl ? " " : null}
+              {conviteUrl ? "Ao entrar, o convite do seu parceiro(a) será aplicado." : null}
+            </p>
+          )}
+
           <form action={modo === "login" ? submitLogin : submitCadastro} className="space-y-4">
+            {modo === "login" && conviteUrl && (
+              <input type="hidden" name="codigoConvite" value={conviteUrl} />
+            )}
+            {modo === "login" && redirectUrl && (
+              <input type="hidden" name="redirect" value={redirectUrl} />
+            )}
             {modo === "cadastro" && (
               <div>
                 <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-1.5">
@@ -160,7 +180,7 @@ export function AuthScreen({
                 ? "Processando..."
                 : modo === "login"
                 ? "Entrar no painel →"
-                : "Criar conta e sincronizar →"}
+                : "Criar conta →"}
             </button>
           </form>
         </div>

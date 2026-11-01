@@ -23,6 +23,12 @@ export interface Workspace {
   papel: "dono" | "parceiro";
 }
 
+/** Prefere o espaço em que a pessoa entrou por convite; senão, o primeiro. */
+function escolherWorkspace<T extends { papel: string; workspaces: unknown }>(lista: T[]): T | undefined {
+  const validos = lista.filter((m) => m.workspaces);
+  return validos.find((m) => m.papel === "parceiro") ?? validos[0];
+}
+
 /**
  * Resolve o workspace ativo do usuário logado. Se o usuário ainda não tem
  * workspace, cria um automaticamente (ele vira dono). Devolve null quando não
@@ -35,16 +41,21 @@ export const getWorkspaceAtual = cache(async (): Promise<Workspace | null> => {
   const userId = await getCurrentUserId(supabase);
   if (!userId) return null;
 
-  // Já é membro de algum workspace?
+  // Já é membro de algum workspace? Escolha determinística: quem aceitou um
+  // convite fica no espaço COMPARTILHADO (papel "parceiro"), não no espaço
+  // vazio criado automaticamente no primeiro acesso; empate → o mais recente.
   const { data: membros } = await supabase
     .from("workspace_members")
-    .select("papel, workspace_id, workspaces(id, nome, codigo)")
+    .select("papel, created_at, workspace_id, workspaces(id, nome, codigo)")
     .eq("user_id", userId)
-    .limit(1);
+    .order("created_at", { ascending: false })
+    .limit(20);
 
-  const membro = membros?.[0] as
-    | { papel: string; workspaces: { id: string; nome: string; codigo: string } | null }
-    | undefined;
+  const lista = (membros ?? []) as unknown as {
+    papel: string;
+    workspaces: { id: string; nome: string; codigo: string } | null;
+  }[];
+  const membro = escolherWorkspace(lista);
 
   if (membro?.workspaces) {
     return {

@@ -7,7 +7,8 @@ import { NextResponse, type NextRequest } from "next/server";
  *
  * Qualquer acesso a /dashboard/* exige sessão ativa do Supabase. Sem sessão, o
  * usuário é redirecionado para /login (com ?redirect= para voltar ao destino
- * depois de entrar).
+ * depois de entrar). /api/flights e /api/hotels também exigem sessão e
+ * respondem 401 em JSON.
  *
  * Degradação graciosa: se as variáveis do Supabase não estiverem configuradas
  * no ambiente, o proxy não bloqueia (deixa passar), para não travar o
@@ -16,6 +17,19 @@ import { NextResponse, type NextRequest } from "next/server";
  * Também mantém a sessão renovada: o createServerClient reescreve os cookies
  * de auth na resposta quando necessário.
  */
+/** Sem sessão: páginas vão para o login; APIs respondem 401 em JSON. */
+function negarAcesso(request: NextRequest): NextResponse {
+  if (request.nextUrl.pathname.startsWith("/api/")) {
+    return NextResponse.json(
+      { error: "Sua sessão expirou. Entre de novo para buscar preços.", code: "NAO_AUTENTICADO" },
+      { status: 401 }
+    );
+  }
+  const loginUrl = new URL("/login", request.url);
+  loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+  return NextResponse.redirect(loginUrl);
+}
+
 export async function proxy(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key =
@@ -27,11 +41,7 @@ export async function proxy(request: NextRequest) {
   // /dashboard/* aberto por acidente. Só em desenvolvimento local deixamos
   // passar, para não travar quem ainda não ligou o Auth.
   if (!url || !key) {
-    if (process.env.NODE_ENV === "production") {
-      const loginUrl = new URL("/login", request.url);
-      loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
-      return NextResponse.redirect(loginUrl);
-    }
+    if (process.env.NODE_ENV === "production") return negarAcesso(request);
     return NextResponse.next();
   }
 
@@ -64,16 +74,12 @@ export async function proxy(request: NextRequest) {
     autenticado = false;
   }
 
-  if (!autenticado) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
-  }
+  if (!autenticado) return negarAcesso(request);
 
   return response;
 }
 
-// Protege apenas as rotas do painel.
+// Painel e APIs de preço (consomem cota paga da Kiwi/RapidAPI: só com login).
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api/flights", "/api/hotels"],
 };

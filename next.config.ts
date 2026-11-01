@@ -6,14 +6,9 @@ const nextConfig: NextConfig = {
   // Oculta o indicador de desenvolvimento do Next.js (ícone "N" no canto),
   // que sobrepunha o rodapé da Sidebar.
   devIndicators: false,
-  experimental: {
-    serverActions: {
-      // processReceiptImage recebe o recibo em base64 (até 6 MB de arquivo,
-      // ~8 MB codificado). O padrão de 1 MB cortaria PDFs e fotos sem
-      // redução no navegador.
-      bodySizeLimit: "10mb",
-    },
-  },
+  // Server Actions ficam no limite padrão (1 MB). O limite de 10 MB era para
+  // a leitura de recibos, que não está mais na interface; com ele, qualquer
+  // action aceitava corpos de até 10 MB.
   images: {
     // Fotos das hospedagens vêm do CDN da Booking.com.
     remotePatterns: [{ protocol: "https", hostname: "**.bstatic.com" }],

@@ -30,14 +30,18 @@ Origem dos itens: revisão técnica de 01/11/2026 (testes T1–T6).
       é pulado, piscada só em CSS, respeita "reduzir movimento"
 
 ## Fase 2 — Sessão, convite e segurança
-- [ ] 2.1 `createBrowserClient` (@supabase/ssr) no lugar do `createClient`
-- [ ] 2.2 Buscas salvas pelo servidor com `user_id`/`workspace_id`
-- [ ] 2.3 Convite: erro explícito em vez de código falso; código guardado no
-      cadastro e aplicado após confirmar o e-mail; `?redirect` respeitado
-- [ ] 2.4 Workspace ativo determinístico
-- [ ] 2.5 `/api/flights` e `/api/hotels` exigem sessão
-- [ ] 2.6 SQL: RPC `aceitar_convite` + RLS sem `user_id is null` (mesmo deploy
-      do código que usa a RPC)
+- [x] 2.1 `createBrowserClient` (@supabase/ssr) no lugar do `createClient`
+- [x] 2.2 Buscas salvas pelo servidor com `user_id`/`workspace_id` (zod)
+- [x] 2.3 Convite: erro explícito em vez de código falso; código guardado no
+      cadastro (`user_metadata.convite_pendente`) e aplicado no 1º login;
+      `/auth/callback` abre a sessão ao confirmar o e-mail; `?redirect`
+      respeitado só para `/dashboard/...`
+- [x] 2.4 Workspace ativo determinístico (convite aceito vence o espaço vazio)
+- [x] 2.5 `/api/flights` e `/api/hotels` exigem sessão (401 JSON)
+- [x] 2.6 Código: RPC `aceitar_convite` com caminho antigo enquanto a RPC
+      não existe; Server Actions de volta ao limite de 1 MB
+- [ ] 2.6b SQL `supabase/security-hardening.sql` aplicado no SQL Editor
+      (aguardando o Tiago) + Redirect URL `/auth/callback` no Supabase Auth
 
 ## Fase 3 — Dados multiusuário no Postgres (sair do localStorage)
 - [ ] 3.1 SQL aditivo: tabelas novas + colunas novas em `despesas` + RLS

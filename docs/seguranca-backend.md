@@ -86,11 +86,18 @@ no Supabase quando o login real estiver ativo.
 
 ## Plano de ação (ordem recomendada)
 
-1. **Ligar o Supabase Auth de verdade** (e-mail/senha + confirmação).
-2. Sanear linhas com `user_id`/`workspace_id` nulos.
-3. Rodar `supabase/security-hardening.sql`.
-4. Trocar `aceitarConvitePorCodigo` para usar a RPC `aceitar_convite`.
-5. Migrar persistência de documentos/finanças/roteiro do `localStorage` para o
+1. ~~Ligar o Supabase Auth de verdade~~ (feito: e-mail/senha + confirmação).
+2. Sanear linhas com `user_id`/`workspace_id` nulos (em 30/10/2026 não havia
+   nenhuma visível).
+3. ~~Trocar `aceitarConvitePorCodigo` para usar a RPC~~ (feito: usa
+   `aceitar_convite` e só cai no caminho antigo enquanto a RPC não existe).
+4. Rodar `supabase/security-hardening.sql` (pode ser a qualquer momento depois
+   do deploy do item 3). A versão atual também impede que um membro tome posse
+   ou apague o workspace e que alguém se insira em qualquer workspace.
+5. No Supabase → Authentication → URL Configuration: Site URL
+   `https://duoplanner-vert.vercel.app` e, em Redirect URLs,
+   `https://duoplanner-vert.vercel.app/auth/callback`.
+6. Migrar persistência de documentos/finanças/roteiro do `localStorage` para o
    Supabase com RLS.
-6. Adicionar cabeçalhos de segurança no `next.config.ts`.
-7. Ativar proteção contra senha vazada e rate limit no painel do Supabase.
+7. ~~Adicionar cabeçalhos de segurança no `next.config.ts`~~ (feito).
+8. Ativar proteção contra senha vazada e rate limit no painel do Supabase.
