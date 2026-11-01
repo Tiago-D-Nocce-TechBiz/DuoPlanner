@@ -24,15 +24,16 @@ import {
   buildStayLinks,
   type ProviderLink,
 } from "@/lib/deep-links";
-import { todayInSaoPaulo, addDays, monthLabel } from "@/lib/dates";
+import { todayInSaoPaulo, addDays, monthLabel, isoToBR } from "@/lib/dates";
 import {
-  adicionarDespesa,
   resumirDespesas,
   classificarItemAutomaticamente,
-  idAleatorio,
   type Escopo,
   type ItemDespesa,
 } from "@/lib/finance/store";
+import { parseValorMonetario } from "@/lib/finance/importar";
+
+export type StatusProposta = "pendente" | "confirmada" | "descartada";
 
 /** Ação anexada à resposta da Nora (renderizada como card no chat). */
 export type NoraAcao =
@@ -44,7 +45,8 @@ export type NoraAcao =
       grupos: { titulo: string; icone: GrupoIcone; links: ProviderLink[] }[];
       preencherModo: "passagens" | "hospedagem";
     }
-  | { tipo: "despesa"; item: ItemDespesa }
+  // A Nora nunca grava sozinha: propõe o gasto e o usuário confirma no card.
+  | { tipo: "proposta_despesa"; item: ItemDespesa; status: StatusProposta }
   | {
       tipo: "resumo";
       totalCompartilhado: number;
@@ -66,6 +68,8 @@ export interface NoraContexto {
   nomeUsuario?: string;
   cidadeBase?: string;
   iataBase?: string;
+  /** "Hoje" em AAAA-MM-DD (padrão: fuso de São Paulo). Fixado nos testes. */
+  hojeIso?: string;
 }
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
@@ -109,44 +113,85 @@ function recomendacaoViagem(
 
 /* -------------------------------- Finanças -------------------------------- */
 
-/** Extrai um valor em reais da frase (ex.: "R$ 150", "150,90", "90 reais"). */
-function extrairValor(frase: string): number | null {
-  const m = frase.match(/r?\$?\s*(\d{1,3}(?:\.\d{3})*(?:,\d{2})?|\d+(?:[.,]\d{1,2})?)\s*(?:reais|r\$)?/i);
+// Verbos que, colados a um número, indicam dinheiro ("gastei 150").
+const VERBOS_COM_VALOR =
+  "lance|lanca|lança|lancar|lançar|adicione|adicionar|registre|registrar|anote|anotar|gastei|gastamos|gastou|paguei|pagamos|pagou|custou|custaram|saiu|sairam|saíram";
+// Depois desses, o número não é dinheiro ("paguei 2 diárias", "anote 12 de agosto").
+const UNIDADES_NAO_MONETARIAS =
+  "pessoas?|passageiros?|adultos?|crian[cç]as?|h[oó]spedes?|dias?|noites?|di[aá]rias?|horas?|h|x|vez|vezes|parcelas?|km|kg|quartos?|camas?|anos?|meses|semanas?|janeiro|fevereiro|mar[cç]o|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro";
+const NUMERO = "(\\d+(?:[.,]\\d+)*)";
+
+const RE_VALOR_RS = new RegExp(`R\\$\\s*${NUMERO}`, "i");
+const RE_VALOR_REAIS = new RegExp(`${NUMERO}\\s*(?:reais|real)\\b`, "i");
+// Centavos explícitos ("89,90", "1.234,56", "25.90"), sem pegar datas e horas.
+const RE_VALOR_CENTAVOS = /(?:^|[^\d/:.,])(\d{1,3}(?:\.\d{3})+,\d{2}|\d+,\d{2}|\d+\.\d{2})(?![\d/:.,])/;
+const RE_VALOR_APOS_VERBO = new RegExp(
+  `\\b(?:${VERBOS_COM_VALOR})\\s+(?:uns\\s+|umas\\s+|cerca de\\s+|quase\\s+)?(\\d{1,3}(?:\\.\\d{3})+|\\d+)(?![\\d.,/:])(?!\\s*(?:de\\s+)?(?:${UNIDADES_NAO_MONETARIAS})\\b)`,
+  "i"
+);
+
+/**
+ * Extrai um valor em reais da frase. Só conta como dinheiro: "R$ 150",
+ * "150 reais", valor com centavos ("89,90") ou número logo após um verbo de
+ * gasto ("gastei 150"). "Dia 12" ou "2 pessoas" não são dinheiro.
+ */
+export function extrairValor(frase: string): number | null {
+  const m =
+    RE_VALOR_RS.exec(frase) ??
+    RE_VALOR_REAIS.exec(frase) ??
+    RE_VALOR_CENTAVOS.exec(frase) ??
+    RE_VALOR_APOS_VERBO.exec(frase);
   if (!m) return null;
-  const bruto = m[1].replace(/\.(?=\d{3}\b)/g, "").replace(",", ".");
-  const v = parseFloat(bruto);
-  return isNaN(v) || v <= 0 ? null : v;
+  const v = parseValorMonetario(m[1]);
+  return v !== null && v > 0 ? v : null;
 }
 
-/** Título do gasto: remove o verbo/valor e deixa a descrição. */
+const RE_PALAVRAS_DE_COMANDO = new RegExp(
+  `(^|\\s)(?:${VERBOS_COM_VALOR}|gasto|despesa|de|como|compartilhad[oa]|da viagem|viagem|pessoal|privad[oa]|oculto|meu|minha|uns|umas|cerca de|quase|reais|real)(?=\\s|$|[.,!?])`,
+  "gi"
+);
+const RE_LIGACAO_NAS_PONTAS = /^(?:(?:no|na|nos|nas|em|com|o|a|os|as|um|uma|pro|pra|para|do|da)\s+)+|(?:\s+(?:no|na|nos|nas|em|com|o|a|os|as|pro|pra|para|do|da))+$/i;
+
+/** Título do gasto: remove verbo, valor e escopo e deixa a descrição. */
 function extrairTituloGasto(frase: string): string {
   let t = frase
-    .replace(/\b(lance|lanca|lançar|lancar|adicione|adicionar|registre|registrar|anote|anotar|gasto|gastei|paguei|despesa|de)\b/gi, " ")
-    .replace(/r?\$?\s*\d[\d.,]*\s*(?:reais)?/gi, " ")
-    .replace(/\b(como|compartilhad[oa]|da viagem|viagem|pessoal|privad[oa]|oculto|meu|minha)\b/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+    .replace(/R\$\s*\d+(?:[.,]\d+)*/gi, " ")
+    .replace(/\d+(?:[.,]\d+)*/g, " ")
+    .replace(/[!?]+/g, " ");
+  // Duas passadas: "de" seguido de outra palavra de comando ("como gasto").
+  t = t.replace(RE_PALAVRAS_DE_COMANDO, " ").replace(RE_PALAVRAS_DE_COMANDO, " ");
+  t = t.replace(/\s+/g, " ").trim().replace(RE_LIGACAO_NAS_PONTAS, "").replace(/[.,;:]+$/, "").trim();
   if (!t) t = "Gasto";
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
-function pareceLancamentoFinanceiro(t: string): boolean {
-  const temVerbo = /\b(lance|lanca|lançar|lancar|adicione|adicionar|registre|registrar|anote|anotar|gastei|paguei)\b/.test(t);
-  const temValor = /r?\$?\s*\d/.test(t);
+function pareceLancamentoFinanceiro(t: string, frase: string): boolean {
+  const temComando = /\b(lance|lanca|lancar|adicione|adicionar|registre|registrar|anote|anotar)\b/.test(t);
+  const temVerboDeGasto = /\b(gastei|gastamos|gastou|paguei|pagamos|pagou|custou|custaram|saiu|sairam)\b/.test(t);
+  const temValor = extrairValor(frase) !== null;
   const temGasto = /\b(gasto|despesa)\b/.test(t);
   const temEscopo = /(compartilhad|pessoal|privad|da viagem)/.test(t);
   // Casos que indicam lançar um gasto:
-  // - verbo + (valor OU "gasto/despesa");
+  // - comando + (valor OU "gasto/despesa");
+  // - verbo de gasto ("gastei", "custou") + valor;
   // - "gasto/despesa" + valor;
-  // - valor + escopo explícito ("R$ 150 ... compartilhado/pessoal"), mesmo sem verbo.
-  return (temVerbo && (temValor || temGasto)) || (temGasto && temValor) || (temValor && temEscopo);
+  // - valor + escopo explícito ("R$ 150 ... compartilhado/pessoal").
+  return (
+    (temComando && (temValor || temGasto)) ||
+    (temVerboDeGasto && temValor) ||
+    (temGasto && temValor) ||
+    (temValor && temEscopo)
+  );
 }
 
 function pareceConsultaFinanceira(t: string): boolean {
-  return /\b(quanto|resumo|total|gastamos|gastei|saldo|divis|cada um|metade|50)\b/.test(t) && /\b(gast|viagem|despesa|conta|dividir|cada)\b/.test(t);
+  return (
+    /\b(quanto|resumo|total|gastamos|gastei|saldo|divis\w*|cada um|metade|50)\b/.test(t) &&
+    /\b(gast\w*|viagem|despesas?|contas?|dividir|cada)\b/.test(t)
+  );
 }
 
-function responderLancamento(frase: string): NoraResposta {
+function responderLancamento(frase: string, ctx: NoraContexto): NoraResposta {
   const t = norm(frase);
   const valor = extrairValor(frase);
   if (!valor) {
@@ -162,21 +207,18 @@ function responderLancamento(frase: string): NoraResposta {
   if (/(pessoal|privad|oculto|\bmeu\b|\bminha\b|s[oó] meu)/.test(t)) escopo = "pessoal_privado";
   if (/(compartilhad|da viagem|\bviagem\b|dividir|dupla|juntos)/.test(t)) escopo = "viagem_compartilhado";
 
-  const classificado = classificarItemAutomaticamente(titulo, valor, new Date().toLocaleDateString("pt-BR"), "Nora");
-  const item: ItemDespesa = {
-    ...classificado,
-    id: idAleatorio(),
-    escopo: escopo ?? classificado.escopo,
-  };
-  adicionarDespesa(item);
+  const hoje = ctx.hojeIso ?? todayInSaoPaulo();
+  const classificado = classificarItemAutomaticamente(titulo, valor, isoToBR(hoje), "Nora");
+  const item: ItemDespesa = { ...classificado, escopo: escopo ?? classificado.escopo };
 
-  const privado = item.escopo === "pessoal_privado";
+  const tipo =
+    item.escopo === "pessoal_privado"
+      ? "gasto pessoal (privado: fica oculto para o parceiro(a) e não entra na divisão)"
+      : "gasto compartilhado da viagem (entra na divisão 50/50)";
   return {
-    texto: privado
-      ? `Pronto! Registrei ${brl(item.valor)} em "${item.estabelecimento}" como gasto pessoal privado — ele fica oculto para o parceiro(a) e nunca entra na divisão.`
-      : `Pronto! Registrei ${brl(item.valor)} em "${item.estabelecimento}" como gasto compartilhado da viagem. Ele já entra na divisão 50/50.`,
+    texto: `Confere antes de eu lançar: ${brl(item.valor)} em "${item.estabelecimento}" como ${tipo}. Toque em Confirmar para registrar; se preferir, troque o tipo no cartão.`,
     acoes: [
-      { tipo: "despesa", item },
+      { tipo: "proposta_despesa", item, status: "pendente" },
       { tipo: "atalho", rotulo: "Abrir Finanças Duo", href: "/dashboard/financas" },
     ],
   };
@@ -214,7 +256,8 @@ function temSinalDeViagem(dados: ConciergeParse): boolean {
 }
 
 function responderViagem(frase: string, ctx: NoraContexto): NoraResposta {
-  const dados = interpretarBusca(frase);
+  const hoje = ctx.hojeIso ?? todayInSaoPaulo();
+  const dados = interpretarBusca(frase, hoje);
 
   // Usa a cidade base do casal como origem quando o usuário não informa.
   if (!dados.originCity && !dados.originIata && ctx.cidadeBase) {
@@ -232,7 +275,7 @@ function responderViagem(frase: string, ctx: NoraContexto): NoraResposta {
 
   const intencao = inferirIntencao(frase);
   const temDataExplicita = Boolean(dados.departDate);
-  const depart = dados.departDate ?? addDays(todayInSaoPaulo(), 14);
+  const depart = dados.departDate ?? addDays(hoje, 14);
   const retorno = dados.returnDate ?? addDays(depart, 5);
   const pax = Math.max(1, dados.passengers ?? 2);
 
@@ -376,7 +419,7 @@ function responderAjuda(frase: string): NoraResposta | null {
 export function responderNora(frase: string, ctx: NoraContexto = {}): NoraResposta {
   const t = norm(frase);
 
-  if (pareceLancamentoFinanceiro(t)) return responderLancamento(frase);
+  if (pareceLancamentoFinanceiro(t, frase)) return responderLancamento(frase, ctx);
   if (pareceConsultaFinanceira(t)) return responderResumoFinanceiro();
 
   const ajuda = responderAjuda(frase);
@@ -386,7 +429,7 @@ export function responderNora(frase: string, ctx: NoraContexto = {}): NoraRespos
   // termos explícitos de viagem, um IATA resolvido (origem/destino), ou uma
   // data. Um destino "adivinhado" (palavra solta sem IATA e sem termo de
   // viagem) NÃO conta, para não tratar "obrigado" como cidade.
-  const dadosPreview = interpretarBusca(frase);
+  const dadosPreview = interpretarBusca(frase, ctx.hojeIso ?? todayInSaoPaulo());
   const termosViagem =
     /\b(voo|voos|passagem|passagens|[oô]nibus|hospedagem|hotel|hoteis|hotéis|pousada|pousadas|airbnb|viajar|viagem|ir para|ir a|rumo a|destino)\b/i.test(frase);
   const temIata = Boolean(dadosPreview.originIata || dadosPreview.destinationIata);

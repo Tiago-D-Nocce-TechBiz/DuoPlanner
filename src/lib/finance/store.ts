@@ -76,6 +76,14 @@ export function setDespesas(lista: ItemDespesa[]): void {
   emitir();
 }
 
+/** Rótulo exibido: item da viagem sem categoria de viagem aparece como "Outros da viagem". */
+export function rotuloCategoria(item: Pick<ItemDespesa, "escopo" | "categoriaDestino">): string {
+  if (item.escopo === "viagem_compartilhado" && item.categoriaDestino === "Gasto Pessoal (Fora da Viagem)") {
+    return "Outros da viagem";
+  }
+  return item.categoriaDestino;
+}
+
 /** Adiciona uma despesa no topo da lista e devolve o item criado. */
 export function adicionarDespesa(item: ItemDespesa): ItemDespesa {
   const atual = getDespesas();

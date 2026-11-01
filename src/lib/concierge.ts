@@ -9,7 +9,12 @@
  * Entende conceitos amplos (regiões, "praia", "serra", apelidos de cidade) e
  * resolve a cidade para um código IATA quando conhecido. É determinístico (sem
  * chamada externa), então funciona offline e nunca quebra o build.
+ *
+ * Datas sem ano são de uma viagem futura: "10/07" dito em novembro é julho do
+ * ano que vem, e a volta nunca fica antes da ida.
  */
+
+import { isoFromParts, todayInSaoPaulo } from "@/lib/dates";
 
 export interface ConciergeParse {
   originCity?: string;
@@ -123,22 +128,99 @@ export function inferirIntencao(frase: string): ConciergeIntencao {
   return "passagens";
 }
 
+interface DataLida {
+  iso: string;
+  /** true quando o usuário não disse o ano (pode ser ajustado). */
+  semAno: boolean;
+}
+
+/** Mesma data um ano depois (29/02 sem par fica como está). */
+function maisUmAno(d: DataLida): DataLida {
+  const iso = isoFromParts(Number(d.iso.slice(0, 4)) + 1, Number(d.iso.slice(5, 7)), Number(d.iso.slice(8, 10)));
+  return iso ? { ...d, iso } : d;
+}
+
+/** Data sem ano: a próxima ocorrência a partir de hoje (inclusive). */
+function proximaOcorrencia(dia: number, mes: number, hojeIso: string): string | null {
+  const ano = Number(hojeIso.slice(0, 4));
+  const desteAno = isoFromParts(ano, mes, dia);
+  if (desteAno && desteAno >= hojeIso) return desteAno;
+  return isoFromParts(ano + 1, mes, dia);
+}
+
 /** Normaliza datas em dd/mm, dd/mm/aaaa ou aaaa-mm-dd para ISO yyyy-mm-dd. */
-function normalizaData(bruto: string): string | undefined {
+function normalizaData(bruto: string, hojeIso: string): DataLida | undefined {
   const t = bruto.trim();
   let m = t.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = t.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
   if (m) {
-    const ano = m[3].length === 2 ? `20${m[3]}` : m[3];
-    return `${ano}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    const iso = isoFromParts(Number(m[1]), Number(m[2]), Number(m[3]));
+    return iso ? { iso, semAno: false } : undefined;
+  }
+  m = t.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2}|\d{4})$/);
+  if (m) {
+    const ano = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const iso = isoFromParts(ano, Number(m[2]), Number(m[1]));
+    return iso ? { iso, semAno: false } : undefined;
   }
   m = t.match(/^(\d{1,2})[/\-](\d{1,2})$/);
   if (m) {
-    const ano = new Date().getFullYear();
-    return `${ano}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
+    const iso = proximaOcorrencia(Number(m[1]), Number(m[2]), hojeIso);
+    return iso ? { iso, semAno: true } : undefined;
   }
   return undefined;
+}
+
+/**
+ * Ida e volta da frase. Entende "10/07 a 15/07", "08 a 15/07" (o primeiro
+ * dia herda mês e ano do segundo) e "28 a 03/01" (ida no mês anterior).
+ */
+function extrairPeriodo(texto: string, hojeIso: string): { ida?: DataLida; volta?: DataLida } {
+  let ida: DataLida | undefined;
+  let volta: DataLida | undefined;
+
+  const intervalo = texto.match(
+    /(?:^|[^\d/\-])(\d{1,2})\s*(?:a|até|ate|e)\s*(\d{1,2})[/\-](\d{1,2})(?:[/\-](\d{2}|\d{4}))?(?![\d/\-])/i
+  );
+  if (intervalo) {
+    const [, d1, d2, mm, aa] = intervalo;
+    const fim = normalizaData(aa ? `${d2}/${mm}/${aa}` : `${d2}/${mm}`, hojeIso);
+    if (fim) {
+      let ano = Number(fim.iso.slice(0, 4));
+      let mes = Number(fim.iso.slice(5, 7));
+      if (Number(d1) > Number(d2)) {
+        mes -= 1;
+        if (mes === 0) {
+          mes = 12;
+          ano -= 1;
+        }
+      }
+      const inicio = isoFromParts(ano, mes, Number(d1));
+      if (inicio) {
+        ida = { iso: inicio, semAno: fim.semAno };
+        volta = fim;
+      }
+    }
+  }
+
+  if (!ida) {
+    const datas = [
+      ...texto.matchAll(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}[/\-]\d{1,2}(?:[/\-]\d{2,4})?)\b/g),
+    ]
+      .map((m) => normalizaData(m[1], hojeIso))
+      .filter((d): d is DataLida => Boolean(d));
+    ida = datas[0];
+    volta = datas[1];
+  }
+
+  // Intervalo sem ano que já começou ("08 a 15/07" dito em 10/07): ano que vem.
+  if (ida?.semAno && ida.iso < hojeIso) {
+    ida = maisUmAno(ida);
+    if (volta?.semAno) volta = maisUmAno(volta);
+  }
+  // Volta antes da ida ("28/12 a 03/01" dito em janeiro): volta no ano seguinte.
+  if (ida && volta?.semAno && volta.iso < ida.iso) volta = maisUmAno(volta);
+
+  return { ida, volta };
 }
 
 /** Nomes de mês em PT-BR → número (para frases como "em dezembro"). */
@@ -175,7 +257,7 @@ function resolveLocal(bruto: string): {
 function recortaTrechoRota(texto: string): string {
   // Corta a partir do primeiro marcador de data/período/passageiros.
   const corte = texto.search(
-    /\b(?:de\s+\d|dia\s+\d|em\s+\d|no dia|entre|a partir|\d{1,2}[/\-]\d|\d+\s*(?:pessoa|passageiro|adulto|h[óo]spede)|em\s+(?:janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro))/i
+    /\b(?:de\s+\d|dia\s+\d|em\s+\d|no dia|entre|a partir|\d{1,2}\s*(?:a|at[ée]|e)\s*\d{1,2}[/\-]\d|\d{1,2}[/\-]\d|\d+\s*(?:pessoa|passageiro|adulto|h[óo]spede)|em\s+(?:janeiro|fevereiro|marco|março|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro))/i
   );
   let base = corte >= 0 ? texto.slice(0, corte) : texto;
 
@@ -198,7 +280,7 @@ function recortaTrechoRota(texto: string): string {
 }
 
 /** Interpreta uma frase livre e devolve os campos reconhecidos. */
-export function interpretarBusca(frase: string): ConciergeParse {
+export function interpretarBusca(frase: string, hojeIso: string = todayInSaoPaulo()): ConciergeParse {
   const texto = frase.trim();
   const out: ConciergeParse = {};
 
@@ -228,10 +310,14 @@ export function interpretarBusca(frase: string): ConciergeParse {
       out.destinationCity = d.city;
       out.destinationIata = d.iata;
     } else {
-      // 3) Conceito solto na frase ("uma praia no nordeste").
+      // 3) Conceito solto na frase ("uma praia no nordeste"), por palavra
+      //    inteira: "consulta" não contém o conceito "sul".
       let achouConceito = false;
-      for (const chave of Object.keys(CONCEITOS)) {
-        if (norm(texto).includes(chave)) {
+      const palavras = ` ${norm(texto).replace(/[^a-z0-9-]+/g, " ")} `;
+      // Mais longo primeiro: "praia no nordeste" vence "praia".
+      const chaves = Object.keys(CONCEITOS).sort((a, b) => b.length - a.length);
+      for (const chave of chaves) {
+        if (palavras.includes(` ${chave} `)) {
           const cidade = CONCEITOS[chave];
           out.destinationCity = cidade;
           out.destinationIata = iataDaCidade(cidade);
@@ -239,39 +325,40 @@ export function interpretarBusca(frase: string): ConciergeParse {
           break;
         }
       }
-      // 4) Último recurso: uma única cidade conhecida citada na frase vira o
-      //    destino (ex.: "quero ir para Salvador" sem conector reconhecido, ou
-      //    apenas "Fortaleza").
+      // 4) Último recurso: a frase inteira é uma cidade conhecida (ex.: só
+      //    "Fortaleza"). Texto qualquer ("hotel custou 300 reais") não vira
+      //    destino.
       if (!achouConceito) {
-        const soCidade = resolveLocal(trecho);
-        if (soCidade.city || soCidade.iata) {
-          out.destinationCity = soCidade.city;
-          out.destinationIata = soCidade.iata;
+        const limpo = limpaCidade(trecho);
+        const iata = iataDaCidade(limpo);
+        if (iata) {
+          out.destinationCity = capitaliza(limpo);
+          out.destinationIata = iata;
         }
       }
     }
   }
 
   // Datas explícitas (ida e volta).
-  const datas = [
-    ...texto.matchAll(/\b(\d{4}-\d{2}-\d{2}|\d{1,2}[/\-]\d{1,2}(?:[/\-]\d{2,4})?)\b/g),
-  ]
-    .map((m) => normalizaData(m[1]))
-    .filter((d): d is string => Boolean(d));
-  if (datas[0]) out.departDate = datas[0];
-  if (datas[1]) out.returnDate = datas[1];
+  const { ida, volta } = extrairPeriodo(texto, hojeIso);
+  if (ida) out.departDate = ida.iso;
+  if (volta) out.returnDate = volta.iso;
 
-  // Mês por extenso ("em dezembro") → primeiro dia do mês.
+  // Mês por extenso ("em dezembro"): dia 1º; no mês corrente, a partir de hoje.
   if (!out.departDate) {
     const mesMatch = norm(texto).match(
       /\bem\s+(janeiro|fevereiro|marco|abril|maio|junho|julho|agosto|setembro|outubro|novembro|dezembro)\b/
     );
     if (mesMatch) {
       const mes = MESES[mesMatch[1]];
-      const hoje = new Date();
-      let ano = hoje.getFullYear();
-      if (mes <= hoje.getMonth() + 1) ano += 1; // mês já passou → próximo ano
-      out.departDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      const anoAtual = Number(hojeIso.slice(0, 4));
+      const mesAtual = Number(hojeIso.slice(5, 7));
+      if (mes === mesAtual) {
+        out.departDate = hojeIso;
+      } else {
+        const ano = mes < mesAtual ? anoAtual + 1 : anoAtual;
+        out.departDate = `${ano}-${String(mes).padStart(2, "0")}-01`;
+      }
     }
   }
 

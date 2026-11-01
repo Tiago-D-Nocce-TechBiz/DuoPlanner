@@ -15,6 +15,7 @@ import {
   setDespesas as salvarDespesas,
   classificarItemAutomaticamente,
   idAleatorio,
+  rotuloCategoria,
   type Categoria,
   type Escopo,
   type ItemDespesa,
@@ -57,14 +58,6 @@ const DESCRICAO_FORMATO: Record<FormatoExtrato, string> = {
 const TAMANHO_MAXIMO_ARQUIVO = 2 * 1024 * 1024;
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
-
-/** Item passado para a viagem sem categoria de viagem aparece como "Outros". */
-function rotuloCategoria(item: ItemDespesa): string {
-  if (item.escopo === "viagem_compartilhado" && item.categoriaDestino === "Gasto Pessoal (Fora da Viagem)") {
-    return "Outros da viagem";
-  }
-  return item.categoriaDestino;
-}
 
 function outroEscopo(escopo: Escopo): Escopo {
   return escopo === "viagem_compartilhado" ? "pessoal_privado" : "viagem_compartilhado";

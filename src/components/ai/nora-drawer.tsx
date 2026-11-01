@@ -19,10 +19,12 @@ import {
   Wallet,
   ShieldCheck,
   Users,
+  CheckCircle2,
 } from "@/components/ui/icons";
 import { NoraAvatar } from "./nora-avatar";
 import { useNora, type NoraMensagem } from "./nora-provider";
 import { responderNora, type NoraAcao, type GrupoIcone } from "@/lib/ai/nora-brain";
+import { adicionarDespesa, rotuloCategoria } from "@/lib/finance/store";
 import { writeLocal, readLocal, STORAGE_KEYS } from "@/lib/local-store";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +70,17 @@ const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
 /* -------------------------- Cards de ação da Nora ------------------------- */
 
-function CardAcao({ acao }: { acao: NoraAcao }) {
+function CardAcao({
+  acao,
+  onAtualizar,
+  onConfirmarDespesa,
+}: {
+  acao: NoraAcao;
+  /** Substitui esta ação na mensagem (status/escopo da proposta). */
+  onAtualizar: (nova: NoraAcao) => void;
+  /** Grava a despesa proposta e marca a proposta como confirmada. */
+  onConfirmarDespesa: () => void;
+}) {
   const router = useRouter();
 
   if (acao.tipo === "links") {
@@ -116,22 +128,65 @@ function CardAcao({ acao }: { acao: NoraAcao }) {
     );
   }
 
-  if (acao.tipo === "despesa") {
-    const privado = acao.item.escopo === "pessoal_privado";
+  if (acao.tipo === "proposta_despesa") {
+    const { item, status } = acao;
+    const privado = item.escopo === "pessoal_privado";
+    const alternarEscopo = () =>
+      onAtualizar({
+        ...acao,
+        item: { ...item, escopo: privado ? "viagem_compartilhado" : "pessoal_privado" },
+      });
     return (
       <div className="mt-3 rounded-xl border border-border bg-background p-3">
         <div className="flex items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-heading">
-            <Wallet className="h-3.5 w-3.5 text-muted" />
-            {acao.item.estabelecimento}
+          <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-semibold text-heading">
+            <Wallet className="h-3.5 w-3.5 shrink-0 text-muted" />
+            <span className="truncate">{item.estabelecimento}</span>
           </span>
-          <span className="font-semibold text-sm text-heading">{brl(acao.item.valor)}</span>
+          <span className="font-semibold text-sm text-heading">{brl(item.valor)}</span>
         </div>
-        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-muted">
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
           {privado ? <ShieldCheck className="h-3 w-3" /> : <Users className="h-3 w-3" />}
           {privado ? "Pessoal (privado, oculto)" : "Compartilhado · entra na divisão 50/50"}
-          <span className="text-subtle">· {acao.item.categoriaDestino}</span>
+          <span className="text-subtle">· {rotuloCategoria(item)}</span>
         </div>
+        {status === "pendente" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={onConfirmarDespesa}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-3 py-1.5 text-xs font-semibold text-[var(--color-accent-foreground)] hover:opacity-90 transition-opacity"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirmar
+            </button>
+            <button
+              type="button"
+              onClick={alternarEscopo}
+              className="rounded-xl border border-border px-3 py-1.5 text-xs font-semibold text-heading hover:border-border-strong transition-colors"
+            >
+              {privado ? "Mudar para compartilhado" : "Mudar para pessoal"}
+            </button>
+            <button
+              type="button"
+              onClick={() => onAtualizar({ ...acao, status: "descartada" })}
+              className="rounded-xl px-3 py-1.5 text-xs font-semibold text-muted hover:text-heading transition-colors"
+            >
+              Descartar
+            </button>
+          </div>
+        ) : (
+          <p className="mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold text-muted" role="status">
+            {status === "confirmada" ? (
+              <>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                Registrado nas Finanças Duo
+              </>
+            ) : (
+              "Descartado: nada foi registrado."
+            )}
+          </p>
+        )}
       </div>
     );
   }
@@ -225,6 +280,19 @@ export function NoraDrawer() {
   const fimRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Resposta agendada (a Nora "pensa" antes de responder). Guardada para ser
+  // cancelada em "Nova conversa" e ao desmontar; senão a resposta antiga
+  // cairia na conversa nova.
+  const respostaPendenteRef = useRef<{ timer: ReturnType<typeof setTimeout> | null }>({ timer: null });
+  // Propostas já gravadas: evita lançar duas vezes com clique duplo.
+  const propostasGravadasRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const pendente = respostaPendenteRef.current;
+    return () => {
+      if (pendente.timer !== null) clearTimeout(pendente.timer);
+    };
+  }, []);
 
   // Rola para a última mensagem quando a conversa cresce ou a Nora pensa.
   useEffect(() => {
@@ -254,11 +322,44 @@ export function NoraDrawer() {
     setPensando(true);
     const resposta = responderNora(conteudo, contextoConta());
     const atraso = Math.min(3000, 1400 + conteudo.length * 18);
-    window.setTimeout(() => {
+    const pendente = respostaPendenteRef.current;
+    if (pendente.timer !== null) clearTimeout(pendente.timer);
+    pendente.timer = setTimeout(() => {
+      pendente.timer = null;
       const msgNora: NoraMensagem = { id: idMsg(), papel: "nora", texto: resposta.texto, resposta };
       setMensagens((prev) => [...prev, msgNora]);
       setPensando(false);
     }, atraso);
+  }
+
+  function iniciarNovaConversa() {
+    const pendente = respostaPendenteRef.current;
+    if (pendente.timer !== null) {
+      clearTimeout(pendente.timer);
+      pendente.timer = null;
+    }
+    setPensando(false);
+    novaConversa();
+  }
+
+  /** Troca a ação `indice` da mensagem `msgId` (status/escopo da proposta). */
+  function atualizarAcao(msgId: string, indice: number, nova: NoraAcao) {
+    setMensagens((prev) =>
+      prev.map((m) =>
+        m.id === msgId && m.resposta
+          ? { ...m, resposta: { ...m.resposta, acoes: m.resposta.acoes.map((a, i) => (i === indice ? nova : a)) } }
+          : m
+      )
+    );
+  }
+
+  function confirmarDespesa(msgId: string, indice: number, acao: NoraAcao) {
+    if (acao.tipo !== "proposta_despesa" || acao.status !== "pendente") return;
+    const gravadas = propostasGravadasRef.current;
+    if (gravadas.has(acao.item.id)) return;
+    gravadas.add(acao.item.id);
+    adicionarDespesa(acao.item);
+    atualizarAcao(msgId, indice, { ...acao, status: "confirmada" });
   }
 
   function alternarMicrofone() {
@@ -348,7 +449,7 @@ export function NoraDrawer() {
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={novaConversa}
+                onClick={iniciarNovaConversa}
                 title="Nova conversa"
                 className="inline-flex h-8 w-8 items-center justify-center rounded-full glass-panel text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/10 transition-colors"
               >
@@ -404,7 +505,12 @@ export function NoraDrawer() {
                       <div className="rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-background px-4 py-2.5 text-sm leading-relaxed text-[var(--color-heading)]">
                         {m.texto}
                         {m.resposta?.acoes.map((a, i) => (
-                          <CardAcao key={i} acao={a} />
+                          <CardAcao
+                            key={i}
+                            acao={a}
+                            onAtualizar={(nova) => atualizarAcao(m.id, i, nova)}
+                            onConfirmarDespesa={() => confirmarDespesa(m.id, i, a)}
+                          />
                         ))}
                       </div>
                     </div>

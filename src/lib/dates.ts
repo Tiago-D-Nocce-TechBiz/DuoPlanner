@@ -24,6 +24,20 @@ export function addDays(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** Monta AAAA-MM-DD validando o calendário (31/02 → null). */
+export function isoFromParts(year: number, month: number, day: number): string | null {
+  if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 /** "2026-10-05" → "05/10/2026" (formato salvo nas Finanças Duo). */
 export function isoToBR(iso: string): string {
   const [ano, mes, dia] = iso.slice(0, 10).split("-");

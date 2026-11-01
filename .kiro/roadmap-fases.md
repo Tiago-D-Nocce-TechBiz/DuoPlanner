@@ -13,14 +13,15 @@ Não existe ambiente UAT: todo push em `main` vai direto para produção
 Origem dos itens: revisão técnica de 01/11/2026 (testes T1–T6).
 
 ## Fase 1 — Correções só de código (sem dependência de banco)
-- [x] 1.1 Infra de testes (Vitest) + regressões dos testes T2 e T3
-      (T1 e T4 entram com 1.4/1.5)
+- [x] 1.1 Infra de testes (Vitest) + regressões dos testes T1–T4
 - [x] 1.2 Importação de fatura: decimal com ponto, 3 e 4 colunas, aspas,
       pagamento/estorno ignorado, data preservada; excluir lançamento
 - [x] 1.3 Classificador por palavra inteira, "na dúvida, privado"
-- [ ] 1.4 Nora: valor só com padrão monetário; escrita vira proposta com
-      Confirmar; timers cancelados em "Nova conversa"/fechar
-- [ ] 1.5 Datas: dd/mm já passado vai para o próximo ano; volta antes da ida
+- [x] 1.4 Nora: valor só com padrão monetário; escrita vira proposta com
+      Confirmar; resposta pendente cancelada em "Nova conversa" e ao
+      desmontar (fechar o painel mantém a resposta)
+- [x] 1.5 Datas: dd/mm já passado vai para o próximo ano; volta antes da ida;
+      "08 a 15/07"; destino só com cidade conhecida no último recurso
 - [ ] 1.6 Textos honestos (provedores de ônibus, companhias aéreas, "sincroniza")
 - [ ] 1.7 Ternário duplicado no Google Flights
 - [ ] 1.8 Avatar da Nora: um listener compartilhado + rAF, parado com painel fechado

@@ -18,6 +18,7 @@
  * - Toda linha não aproveitada volta em `ignoradas`, com o motivo.
  */
 
+import { isoFromParts } from "@/lib/dates";
 import { normalizarTexto } from "./classificar";
 
 export type FormatoExtrato = "cartao" | "conta" | "texto";
@@ -154,14 +155,7 @@ const RE_DATA_INICIAL = new RegExp(
   "i"
 );
 
-function montarIso(ano: number, mes: number, dia: number): string | null {
-  if (mes < 1 || mes > 12 || dia < 1 || dia > 31) return null;
-  const d = new Date(Date.UTC(ano, mes - 1, dia));
-  if (d.getUTCFullYear() !== ano || d.getUTCMonth() !== mes - 1 || d.getUTCDate() !== dia) {
-    return null;
-  }
-  return d.toISOString().slice(0, 10);
-}
+const montarIso = isoFromParts;
 
 /** Lançamento sem ano já aconteceu: se cair no futuro, é do ano passado. */
 function semAnoNoPassado(dia: number, mes: number, hojeIso: string): string | null {
