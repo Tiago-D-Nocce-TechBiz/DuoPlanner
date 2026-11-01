@@ -22,9 +22,12 @@ Origem dos itens: revisão técnica de 01/11/2026 (testes T1–T6).
       desmontar (fechar o painel mantém a resposta)
 - [x] 1.5 Datas: dd/mm já passado vai para o próximo ano; volta antes da ida;
       "08 a 15/07"; destino só com cidade conhecida no último recurso
-- [ ] 1.6 Textos honestos (provedores de ônibus, companhias aéreas, "sincroniza")
-- [ ] 1.7 Ternário duplicado no Google Flights
-- [ ] 1.8 Avatar da Nora: um listener compartilhado + rAF, parado com painel fechado
+- [x] 1.6 Textos honestos (provedores de ônibus, companhias aéreas, Hoteis.com,
+      "sincroniza", leitura de recibos, onde os dados ficam nos Termos; o "+"
+      da Nora abre Finanças em vez de fingir que importou)
+- [x] 1.7 Ternário duplicado no Google Flights (tt:o só para só ida)
+- [x] 1.8 Avatar da Nora: um listener compartilhado + rAF, avatar fora da tela
+      é pulado, piscada só em CSS, respeita "reduzir movimento"
 
 ## Fase 2 — Sessão, convite e segurança
 - [ ] 2.1 `createBrowserClient` (@supabase/ssr) no lugar do `createClient`

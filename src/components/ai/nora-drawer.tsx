@@ -276,10 +276,10 @@ export function NoraDrawer() {
   const [menuPrompts, setMenuPrompts] = useState(false);
   const [pensando, setPensando] = useState(false);
 
+  const router = useRouter();
   const reconhecimentoRef = useRef<SpeechRecognitionLike | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   // Resposta agendada (a Nora "pensa" antes de responder). Guardada para ser
   // cancelada em "Nova conversa" e ao desmontar; senão a resposta antiga
   // cairia na conversa nova.
@@ -576,25 +576,20 @@ export function NoraDrawer() {
             />
             <div className="mt-1 flex items-center justify-between">
               <div className="flex items-center gap-1">
+                {/* A importação (com triagem item a item) fica em Finanças Duo;
+                    o chat não lê arquivos. */}
                 <button
                   type="button"
-                  onClick={() => fileRef.current?.click()}
-                  title="Importar fatura CSV / Nota Fiscal ou anexar contexto"
+                  onClick={() => {
+                    fechar();
+                    router.push("/dashboard/financas");
+                  }}
+                  title="Importar fatura ou extrato (abre Finanças Duo)"
+                  aria-label="Importar fatura ou extrato (abre Finanças Duo)"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--color-heading)] transition-colors"
                 >
                   <Plus className="h-4 w-4" />
                 </button>
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".csv,.txt,.pdf,image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) enviar(`Importei o arquivo "${f.name}". Quero triar esses gastos da fatura do Nubank.`);
-                    e.target.value = "";
-                  }}
-                />
                 <button
                   type="button"
                   onClick={() => setMenuPrompts((v) => !v)}

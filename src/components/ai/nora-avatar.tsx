@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { proximoAtrasoDePiscada, registrarOlhar } from "./nora-olhar";
 
 /**
- * Avatar da Nora: círculo escuro com dois "olhos" brancos que SEGUEM o cursor
- * do mouse na tela (as pupilas deslizam na direção do ponteiro). Pisca de leve
- * de tempos em tempos. É puramente decorativo (aria-hidden).
+ * Avatar da Nora: círculo com dois "olhos" que seguem o cursor e piscam de
+ * leve. É puramente decorativo (aria-hidden).
  *
- * O rastreamento usa a posição real do avatar na tela (getBoundingClientRect)
- * para calcular o ângulo até o cursor; vários avatares na página seguem o
- * mouse de forma independente e coerente.
+ * O rastreamento fica em `./nora-olhar` (um listener para todos os avatares,
+ * escrevendo o transform direto no DOM, sem re-render do React). A piscada é
+ * só CSS (`.nora-eye-piscar`), com atraso diferente por avatar.
  */
 export function NoraAvatar({
   className,
@@ -19,42 +19,17 @@ export function NoraAvatar({
   className?: string;
   tamanho?: number;
 }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [desloc, setDesloc] = useState({ x: 0, y: 0 });
-  const [piscar, setPiscar] = useState(false);
+  const faceRef = useRef<HTMLSpanElement>(null);
+  const olhosRef = useRef<HTMLSpanElement>(null);
 
-  // Segue o cursor: calcula o vetor do centro do avatar até o mouse e move as
-  // pupilas dentro de um raio pequeno.
   useEffect(() => {
-    const onMove = (e: MouseEvent) => {
-      const el = ref.current;
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const cx = r.left + r.width / 2;
-      const cy = r.top + r.height / 2;
-      const dx = e.clientX - cx;
-      const dy = e.clientY - cy;
-      const ang = Math.atan2(dy, dx);
-      const raio = Math.max(1.4, tamanho * 0.09); // deslocamento máximo das pupilas
-      setDesloc({ x: Math.cos(ang) * raio, y: Math.sin(ang) * raio });
-    };
-    window.addEventListener("mousemove", onMove);
-    return () => window.removeEventListener("mousemove", onMove);
+    const face = faceRef.current;
+    const olhos = olhosRef.current;
+    if (!face || !olhos) return;
+    olhos.style.setProperty("--nora-piscar-atraso", `${proximoAtrasoDePiscada()}s`);
+    // Deslocamento máximo das pupilas.
+    return registrarOlhar(face, olhos, Math.max(1.4, tamanho * 0.09));
   }, [tamanho]);
-
-  // Piscada periódica e discreta.
-  useEffect(() => {
-    let timeout: ReturnType<typeof setTimeout>;
-    const agendar = () => {
-      timeout = setTimeout(() => {
-        setPiscar(true);
-        setTimeout(() => setPiscar(false), 140);
-        agendar();
-      }, 2800 + Math.random() * 2600);
-    };
-    agendar();
-    return () => clearTimeout(timeout);
-  }, []);
 
   const olhoW = Math.max(2, Math.round(tamanho * 0.1));
   const olhoH = Math.max(6, Math.round(tamanho * 0.34));
@@ -62,7 +37,7 @@ export function NoraAvatar({
 
   return (
     <span
-      ref={ref}
+      ref={faceRef}
       className={cn(
         // Cores controladas por .nora-face / .nora-eye no globals.css, que
         // respondem à classe .dark do tema (o dark: do Tailwind aqui seguiria
@@ -73,23 +48,13 @@ export function NoraAvatar({
       style={{ width: tamanho, height: tamanho }}
       aria-hidden
     >
-      <span className="flex items-center" style={{ gap }}>
-        <span
-          className="nora-eye block rounded-full transition-transform duration-75 ease-out"
-          style={{
-            width: olhoW,
-            height: olhoH,
-            transform: `translate(${desloc.x}px, ${desloc.y}px) scaleY(${piscar ? 0.12 : 1})`,
-          }}
-        />
-        <span
-          className="nora-eye block rounded-full transition-transform duration-75 ease-out"
-          style={{
-            width: olhoW,
-            height: olhoH,
-            transform: `translate(${desloc.x}px, ${desloc.y}px) scaleY(${piscar ? 0.12 : 1})`,
-          }}
-        />
+      <span
+        ref={olhosRef}
+        className="flex items-center transition-transform duration-75 ease-out"
+        style={{ gap }}
+      >
+        <span className="nora-eye nora-eye-piscar block rounded-full" style={{ width: olhoW, height: olhoH }} />
+        <span className="nora-eye nora-eye-piscar block rounded-full" style={{ width: olhoW, height: olhoH }} />
       </span>
     </span>
   );

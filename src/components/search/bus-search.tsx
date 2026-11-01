@@ -12,8 +12,8 @@ import { ProviderLinks } from "./provider-links";
 /**
  * Buscar Passagens de Ônibus — Deep Linking Outbound.
  *
- * Gera links pré-preenchidos para Guanabara, Buser, Viação UTIL, ClickBus,
- * DeÔnibus, FlixBus, Gontijo e Cometa, e registra a busca no histórico.
+ * Gera links com a rota para ClickBus, Buser e DeÔnibus e atalhos para os
+ * sites oficiais da Guanabara e da UTIL, e registra a busca no histórico.
  */
 export function BusSearch() {
   const [form, setForm] = useState({

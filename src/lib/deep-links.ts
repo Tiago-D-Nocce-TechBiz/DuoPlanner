@@ -134,7 +134,9 @@ function buildGoogleFlights(q: FlightQuery): string {
     flt += `*${d}.${o}.${q.returnDate}`;
   }
   const seat = q.cabin === "economy" ? "" : ";c:" + q.cabin.toUpperCase();
-  return `https://www.google.com/travel/flights?hl=pt-BR#flt=${flt}${seat};tt:${q.tripType === "round" ? "o" : "o"}`;
+  // "tt:o" marca só ida; ida e volta é o padrão quando há os dois trechos.
+  const soIda = !(q.tripType === "round" && q.returnDate);
+  return `https://www.google.com/travel/flights?hl=pt-BR#flt=${flt}${seat}${soIda ? ";tt:o" : ""}`;
 }
 
 /**

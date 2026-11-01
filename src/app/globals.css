@@ -190,9 +190,22 @@
   animation: nora-slide-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+/* Piscada do avatar: só CSS, com atraso por avatar (definido em
+   nora-avatar.tsx) para não piscarem todos juntos. */
+@keyframes nora-piscar {
+  0%, 96%, 100% { transform: scaleY(1); }
+  98% { transform: scaleY(0.12); }
+}
+
+.nora-eye-piscar {
+  animation: nora-piscar 5.2s ease-in-out infinite;
+  animation-delay: var(--nora-piscar-atraso, 0s);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .nora-drawer-enter { animation: none; }
   .animate-\[nora-blink_3\.2s_ease-in-out_infinite\] { animation: none; }
+  .nora-eye-piscar { animation: none; }
 }
 
 /* Superfície do painel da Nora: fundo SÓLIDO (sem transparência). */

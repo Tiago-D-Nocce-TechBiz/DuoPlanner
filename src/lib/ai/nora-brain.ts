@@ -382,25 +382,25 @@ const AJUDA: TopicoAjuda[] = [
   {
     gatilhos: /(convid|conta compartilhad|parceir|namorad|esposa|marido|dupla junt|mesmo espa[cç]o|convite)/i,
     texto:
-      "Para planejarem juntos, abra o convite: clique em \"+ Convidar Parceiro(a)\" no topo do painel e envie o link/código gerado para a pessoa. Ao aceitar, vocês compartilham o mesmo espaço — roteiro, alertas e as despesas da viagem — em tempo real.",
+      "Para planejarem juntos, abra o convite: clique em \"+ Convidar Parceiro(a)\" no topo do painel e envie o link/código gerado para a pessoa. Ao aceitar, vocês entram no mesmo espaço da dupla. Por enquanto, roteiro, alertas e despesas ficam salvos no navegador de cada um; a sincronização entre as duas contas está a caminho.",
     atalho: { tipo: "atalho", rotulo: "Abrir Modal de Convite", acaoId: "convite" },
   },
   {
     gatilhos: /(nubank|fatura|privacidade|pessoal.*aparec|aparec.*pessoal|triagem|csv|lgpd|prote[cç][ãa]o|meus dados)/i,
     texto:
-      "Seus gastos pessoais ficam protegidos: ao importar o CSV do Nubank ou uma nota fiscal, cada item passa por uma triagem antes de entrar na conta compartilhada. Só o que você marca como \"da viagem\" fica visível para o parceiro(a); o que é pessoal permanece privado e nunca entra na divisão. Por segurança, o que não é reconhecido entra como pessoal por padrão. Isso segue os princípios da LGPD (minimização e consentimento).",
-    atalho: { tipo: "atalho", rotulo: "Ir para Triagem Nubank", acaoId: "triagem" },
+      "Seus gastos pessoais ficam protegidos: ao importar a fatura do cartão ou o extrato da conta (CSV/TXT) ou colar o texto, cada item passa por uma triagem antes de ser salvo. Só o que você marca como \"da viagem\" entra na divisão da dupla; o que é pessoal fica privado. Por segurança, o que não é reconhecido entra como pessoal por padrão. Isso segue os princípios da LGPD (minimização e consentimento).",
+    atalho: { tipo: "atalho", rotulo: "Abrir Finanças Duo", acaoId: "triagem" },
   },
   {
     gatilhos: /(roteiro|passeio|itinerari|itinerári|dia a dia|programa[cç][ãa]o)/i,
     texto:
-      "No Roteiro vocês montam o dia a dia da viagem a quatro mãos. Abra a aba Roteiro, adicione atividades por dia (horário, local e observações) — tudo sincroniza com o parceiro(a) automaticamente.",
+      "No Roteiro vocês montam o dia a dia da viagem. Abra a aba Roteiro e adicione atividades por dia (horário, atividade e observações). Por enquanto o roteiro fica salvo neste navegador; a sincronização com o parceiro(a) está a caminho.",
     atalho: { tipo: "atalho", rotulo: "Abrir Roteiro", acaoId: "roteiro" },
   },
   {
     gatilhos: /\b(como funciona|o que (e|é) o duoplanner|para que serve|ajuda|me explica|sistema)\b/i,
     texto:
-      "O DuoPlanner reúne tudo para o casal planejar uma viagem: buscar passagens (voos e ônibus) e hospedagens com links já preenchidos, montar o roteiro, dividir as despesas com privacidade (triagem da fatura Nubank) e compartilhar tudo por convite. É só me descrever o que precisa que eu monto para você.",
+      "O DuoPlanner reúne tudo para o casal planejar uma viagem: buscar passagens (voos e ônibus) e hospedagens com links para os parceiros, montar o roteiro, dividir as despesas com privacidade (triagem da fatura ou do extrato) e convidar a sua dupla. É só me descrever o que precisa que eu monto para você.",
   },
 ];
 

@@ -53,7 +53,7 @@ export default function BuscarPassagensPage() {
     <div className="space-y-8">
       <PageHeading
         title="Buscar Passagens"
-        description="Voos (LATAM, Azul, GOL, Google Flights, Skyscanner, Decolar) e ônibus (Guanabara, Buser, UTIL, ClickBus, DeÔnibus, FlixBus, Gontijo, Cometa) em um só lugar."
+        description="Voos: Google Flights, Skyscanner e Decolar abrem com rota e datas; LATAM, Azul e GOL, no site oficial. Ônibus: ClickBus, Buser e DeÔnibus abrem com a rota; Guanabara e UTIL, no site oficial."
       />
 
       {/* Abas */}

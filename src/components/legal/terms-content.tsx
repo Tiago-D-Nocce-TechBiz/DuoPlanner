@@ -33,7 +33,7 @@ export function TermsContent() {
           Termos de Uso &amp; Política de Privacidade (LGPD)
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Última atualização: 29 de outubro de 2026.
+          Última atualização: 30 de outubro de 2026.
         </p>
       </header>
 
@@ -54,19 +54,22 @@ export function TermsContent() {
         </p>
         <p>
           A partir dos dados informados por você (origem, destino, datas,
-          passageiros e preferências), consultamos as APIs de parceiros
+          passageiros e preferências), geramos <strong>links</strong> que
+          direcionam a páginas de terceiros — alguns já com a busca
+          preenchida —, como Google Flights, Skyscanner, Decolar, LATAM, Azul,
+          GOL, ClickBus, Buser, Booking.com, Airbnb, Trivago e Google Hotels.
+          Quando disponíveis, também consultamos APIs de parceiros
           (<strong>Kiwi.com</strong> para voos e <strong>Booking.com</strong>,
-          via RapidAPI, para hospedagens) e geramos <strong>links
-          pré-preenchidos</strong> que direcionam a páginas de terceiros, como
-          LATAM, Azul, GOL, Google Flights, Skyscanner, Airbnb, Booking.com,
-          Hoteis.com e Trivago. Preços, disponibilidade, condições, reservas e
-          pagamentos são de responsabilidade exclusiva dessas plataformas
-          parceiras, regidos pelos termos e políticas próprios de cada uma.
+          via RapidAPI, para hospedagens) para exibir preços. Preços,
+          disponibilidade, condições, reservas e pagamentos são de
+          responsabilidade exclusiva dessas plataformas parceiras, regidos
+          pelos termos e políticas próprios de cada uma.
         </p>
         <p>
-          Recursos de inteligência artificial (leitura de recibos, memória de
-          preferências e sugestões de experiências) podem conter imprecisões.
-          Confira valores, datas, horários e regras antes de decidir.
+          Recursos de inteligência artificial (a assistente Nora, a memória de
+          preferências e as sugestões de experiências) podem conter
+          imprecisões. Confira valores, datas, horários e regras antes de
+          decidir.
         </p>
         <p>
           O DuoPlanner não garante a exatidão, disponibilidade ou atualização
@@ -110,9 +113,8 @@ export function TermsContent() {
             número de passageiros/hóspedes, quartos e classe de viagem.
           </li>
           <li>
-            <strong>Despesas:</strong> títulos, valores, moedas e datas
-            informados ou extraídos de notas/recibos. A imagem do recibo é
-            processada para leitura e não fica armazenada.
+            <strong>Despesas:</strong> títulos, valores e datas informados por
+            você ou importados de faturas e extratos (CSV/TXT).
           </li>
           <li>
             <strong>Preferências e memória da IA:</strong> cidade base,
@@ -168,6 +170,12 @@ export function TermsContent() {
           segurança, incluindo controle de acesso por linha (Row Level
           Security). A transmissão ocorre por conexões criptografadas (HTTPS).
         </p>
+        <p>
+          Nesta fase, finanças, roteiro, checklist, documentos e alertas ficam
+          salvos apenas no navegador do seu dispositivo (armazenamento local)
+          e não são enviados aos nossos servidores. Limpar os dados do
+          navegador apaga essas informações.
+        </p>
 
         <h3 className="pt-2 font-semibold text-heading">
           5.5. Compartilhamento com provedores
@@ -175,7 +183,8 @@ export function TermsContent() {
         <p>
           Para executar as funcionalidades pedidas por você, compartilhamos o
           mínimo necessário com operadores: <strong>Google (Gemini API)</strong>{" "}
-          recebe as imagens de recibos e os textos enviados à IA;{" "}
+          recebe os textos enviados à memória de preferências e às sugestões
+          de experiências;{" "}
           <strong>Kiwi.com</strong> e <strong>Booking.com/RapidAPI</strong>{" "}
           recebem os parâmetros das buscas (destinos, datas e número de
           viajantes). Nenhum desses dados é vendido ou usado para publicidade.

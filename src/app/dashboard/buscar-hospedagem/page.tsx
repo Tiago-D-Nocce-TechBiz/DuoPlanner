@@ -10,7 +10,7 @@ export default function BuscarHospedagemPage() {
     <div>
       <PageHeading
         title="Buscar Hospedagem"
-        description="Compare hospedagens no Airbnb, Booking.com, Hoteis.com, Trivago, Decolar e mais — já com suas datas e número de hóspedes."
+        description="Booking.com, Airbnb e Decolar abrem com suas datas e número de hóspedes; Trivago e Google Hotels, com o destino."
       />
       <ErrorBoundary
         titulo="A busca de hospedagem não carregou"

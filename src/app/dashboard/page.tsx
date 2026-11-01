@@ -25,7 +25,7 @@ const ATALHOS_PAINEL: {
     icone: Plane,
     titulo: "Buscar Passagens",
     descricao:
-      "Links pré-preenchidos para LATAM, Azul, GOL, Google Flights, Skyscanner e viações de ônibus.",
+      "Google Flights, Skyscanner e Decolar já com rota e datas, os sites da LATAM, Azul e GOL e as viações de ônibus.",
     href: "/dashboard/buscar-viagem",
     acao: "Abrir buscador de passagens →",
   },
@@ -33,7 +33,7 @@ const ATALHOS_PAINEL: {
     icone: Hotel,
     titulo: "Buscar Hospedagem",
     descricao:
-      "Compare acomodações no Airbnb, Booking.com, Hoteis.com, Trivago, Decolar e Vrbo com suas datas.",
+      "Compare acomodações no Booking.com, Airbnb e Decolar com suas datas, além do Trivago e do Google Hotels.",
     href: "/dashboard/buscar-hospedagem",
     acao: "Abrir buscador de hospedagem →",
   },
