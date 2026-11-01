@@ -24,6 +24,12 @@ export function addDays(iso: string, days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+/** "2026-10-05" → "05/10/2026" (formato salvo nas Finanças Duo). */
+export function isoToBR(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split("-");
+  return `${dia}/${mes}/${ano}`;
+}
+
 /** "2026-12-01" → "dezembro de 2026". */
 export function monthLabel(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", {

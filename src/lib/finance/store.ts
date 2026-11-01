@@ -15,15 +15,9 @@
 
 import { useSyncExternalStore } from "react";
 import { readLocal, writeLocal } from "@/lib/local-store";
+import { classificarDespesa, type Categoria, type Escopo } from "@/lib/finance/classificar";
 
-export type Categoria =
-  | "Passagens & Transporte"
-  | "Hospedagem"
-  | "Alimentação & Gastronomia"
-  | "Passeios & Lazer"
-  | "Gasto Pessoal (Fora da Viagem)";
-
-export type Escopo = "viagem_compartilhado" | "pessoal_privado";
+export type { Categoria, Escopo } from "@/lib/finance/classificar";
 
 export interface ItemDespesa {
   id: string;
@@ -42,50 +36,27 @@ export function idAleatorio(): string {
   return Math.random().toString(36).substring(2, 9);
 }
 
-/** Classifica um item por palavras-chave (privado por padrão, nunca vaza). */
+/**
+ * Monta um ItemDespesa já classificado (regras em `@/lib/finance/classificar`:
+ * palavra inteira, privado por padrão). `dica` é a categoria vinda do banco.
+ */
 export function classificarItemAutomaticamente(
   titulo: string,
   valor: number,
   data: string,
-  origem = "Importado"
+  origem = "Importado",
+  dica?: string
 ): ItemDespesa {
-  const t = titulo.toLowerCase();
-  const base = { id: idAleatorio(), data, estabelecimento: titulo, valor, origem };
-
-  const transporte = [
-    "latam", "azul", "gol", "voeazul", "voegol", "decolar", "skyscanner",
-    "buser", "guanabara", "util", "clickbus", "flixbus", "deonibus", "gontijo",
-    "cometa", "viacao", "viação", "rodoviaria", "rodoviária",
-    "uber", "99", "99app", "cabify", "pedagio", "pedágio", "sem parar", "conectcar",
-    "posto", "combustivel", "combustível", "shell", "ipiranga", "petrobras",
-  ];
-  const hospedagem = [
-    "airbnb", "booking", "hoteis", "hotéis", "hotel", "pousada", "resort",
-    "hospedagem", "hostel", "vrbo", "expedia", "trivago", "flat",
-  ];
-  const lazer = [
-    "ingresso", "ingressos", "parque", "tour", "passeio", "museu", "cinema",
-    "show", "balada", "ticket", "beach club", "mergulho", "escuna", "trilha",
-  ];
-  const alimentacao = [
-    "restaurante", "bar ", "boteco", "praia", "quiosque", "padaria",
-    "lanchonete", "ifood", "mercado", "supermercado", "cafe", "café", "almoço",
-    "almoco", "jantar", "janta", "lanche", "pizzaria", "hamburgueria",
-    "churrascaria", "sorveteria", "food",
-  ];
-  const pessoal = [
-    "academia", "farmacia", "farmácia", "drogaria", "assinatura", "streaming",
-    "mensalidade", "consulta", "plano de saude",
-  ];
-
-  const casa = (lista: string[]) => lista.some((k) => t.includes(k));
-
-  if (casa(pessoal)) return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
-  if (casa(transporte)) return { ...base, categoriaDestino: "Passagens & Transporte", escopo: "viagem_compartilhado" };
-  if (casa(hospedagem)) return { ...base, categoriaDestino: "Hospedagem", escopo: "viagem_compartilhado" };
-  if (casa(lazer)) return { ...base, categoriaDestino: "Passeios & Lazer", escopo: "viagem_compartilhado" };
-  if (casa(alimentacao)) return { ...base, categoriaDestino: "Alimentação & Gastronomia", escopo: "viagem_compartilhado" };
-  return { ...base, categoriaDestino: "Gasto Pessoal (Fora da Viagem)", escopo: "pessoal_privado" };
+  const { categoria, escopo } = classificarDespesa(titulo, dica);
+  return {
+    id: idAleatorio(),
+    data,
+    estabelecimento: titulo,
+    valor,
+    origem,
+    categoriaDestino: categoria,
+    escopo,
+  };
 }
 
 function emitir() {
