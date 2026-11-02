@@ -54,7 +54,8 @@ Origem dos itens: revisão técnica de 01/11/2026 (testes T1–T6).
 ## Fase 4 — Produto
 - [ ] 4.1 Nora com LLM gratuito em camadas (Gemini Flash-Lite → gpt-oss/Groq →
       motor local), confirmação de escrita, manual do sistema, cota por usuário
-- [ ] 4.2 Câmbio ao vivo (AwesomeAPI + cache) no Conversor
+- [x] 4.2 Câmbio ao vivo (AwesomeAPI + cache de 1 h em `/api/cotacoes`) no
+      Conversor, com referência offline e edição manual preservada
 - [ ] 4.3 Aeroportos por dados abertos + aeroporto mais próximo
 - [ ] 4.4 Desempenho (logo, 3D sob demanda) e remoção de código morto
       (apagar arquivos exige aprovação do Tiago)

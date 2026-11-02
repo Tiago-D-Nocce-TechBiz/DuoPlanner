@@ -1,18 +1,20 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Shuffle } from "@/components/ui/icons";
+import { parseValorMonetario } from "@/lib/finance/importar";
 
 /**
  * Conversor de Moedas.
  *
- * Converte entre moedas comuns de viagem usando taxas de REFERÊNCIA (aproximadas
- * e editáveis). Na Fase Back, as cotações ao vivo serão integradas por API.
- * Enquanto isso, o usuário pode ajustar a taxa manualmente. 100% em PT-BR.
+ * Abre com taxas de REFERÊNCIA (iguais no servidor e no cliente, sem
+ * hydration mismatch) e, depois de montar, busca a cotação do dia em
+ * `/api/cotacoes` (AwesomeAPI, cache de 1 hora). Sem rede, continua com as
+ * referências. O usuário pode ajustar qualquer taxa; o que ele editou não é
+ * sobrescrito pela cotação. 100% em PT-BR.
  */
 
-// Taxas aproximadas em relação ao Real (1 unidade da moeda = X reais).
-// Editáveis pelo usuário; servem só de referência inicial.
+// 1 unidade da moeda = X reais. Ponto de partida até a cotação chegar.
 const MOEDAS: { codigo: string; nome: string; emReais: number }[] = [
   { codigo: "BRL", nome: "Real", emReais: 1 },
   { codigo: "USD", nome: "Dólar americano", emReais: 5.4 },
@@ -22,18 +24,76 @@ const MOEDAS: { codigo: string; nome: string; emReais: number }[] = [
   { codigo: "CLP", nome: "Peso chileno", emReais: 0.0057 },
 ];
 
+type Cotacao =
+  | { estado: "carregando" }
+  | { estado: "ao-vivo"; de: string; ate: string; fonte: string }
+  | { estado: "referencia"; mensagem: string };
+
+interface RespostaCotacoes {
+  ok: boolean;
+  taxas?: Record<string, number>;
+  atualizadoDe?: string;
+  atualizadoAte?: string;
+  fonte?: string;
+  mensagem?: string;
+}
+
+/** "2026-10-30 19:00:08" → "30/10/2026 às 19:00". */
+function formatarMomento(bruto: string): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/.exec(bruto);
+  return m ? `${m[3]}/${m[2]}/${m[1]} às ${m[4]}:${m[5]}` : bruto;
+}
+
 export default function ConversorPage() {
   const [valor, setValor] = useState("100");
   const [de, setDe] = useState("USD");
   const [para, setPara] = useState("BRL");
-  const [taxas, setTaxas] = useState(() =>
+  const [taxas, setTaxas] = useState<Record<string, number>>(() =>
     Object.fromEntries(MOEDAS.map((m) => [m.codigo, m.emReais]))
   );
+  // Moedas cuja taxa o usuário editou: a cotação ao vivo não as sobrescreve.
+  const editadasRef = useRef(new Set<string>());
+  const [cotacao, setCotacao] = useState<Cotacao>({ estado: "carregando" });
+
+  // Cotação do dia, uma vez após montar.
+  useEffect(() => {
+    let ativo = true;
+    fetch("/api/cotacoes", { headers: { accept: "application/json" } })
+      .then((res) => res.json())
+      .then((dados: RespostaCotacoes) => {
+        if (!ativo) return;
+        if (!dados.ok || !dados.taxas) {
+          setCotacao({ estado: "referencia", mensagem: dados.mensagem ?? "Cotação ao vivo indisponível agora." });
+          return;
+        }
+        const vivas = dados.taxas;
+        const editadas = editadasRef.current;
+        setTaxas((atuais) => {
+          const proximas = { ...atuais };
+          for (const [codigo, taxa] of Object.entries(vivas)) {
+            if (!editadas.has(codigo) && Number.isFinite(taxa) && taxa > 0) proximas[codigo] = taxa;
+          }
+          return proximas;
+        });
+        setCotacao({
+          estado: "ao-vivo",
+          de: dados.atualizadoDe ?? "",
+          ate: dados.atualizadoAte ?? dados.atualizadoDe ?? "",
+          fonte: dados.fonte ?? "AwesomeAPI",
+        });
+      })
+      .catch(() => {
+        if (ativo) setCotacao({ estado: "referencia", mensagem: "Cotação ao vivo indisponível agora." });
+      });
+    return () => {
+      ativo = false;
+    };
+  }, []);
 
   const resultado = useMemo(() => {
-    const v = parseFloat(valor.replace(",", ".")) || 0;
+    const v = parseValorMonetario(valor) ?? 0;
     const reais = v * (taxas[de] ?? 0);
-    return reais / (taxas[para] ?? 1);
+    return reais / (taxas[para] || 1);
   }, [valor, de, para, taxas]);
 
   const inverter = () => {
@@ -41,8 +101,26 @@ export default function ConversorPage() {
     setPara(de);
   };
 
+  const editarTaxa = (codigo: string, bruto: string) => {
+    editadasRef.current.add(codigo);
+    setTaxas((prev) => ({ ...prev, [codigo]: parseFloat(bruto) || 0 }));
+  };
+
   const fmt = (n: number) =>
     n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const periodo =
+    cotacao.estado === "ao-vivo"
+      ? cotacao.de === cotacao.ate
+        ? `de ${formatarMomento(cotacao.de)}`
+        : `atualizada entre ${formatarMomento(cotacao.de)} e ${formatarMomento(cotacao.ate)}`
+      : "";
+  const legenda =
+    cotacao.estado === "carregando"
+      ? "Buscando a cotação do dia…"
+      : cotacao.estado === "ao-vivo"
+        ? `Cotação de compra ${periodo} (fonte: ${cotacao.fonte}). Ajuste se quiser simular outra taxa.`
+        : `${cotacao.mensagem} Usando valores de referência; ajuste conforme a cotação do dia.`;
 
   return (
     <div className="space-y-8">
@@ -61,7 +139,7 @@ export default function ConversorPage() {
           <div>
             <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-1.5">Valor em</label>
             <div className="flex gap-2">
-              <input value={valor} onChange={(e) => setValor(e.target.value)} className="glass-input" placeholder="100" />
+              <input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" className="glass-input" placeholder="100" />
               <select value={de} onChange={(e) => setDe(e.target.value)} className="glass-input sm:max-w-[120px]">
                 {MOEDAS.map((m) => (
                   <option key={m.codigo} value={m.codigo}>{m.codigo}</option>
@@ -96,11 +174,11 @@ export default function ConversorPage() {
         </div>
       </div>
 
-      {/* Taxas editáveis */}
+      {/* Taxas */}
       <div className="glass-panel rounded-2xl p-6">
-        <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Taxas de referência</h2>
-        <p className="mt-1 text-xs text-[var(--color-muted)]">
-          Valores aproximados (1 unidade da moeda em reais). Ajuste conforme a cotação do dia. A cotação ao vivo chega na próxima fase.
+        <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Taxas usadas na conversão</h2>
+        <p role="status" className="mt-1 text-xs text-[var(--color-muted)]">
+          {legenda}
         </p>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {MOEDAS.filter((m) => m.codigo !== "BRL").map((m) => (
@@ -108,10 +186,12 @@ export default function ConversorPage() {
               <span className="text-sm text-[var(--color-foreground)] flex-1">1 {m.codigo} =</span>
               <input
                 type="number"
-                step="0.0001"
+                step="any"
+                min="0"
                 value={taxas[m.codigo]}
-                onChange={(e) => setTaxas((prev) => ({ ...prev, [m.codigo]: parseFloat(e.target.value) || 0 }))}
-                className="glass-input max-w-[110px] text-right"
+                onChange={(e) => editarTaxa(m.codigo, e.target.value)}
+                aria-label={`Taxa de ${m.nome} em reais`}
+                className="glass-input max-w-[120px] text-right"
               />
               <span className="text-xs text-[var(--color-muted)]">R$</span>
             </div>
