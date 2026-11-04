@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { NoraResposta } from "@/lib/ai/nora-brain";
 import { getSupabase } from "@/lib/supabase/client";
-import { readLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { getContexto } from "@/lib/sync/motor";
 
 /** Extrai o primeiro nome de um nome completo ou e-mail. */
 function primeiroNome(bruto?: string | null): string | null {
@@ -49,16 +49,13 @@ export function NoraProvider({ children }: { children: React.ReactNode }) {
   // Identifica automaticamente o primeiro nome do usuário logado:
   // 1) nome do cadastro no Supabase (user_metadata.nome);
   // 2) parte local do e-mail logado;
-  // 3) nome configurado nas Configurações (localStorage);
+  // 3) nome do perfil sincronizado (Configurações);
   // Busca uma única vez, de forma assíncrona (sem setState síncrono no efeito).
   useEffect(() => {
     if (buscou.current) return;
     buscou.current = true;
 
-    const doLocal = () => {
-      const conta = readLocal<{ viajante1?: string; nomeConta?: string }>(STORAGE_KEYS.conta, {});
-      return primeiroNome(conta.viajante1) || primeiroNome(conta.nomeConta);
-    };
+    const doLocal = () => primeiroNome(getContexto()?.perfil?.nome);
 
     const aplicar = (n: string | null | undefined) => {
       if (n) setNomeUsuario(n);

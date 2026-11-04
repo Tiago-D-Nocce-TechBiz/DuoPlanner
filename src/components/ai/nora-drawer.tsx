@@ -25,7 +25,8 @@ import { NoraAvatar } from "./nora-avatar";
 import { useNora, type NoraMensagem } from "./nora-provider";
 import { responderNora, type NoraAcao, type GrupoIcone } from "@/lib/ai/nora-brain";
 import { adicionarDespesa, rotuloCategoria } from "@/lib/finance/store";
-import { writeLocal, readLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { getContexto } from "@/lib/sync/motor";
 import { cn } from "@/lib/utils";
 
 /* ----------------------------- Utilidades UI ------------------------------ */
@@ -34,15 +35,13 @@ function idMsg() {
   return Math.random().toString(36).substring(2, 9);
 }
 
+/** Nome e cidade base vêm do perfil sincronizado (Configurações). */
 function contextoConta() {
-  const conta = readLocal<{ viajante1?: string; nomeConta?: string; cidadeBase?: string; iataBase?: string }>(
-    STORAGE_KEYS.conta,
-    {}
-  );
+  const perfil = getContexto()?.perfil;
   return {
-    nomeUsuario: (conta.viajante1 || conta.nomeConta || "").trim() || undefined,
-    cidadeBase: conta.cidadeBase?.trim() || undefined,
-    iataBase: conta.iataBase?.trim() || undefined,
+    nomeUsuario: perfil?.nome?.trim() || undefined,
+    cidadeBase: perfil?.cidadeBase?.trim() || undefined,
+    iataBase: perfil?.iataBase?.trim() || undefined,
   };
 }
 
@@ -147,7 +146,7 @@ function CardAcao({
         </div>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
           {privado ? <ShieldCheck className="h-3 w-3" /> : <Users className="h-3 w-3" />}
-          {privado ? "Pessoal (privado, oculto)" : "Compartilhado · entra na divisão 50/50"}
+          {privado ? "Pessoal (privado, oculto)" : "Compartilhado · entra no acerto do casal"}
           <span className="text-subtle">· {rotuloCategoria(item)}</span>
         </div>
         {status === "pendente" ? (
@@ -199,7 +198,7 @@ function CardAcao({
           <p className="mt-1 font-semibold text-sm text-heading">{brl(acao.totalCompartilhado)}</p>
         </div>
         <div className="rounded-xl border border-border bg-background p-3">
-          <p className="text-[10px] uppercase tracking-wider text-muted">Cada um (50%)</p>
+          <p className="text-[10px] uppercase tracking-wider text-muted">Sua parte</p>
           <p className="mt-1 font-semibold text-sm text-heading">{brl(acao.metade)}</p>
         </div>
         <div className="rounded-xl border border-border bg-background p-3">
@@ -358,7 +357,11 @@ export function NoraDrawer() {
     const gravadas = propostasGravadasRef.current;
     if (gravadas.has(acao.item.id)) return;
     gravadas.add(acao.item.id);
-    adicionarDespesa(acao.item);
+    // Sem o contexto do painel (ainda carregando), não finge que salvou.
+    if (!adicionarDespesa(acao.item)) {
+      gravadas.delete(acao.item.id);
+      return;
+    }
     atualizarAcao(msgId, indice, { ...acao, status: "confirmada" });
   }
 

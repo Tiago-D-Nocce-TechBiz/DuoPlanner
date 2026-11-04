@@ -10,6 +10,7 @@
  */
 
 import { useSyncExternalStore } from "react";
+import { todayInSaoPaulo } from "@/lib/dates";
 
 /**
  * Hook `useMontado`: devolve false no servidor e no primeiro render do cliente,
@@ -24,6 +25,15 @@ export function useMontado(): boolean {
     () => true, // snapshot no cliente
     () => false // snapshot no servidor
   );
+}
+
+/**
+ * "Hoje" (AAAA-MM-DD, fuso de São Paulo) só no cliente; "" no prerender.
+ * Com Cache Components, `new Date()` durante o prerender de um Client
+ * Component quebra o build (valor instável): a data entra depois da montagem.
+ */
+export function useHoje(): string {
+  return useSyncExternalStore(noop, () => todayInSaoPaulo(), () => "");
 }
 
 export function readLocal<T>(chave: string, padrao: T): T {

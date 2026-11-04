@@ -214,7 +214,7 @@ function responderLancamento(frase: string, ctx: NoraContexto): NoraResposta {
   const tipo =
     item.escopo === "pessoal_privado"
       ? "gasto pessoal (privado: fica oculto para o parceiro(a) e não entra na divisão)"
-      : "gasto compartilhado da viagem (entra na divisão 50/50)";
+      : "gasto compartilhado da viagem (entra no acerto do casal)";
   return {
     texto: `Confere antes de eu lançar: ${brl(item.valor)} em "${item.estabelecimento}" como ${tipo}. Toque em Confirmar para registrar; se preferir, troque o tipo no cartão.`,
     acoes: [
@@ -233,12 +233,12 @@ function responderResumoFinanceiro(): NoraResposta {
     };
   }
   return {
-    texto: `Vocês já têm ${brl(r.totalCompartilhado)} em gastos compartilhados da viagem — ${brl(r.metade)} para cada um (divisão 50/50). Seus gastos pessoais privados somam ${brl(r.totalPrivado)} e não entram na divisão.`,
+    texto: `Vocês já têm ${brl(r.totalCompartilhado)} em gastos compartilhados da viagem. Pela regra combinada (${r.regra}), a sua parte é ${brl(r.suaParte)}. Seus gastos pessoais privados somam ${brl(r.totalPrivado)} e não entram na divisão. O saldo de quem deve a quem está no Acerto de Contas.`,
     acoes: [
       {
         tipo: "resumo",
         totalCompartilhado: r.totalCompartilhado,
-        metade: r.metade,
+        metade: r.suaParte,
         totalPrivado: r.totalPrivado,
         porCategoria: r.porCategoria.map((c) => ({ categoria: c.categoria, total: c.total })),
       },
@@ -382,7 +382,7 @@ const AJUDA: TopicoAjuda[] = [
   {
     gatilhos: /(convid|conta compartilhad|parceir|namorad|esposa|marido|dupla junt|mesmo espa[cç]o|convite)/i,
     texto:
-      "Para planejarem juntos, abra o convite: clique em \"+ Convidar Parceiro(a)\" no topo do painel e envie o link/código gerado para a pessoa. Ao aceitar, vocês entram no mesmo espaço da dupla. Por enquanto, roteiro, alertas e despesas ficam salvos no navegador de cada um; a sincronização entre as duas contas está a caminho.",
+      "Para planejarem juntos, abra o convite: clique em \"+ Convidar Parceiro(a)\" no topo do painel e envie o link/código gerado para a pessoa. Ao aceitar, vocês entram no mesmo espaço da dupla: gastos da viagem, roteiro, checklist e alertas aparecem para os dois na hora. Gastos pessoais e documentos privados continuam só com quem criou.",
     atalho: { tipo: "atalho", rotulo: "Abrir Modal de Convite", acaoId: "convite" },
   },
   {
@@ -394,7 +394,7 @@ const AJUDA: TopicoAjuda[] = [
   {
     gatilhos: /(roteiro|passeio|itinerari|itinerári|dia a dia|programa[cç][ãa]o)/i,
     texto:
-      "No Roteiro vocês montam o dia a dia da viagem. Abra a aba Roteiro e adicione atividades por dia (horário, atividade e observações). Por enquanto o roteiro fica salvo neste navegador; a sincronização com o parceiro(a) está a caminho.",
+      "No Roteiro vocês montam o dia a dia da viagem. Abra a aba Roteiro e adicione atividades por dia (horário, atividade e observações). O roteiro é do casal: o que um muda aparece para o outro na hora, e uma cópia fica no aparelho para consultar offline.",
     atalho: { tipo: "atalho", rotulo: "Abrir Roteiro", acaoId: "roteiro" },
   },
   {

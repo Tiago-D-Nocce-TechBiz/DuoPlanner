@@ -1,24 +1,35 @@
 "use client";
 
 /**
- * Store de despesas das Finanças Duo, persistida em localStorage.
+ * Finanças Duo no navegador — agora sobre o motor de sincronização do casal.
  *
- * Antes, a página de Finanças mantinha as despesas apenas em `useState`, o que
- * impedia a Nora (agente de IA) de lançar um gasto que a página enxergasse.
- * Este store centraliza a lista em localStorage e notifica assinantes (via
- * `useSyncExternalStore`), de modo que QUALQUER parte do app — a página de
- * Finanças ou a Nora — possa ler e escrever, e todas as telas se atualizam.
- *
- * Mantém a mesma modelagem da página (ItemDespesa/Escopo/Categoria) e a mesma
- * regra de privacidade: o que não é reconhecido entra como pessoal_privado.
+ * Antes, a lista vivia só no localStorage (o par nunca via os gastos). Agora
+ * cada gasto é uma linha de `despesas_viagem` no Postgres (RLS por espaço e
+ * escopo), com fila offline e Realtime. A API usada pela Nora e pela página
+ * de Finanças continua a mesma:
+ *  - `ItemDespesa`: RASCUNHO (triagem da fatura, proposta da Nora, recibo);
+ *  - `adicionarDespesa(rascunho)` / `criarDespesa(...)`: grava (fila);
+ *  - `useDespesas()` / `resumirDespesas()`: leitura reativa e resumo.
  */
 
-import { useSyncExternalStore } from "react";
-import { readLocal, writeLocal } from "@/lib/local-store";
+import { calcularAcerto, descreverRegra, valorEmReais, type LancamentoAcerto } from "@/lib/finance/acerto";
 import { classificarDespesa, type Categoria, type Escopo } from "@/lib/finance/classificar";
+import { todayInSaoPaulo } from "@/lib/dates";
+import { regraDoAcordo, type ContextoSincronizacao } from "@/lib/sync/contexto";
+import type { Despesa, OrigemDespesa } from "@/lib/sync/modelos";
+import {
+  atualizarRegistro,
+  criarRegistro,
+  getContexto,
+  getRegistros,
+  removerRegistro,
+  useRegistros,
+} from "@/lib/sync/motor";
 
 export type { Categoria, Escopo } from "@/lib/finance/classificar";
+export type { Despesa } from "@/lib/sync/modelos";
 
+/** Rascunho de gasto (ainda não salvo): triagem, Nora e recibos. */
 export interface ItemDespesa {
   id: string;
   data: string; // "dd/mm/aaaa" (locale pt-BR)
@@ -29,15 +40,12 @@ export interface ItemDespesa {
   origem: string; // "Manual" | "Importado" | "Nora"
 }
 
-const CHAVE = "pd-financas-despesas";
-const EVENTO = "pd-financas-despesas-change";
-
 export function idAleatorio(): string {
-  return Math.random().toString(36).substring(2, 9);
+  return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
 }
 
 /**
- * Monta um ItemDespesa já classificado (regras em `@/lib/finance/classificar`:
+ * Monta um rascunho já classificado (regras em `@/lib/finance/classificar`:
  * palavra inteira, privado por padrão). `dica` é a categoria vinda do banco.
  */
 export function classificarItemAutomaticamente(
@@ -59,133 +67,186 @@ export function classificarItemAutomaticamente(
   };
 }
 
-function emitir() {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new Event(EVENTO));
-  }
-}
-
-/** Lê a lista atual de despesas. */
-export function getDespesas(): ItemDespesa[] {
-  return readLocal<ItemDespesa[]>(CHAVE, []);
-}
-
-/** Substitui a lista inteira (usado pela página ao confirmar triagem). */
-export function setDespesas(lista: ItemDespesa[]): void {
-  writeLocal(CHAVE, lista);
-  emitir();
-}
-
 /** Rótulo exibido: item da viagem sem categoria de viagem aparece como "Outros da viagem". */
-export function rotuloCategoria(item: Pick<ItemDespesa, "escopo" | "categoriaDestino">): string {
-  if (item.escopo === "viagem_compartilhado" && item.categoriaDestino === "Gasto Pessoal (Fora da Viagem)") {
+export function rotuloCategoria(item: { escopo: Escopo; categoria?: Categoria; categoriaDestino?: Categoria }): string {
+  const categoria = item.categoria ?? item.categoriaDestino ?? "Gasto Pessoal (Fora da Viagem)";
+  if (item.escopo === "viagem_compartilhado" && categoria === "Gasto Pessoal (Fora da Viagem)") {
     return "Outros da viagem";
   }
-  return item.categoriaDestino;
+  return categoria;
 }
 
-/** Adiciona uma despesa no topo da lista e devolve o item criado. */
-export function adicionarDespesa(item: ItemDespesa): ItemDespesa {
-  const atual = getDespesas();
-  setDespesas([item, ...atual]);
-  // Avisa (sino de notificações) quando um gasto COMPARTILHADO é vinculado ao
-  // espaço da dupla — representa o parceiro(a) vinculando algo para você.
-  if (item.escopo === "viagem_compartilhado") {
-    notificarGastoCompartilhado(item);
+/* ------------------------------- gravação ------------------------------- */
+
+export interface NovaDespesa {
+  descricao: string;
+  valor: number;
+  moeda?: string;
+  cotacaoBrl?: number | null;
+  data?: string; // AAAA-MM-DD
+  categoria: Categoria;
+  escopo: Escopo;
+  pagoPor?: string | null;
+  proporcaoDivisao?: number | null;
+  tipo?: "gasto" | "acerto";
+  origem: OrigemDespesa;
+}
+
+const centavos = (v: number) => Math.round(v * 100) / 100;
+
+/** Cria o gasto na fila de sincronização. null = painel ainda sem contexto. */
+export function criarDespesa(nova: NovaDespesa): Despesa | null {
+  const ctx = getContexto();
+  if (!ctx) return null;
+  const agora = new Date().toISOString();
+  const moeda = (nova.moeda ?? "BRL").toUpperCase();
+  const despesa: Despesa = {
+    id: idAleatorio(),
+    userId: ctx.userId,
+    workspaceId: ctx.workspace?.id ?? null,
+    pagoPor: nova.pagoPor ?? ctx.userId,
+    tipo: nova.tipo ?? "gasto",
+    descricao: nova.descricao.trim().slice(0, 120) || "Despesa",
+    valor: centavos(nova.valor),
+    moeda,
+    cotacaoBrl: moeda === "BRL" ? null : nova.cotacaoBrl ?? null,
+    data: nova.data ?? todayInSaoPaulo(),
+    categoria: nova.categoria,
+    // Sem espaço do casal não há com quem compartilhar.
+    escopo: ctx.workspace ? nova.escopo : "pessoal_privado",
+    proporcaoDivisao: nova.proporcaoDivisao ?? null,
+    origem: nova.origem,
+    criadoEm: agora,
+    atualizadoEm: agora,
+    atualizadoPor: ctx.userId,
+  };
+  criarRegistro("despesas", despesa);
+  return despesa;
+}
+
+function brParaIso(br: string): string {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(br.trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : todayInSaoPaulo();
+}
+
+const ORIGEM_DO_RASCUNHO: Record<string, OrigemDespesa> = {
+  Nora: "nora",
+  Importado: "importacao",
+  Recibo: "recibo",
+};
+
+/** Grava um rascunho (proposta confirmada da Nora, item da triagem). */
+export function adicionarDespesa(item: ItemDespesa): Despesa | null {
+  return criarDespesa({
+    descricao: item.estabelecimento,
+    valor: item.valor,
+    data: brParaIso(item.data),
+    categoria: item.categoriaDestino,
+    escopo: item.escopo,
+    origem: ORIGEM_DO_RASCUNHO[item.origem] ?? "manual",
+  });
+}
+
+export function atualizarDespesa(id: string, campos: Partial<Despesa>): void {
+  atualizarRegistro("despesas", id, campos);
+}
+
+export function removerDespesa(id: string): void {
+  removerRegistro("despesas", id);
+}
+
+/** Recria um gasto removido (botão "Desfazer"), com o mesmo id. */
+export function restaurarDespesa(despesa: Despesa): void {
+  criarRegistro("despesas", despesa);
+}
+
+/* -------------------------------- leitura -------------------------------- */
+
+export function useDespesas(): Despesa[] {
+  return useRegistros("despesas");
+}
+
+export function getDespesas(): Despesa[] {
+  return getRegistros("despesas");
+}
+
+/** Lançamentos do acerto (gastos compartilhados + pagamentos de acerto). */
+export function lancamentosDoAcerto(lista: Despesa[]): { lancamentos: LancamentoAcerto[]; semCotacao: number } {
+  let semCotacao = 0;
+  const lancamentos: LancamentoAcerto[] = [];
+  for (const d of lista) {
+    if (d.escopo !== "viagem_compartilhado") continue;
+    const valorBrl = valorEmReais(d);
+    if (valorBrl === null) {
+      semCotacao++;
+      continue;
+    }
+    lancamentos.push({ valorBrl, pagoPor: d.pagoPor ?? d.userId, proporcaoDivisao: d.proporcaoDivisao, tipo: d.tipo });
   }
-  return item;
+  return { lancamentos, semCotacao };
 }
 
-// Importação tardia evita ciclo entre os stores no carregamento do módulo.
-function notificarGastoCompartilhado(item: ItemDespesa) {
-  import("@/lib/notifications/store")
-    .then(({ adicionarNotificacao }) => {
-      adicionarNotificacao({
-        tipo: "financas",
-        titulo: "Novo gasto compartilhado",
-        descricao: `${item.estabelecimento} — ${brlInterno(item.valor)} entrou na divisão da viagem.`,
-        href: "/dashboard/financas",
-        origem: "Finanças Duo",
-      });
-    })
-    .catch(() => {});
-}
-
-function brlInterno(v: number): string {
-  return `R$ ${v.toFixed(2).replace(".", ",")}`;
-}
-
-/** Resumo financeiro (compartilhado, metade, pessoal) + agregados. */
+/** Resumo financeiro (compartilhado, sua parte pela regra do casal, pessoal). */
 export interface ResumoFinancas {
   totalCompartilhado: number;
+  /** Sua parte dos gastos compartilhados pela regra combinada. */
+  suaParte: number;
+  /** @deprecated use `suaParte` (mantido para a Nora). */
   metade: number;
+  regra: string;
   totalPrivado: number;
   qtdCompartilhado: number;
   qtdPrivado: number;
   porCategoria: { categoria: Categoria; total: number }[];
 }
 
-export function resumirDespesas(lista: ItemDespesa[] = getDespesas()): ResumoFinancas {
-  const compartilhados = lista.filter((d) => d.escopo === "viagem_compartilhado");
-  const privados = lista.filter((d) => d.escopo === "pessoal_privado");
-  const totalCompartilhado = compartilhados.reduce((a, i) => a + i.valor, 0);
-  const totalPrivado = privados.reduce((a, i) => a + i.valor, 0);
+export function resumirDespesas(
+  lista: Despesa[] = getDespesas(),
+  ctx: ContextoSincronizacao | null = getContexto()
+): ResumoFinancas {
+  const compartilhados = lista.filter((d) => d.escopo === "viagem_compartilhado" && d.tipo === "gasto");
+  const privados = lista.filter((d) => d.escopo === "pessoal_privado" && (!ctx || d.userId === ctx.userId));
+  const emReais = (d: Despesa) => valorEmReais(d) ?? 0;
+  const totalCompartilhado = centavos(compartilhados.reduce((a, d) => a + emReais(d), 0));
+  const totalPrivado = centavos(privados.reduce((a, d) => a + emReais(d), 0));
 
   const mapa = new Map<Categoria, number>();
-  for (const d of compartilhados) {
-    mapa.set(d.categoriaDestino, (mapa.get(d.categoriaDestino) ?? 0) + d.valor);
-  }
+  for (const d of compartilhados) mapa.set(d.categoria, (mapa.get(d.categoria) ?? 0) + emReais(d));
   const porCategoria = [...mapa.entries()]
-    .map(([categoria, total]) => ({ categoria, total }))
+    .map(([categoria, total]) => ({ categoria, total: centavos(total) }))
     .sort((a, b) => b.total - a.total);
+
+  const regra = ctx ? regraDoAcordo(ctx.acordo) : ({ regra: "igual" } as const);
+  let suaParte = totalCompartilhado / 2;
+  let descricao = "Divisão igual (50/50)";
+  if (ctx) {
+    const dono = ctx.membros.find((m) => m.papel === "dono");
+    const parceiro = ctx.membros.find((m) => m.papel === "parceiro");
+    const souDono = !parceiro || dono?.userId === ctx.userId;
+    const membros = { dono: dono?.userId ?? ctx.userId, parceiro: parceiro?.userId ?? "__par_ainda_nao_entrou__" };
+    // Só a parte (não o saldo): todos os gastos contam como pagos por alguém do casal.
+    const lancamentos = compartilhados.map((d) => ({
+      valorBrl: emReais(d),
+      pagoPor: membros.dono,
+      proporcaoDivisao: d.proporcaoDivisao === null ? null : (d.pagoPor ?? d.userId) === membros.dono ? d.proporcaoDivisao : 100 - d.proporcaoDivisao,
+      tipo: "gasto" as const,
+    }));
+    const r = calcularAcerto(lancamentos, membros, regra);
+    suaParte = souDono ? r.parte.dono : r.parte.parceiro;
+    descricao = descreverRegra(regra, {
+      dono: dono?.nome ?? "Você",
+      parceiro: parceiro?.nome ?? "seu par",
+    });
+  }
 
   return {
     totalCompartilhado,
-    metade: totalCompartilhado / 2,
+    suaParte: centavos(suaParte),
+    metade: centavos(suaParte),
+    regra: descricao,
     totalPrivado,
     qtdCompartilhado: compartilhados.length,
     qtdPrivado: privados.length,
     porCategoria,
   };
-}
-
-/* -------------------------- Hook reativo (React) -------------------------- */
-
-function subscribe(callback: () => void): () => void {
-  if (typeof window === "undefined") return () => {};
-  const handler = () => callback();
-  window.addEventListener(EVENTO, handler);
-  window.addEventListener("storage", handler); // sincroniza entre abas
-  return () => {
-    window.removeEventListener(EVENTO, handler);
-    window.removeEventListener("storage", handler);
-  };
-}
-
-// Cache do snapshot para o useSyncExternalStore (precisa ser referência estável
-// enquanto os dados não mudam, senão o React entra em loop).
-let cacheBruto = "";
-let cacheLista: ItemDespesa[] = [];
-
-function getSnapshot(): ItemDespesa[] {
-  if (typeof window === "undefined") return cacheLista;
-  const bruto = window.localStorage.getItem(CHAVE) ?? "[]";
-  if (bruto !== cacheBruto) {
-    cacheBruto = bruto;
-    try {
-      cacheLista = JSON.parse(bruto) as ItemDespesa[];
-    } catch {
-      cacheLista = [];
-    }
-  }
-  return cacheLista;
-}
-
-function getServerSnapshot(): ItemDespesa[] {
-  return [];
-}
-
-/** Hook: lista reativa de despesas (atualiza quando a Nora ou a página mudam). */
-export function useDespesas(): ItemDespesa[] {
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
 }

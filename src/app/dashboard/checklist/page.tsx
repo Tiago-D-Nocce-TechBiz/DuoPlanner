@@ -1,23 +1,24 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { readLocal, writeLocal, useMontado, STORAGE_KEYS } from "@/lib/local-store";
+import type { ItemChecklist } from "@/lib/sync/modelos";
+import {
+  atualizarRegistro,
+  criarRegistro,
+  removerRegistro,
+  useContextoSync,
+  useRegistros,
+  useStatusSync,
+} from "@/lib/sync/motor";
 
 /**
- * Checklist de Viagem / Bagagem.
+ * Checklist de Viagem / Bagagem do casal, sincronizado.
  *
- * Itens organizados por categoria (documentos, roupas, eletrônicos, higiene,
- * saúde, bagagem de mão). Cada item pode ser marcado como feito, adicionado ou
- * removido. Persiste no navegador (Fase Front); pronto para sincronizar na
- * Fase Back. 100% em PT-BR.
+ * Marcar um item no celular de um aparece no do outro na hora (Realtime).
+ * Offline, a última cópia fica no aparelho e as marcações sobem depois.
+ * As sugestões iniciais só entram quando alguém pede (antes eram criadas
+ * sozinhas em cada navegador, o que duplicaria tudo com dois aparelhos).
  */
-
-interface ItemCheck {
-  id: string;
-  texto: string;
-  feito: boolean;
-  categoria: string;
-}
 
 const CATEGORIAS = [
   "Documentos",
@@ -28,8 +29,7 @@ const CATEGORIAS = [
   "Mão / Essenciais",
 ] as const;
 
-// Sugestão inicial — o usuário pode remover/adicionar à vontade.
-const SUGESTOES: Omit<ItemCheck, "id" | "feito">[] = [
+const SUGESTOES: { categoria: string; texto: string }[] = [
   { categoria: "Documentos", texto: "RG / Passaporte" },
   { categoria: "Documentos", texto: "Cartão de embarque" },
   { categoria: "Documentos", texto: "Seguro viagem" },
@@ -42,54 +42,63 @@ const SUGESTOES: Omit<ItemCheck, "id" | "feito">[] = [
   { categoria: "Mão / Essenciais", texto: "Fone de ouvido" },
 ];
 
-const novoId = () => Math.random().toString(36).substring(2, 9);
-
 export default function ChecklistPage() {
-  const montado = useMontado();
+  const itens = useRegistros("checklist");
+  const ctx = useContextoSync();
+  const status = useStatusSync();
+  const ws = ctx?.workspace?.id ?? null;
   const [novoTexto, setNovoTexto] = useState("");
   const [novaCategoria, setNovaCategoria] = useState<string>(CATEGORIAS[0]);
 
-  // Leitura inicial determinística: no servidor/1º render fica vazio; após a
-  // montagem, carrega o salvo ou as sugestões iniciais. Sem setState em efeito.
-  const inicial = useMemo<ItemCheck[]>(() => {
-    if (!montado) return [];
-    const salvo = readLocal<ItemCheck[] | null>(STORAGE_KEYS.checklist, null);
-    if (salvo && salvo.length) return salvo;
-    return SUGESTOES.map((s) => ({ ...s, id: novoId(), feito: false }));
-  }, [montado]);
+  const ordenados = useMemo(() => [...itens].sort((a, b) => a.ordem - b.ordem), [itens]);
+  const categorias = useMemo(() => {
+    const extras = [...new Set(itens.map((i) => i.categoria))].filter((c) => !(CATEGORIAS as readonly string[]).includes(c));
+    return [...CATEGORIAS, ...extras];
+  }, [itens]);
 
-  const [alteracoes, setAlteracoes] = useState<ItemCheck[] | null>(null);
-  const itens = alteracoes ?? inicial;
-
-  function persistir(next: ItemCheck[]) {
-    setAlteracoes(next);
-    writeLocal(STORAGE_KEYS.checklist, next);
+  function novoItem(texto: string, categoria: string, ordem: number): ItemChecklist | null {
+    if (!ctx || !ws) return null;
+    return {
+      id: crypto.randomUUID(),
+      workspaceId: ws,
+      userId: ctx.userId,
+      texto: texto.slice(0, 120),
+      categoria,
+      feito: false,
+      ordem,
+      atualizadoEm: new Date().toISOString(),
+      atualizadoPor: ctx.userId,
+    };
   }
 
-  const alternar = (id: string) =>
-    persistir(itens.map((i) => (i.id === id ? { ...i, feito: !i.feito } : i)));
-  const remover = (id: string) => persistir(itens.filter((i) => i.id !== id));
+  const proximaOrdem = () => itens.reduce((max, i) => Math.max(max, i.ordem), -1) + 1;
+
   const adicionar = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!novoTexto.trim()) return;
-    persistir([
-      ...itens,
-      { id: novoId(), texto: novoTexto.trim(), feito: false, categoria: novaCategoria },
-    ]);
+    const item = novoItem(novoTexto.trim(), novaCategoria, proximaOrdem());
+    if (!item || !item.texto) return;
+    criarRegistro("checklist", item);
     setNovoTexto("");
+  };
+
+  const adicionarSugestoes = () => {
+    let ordem = proximaOrdem();
+    for (const s of SUGESTOES) {
+      const item = novoItem(s.texto, s.categoria, ordem++);
+      if (item) criarRegistro("checklist", item);
+    }
   };
 
   const feitos = itens.filter((i) => i.feito).length;
   const progresso = itens.length ? Math.round((feitos / itens.length) * 100) : 0;
+  const carregando = status.modo === "carregando" && itens.length === 0;
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
-          Checklist de Viagem
-        </h1>
+        <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">Checklist de Viagem</h1>
         <p className="mt-2 text-sm text-[var(--color-muted)]">
-          Organize a bagagem e os preparativos por categoria. Marque o que já está pronto.
+          Organizem a bagagem e os preparativos por categoria. O que um marca aparece para o outro.
         </p>
       </div>
 
@@ -101,11 +110,15 @@ export default function ChecklistPage() {
           </span>
           <span className="text-sm font-semibold text-[var(--color-heading)]">{progresso}%</span>
         </div>
-        <div className="h-2.5 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden">
-          <div
-            className="h-full rounded-full bg-[var(--color-accent)] transition-all"
-            style={{ width: `${progresso}%` }}
-          />
+        <div
+          className="h-2.5 w-full rounded-full bg-black/10 dark:bg-white/10 overflow-hidden"
+          role="progressbar"
+          aria-valuenow={progresso}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Progresso do checklist"
+        >
+          <div className="h-full rounded-full bg-[var(--color-accent)] transition-all" style={{ width: `${progresso}%` }} />
         </div>
       </div>
 
@@ -113,52 +126,69 @@ export default function ChecklistPage() {
       <form onSubmit={adicionar} className="glass-panel rounded-2xl p-5 flex flex-col sm:flex-row gap-3">
         <input
           type="text"
+          aria-label="Novo item"
           value={novoTexto}
           onChange={(e) => setNovoTexto(e.target.value)}
           placeholder="Adicionar item (ex.: protetor solar)"
+          maxLength={120}
           className="glass-input flex-1"
         />
-        <select
-          value={novaCategoria}
-          onChange={(e) => setNovaCategoria(e.target.value)}
-          className="glass-input sm:max-w-[200px]"
-        >
+        <select aria-label="Categoria" value={novaCategoria} onChange={(e) => setNovaCategoria(e.target.value)} className="glass-input sm:max-w-[200px]">
           {CATEGORIAS.map((c) => (
             <option key={c} value={c}>{c}</option>
           ))}
         </select>
         <button
           type="submit"
-          className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
+          disabled={!ws}
+          className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
         >
           + Adicionar
         </button>
       </form>
 
+      {itens.length === 0 && !carregando && (
+        <div className="glass-panel rounded-2xl p-8 text-center">
+          <p className="text-sm text-[var(--color-muted)]">O checklist do casal está vazio.</p>
+          <button
+            type="button"
+            onClick={adicionarSugestoes}
+            disabled={!ws}
+            className="mt-4 px-4 py-2.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-60"
+          >
+            Começar com sugestões ({SUGESTOES.length} itens)
+          </button>
+        </div>
+      )}
+
       {/* Itens por categoria */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {CATEGORIAS.map((cat) => {
-          const doCat = itens.filter((i) => i.categoria === cat);
+        {categorias.map((cat) => {
+          const doCat = ordenados.filter((i) => i.categoria === cat);
           if (doCat.length === 0) return null;
           return (
-            <div key={cat} className="glass-panel rounded-2xl p-5">
+            <section key={cat} className="glass-panel rounded-2xl p-5" aria-label={cat}>
               <h2 className="font-serif text-lg font-bold text-[var(--color-heading)] mb-3">{cat}</h2>
               <ul className="space-y-2">
                 {doCat.map((item) => (
                   <li key={item.id} className="flex items-center gap-3 rounded-xl border border-[var(--color-border)] px-3 py-2.5">
                     <input
+                      id={`item-${item.id}`}
                       type="checkbox"
                       checked={item.feito}
-                      onChange={() => alternar(item.id)}
+                      onChange={() => atualizarRegistro("checklist", item.id, { feito: !item.feito })}
                       className="h-4 w-4 rounded border-[var(--color-border)] cursor-pointer"
                     />
-                    <span className={`flex-1 text-sm ${item.feito ? "line-through text-[var(--color-subtle)]" : "text-[var(--color-foreground)]"}`}>
+                    <label
+                      htmlFor={`item-${item.id}`}
+                      className={`flex-1 text-sm cursor-pointer ${item.feito ? "line-through text-[var(--color-subtle)]" : "text-[var(--color-foreground)]"}`}
+                    >
                       {item.texto}
-                    </span>
+                    </label>
                     <button
                       type="button"
-                      onClick={() => remover(item.id)}
-                      aria-label="Remover item"
+                      onClick={() => removerRegistro("checklist", item.id)}
+                      aria-label={`Remover ${item.texto}`}
                       className="text-xs text-[var(--color-muted)] hover:text-[var(--color-danger)] cursor-pointer"
                     >
                       ✕
@@ -166,7 +196,7 @@ export default function ChecklistPage() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </section>
           );
         })}
       </div>

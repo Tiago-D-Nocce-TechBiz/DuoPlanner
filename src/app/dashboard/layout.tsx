@@ -11,6 +11,9 @@ import { BrandLogo } from "@/components/brand/logo";
 import { NoraProvider } from "@/components/ai/nora-provider";
 import { NoraTrigger } from "@/components/ai/nora-trigger";
 import { NoraDrawer } from "@/components/ai/nora-drawer";
+import { SincronizacaoProvider } from "@/components/sync/sincronizacao-provider";
+import { AvisoSincronizacao } from "@/components/sync/aviso-sincronizacao";
+import { useStatusSync } from "@/lib/sync/motor";
 import {
   LayoutDashboard,
   Plane,
@@ -71,6 +74,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [modalSairAberto, setModalSairAberto] = useState(false);
+  const status = useStatusSync();
 
   return (
     <NoraProvider>
@@ -164,14 +168,21 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {/* Conteúdo da Rota */}
+        {/* Conteúdo da Rota (sincronização do casal: contexto, fila e Realtime) */}
         <main className="flex-1 p-6 sm:p-8 max-w-6xl w-full mx-auto">
-          {children}
+          <SincronizacaoProvider>
+            <AvisoSincronizacao />
+            {children}
+          </SincronizacaoProvider>
         </main>
       </div>
 
       {/* Confirmação ao clicar na logo ou em Sair: limpa os dados deste navegador */}
-      <SairModal aberto={modalSairAberto} onFechar={() => setModalSairAberto(false)} />
+      <SairModal
+        aberto={modalSairAberto}
+        onFechar={() => setModalSairAberto(false)}
+        pendenciasExtras={status.pendentes}
+      />
 
       {/* Painel lateral da Nora — acessível de qualquer rota do dashboard */}
       <NoraDrawer />

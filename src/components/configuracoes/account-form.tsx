@@ -1,133 +1,219 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { salvarPerfil } from "@/app/dashboard/sincronizacao-actions";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { readLocal, STORAGE_KEYS } from "@/lib/local-store";
+import { normalizarChavePix, ROTULOS_TIPO_CHAVE, TIPOS_CHAVE_PIX, type TipoChavePix } from "@/lib/pix/brcode";
+import type { PerfilProprio } from "@/lib/sync/contexto";
+import { atualizarContexto, useContextoSync } from "@/lib/sync/motor";
 
 /**
- * Formulário funcional de Configurações da conta e preferências de viagem.
+ * Perfil da conta (sincronizado no Postgres, tabela `perfis`).
  *
- * Os valores são carregados e salvos no navegador (localStorage), com feedback
- * de "salvo". Enquanto a sincronização via Supabase não é ligada para esta
- * área, isso garante que as alterações realmente persistem ao recarregar.
+ * - Nome exibido para o par, cidade/aeroporto base (a Nora usa como origem);
+ * - Chave Pix para RECEBER o acerto (o par vê só para pagar);
+ * - E-mails: alertas de preço e resumo semanal (dá para desligar).
+ *
+ * Antes, estes dados ficavam no localStorage e o par nunca os via.
  */
 
-interface ContaConfig {
-  nomeConta: string;
-  emailParceiro: string;
-  viajante1: string;
-  viajante2: string;
+interface Formulario {
+  nome: string;
   cidadeBase: string;
   iataBase: string;
-  moeda: string;
-  viajantesPadrao: string;
+  receberPix: boolean;
+  tipoPix: TipoChavePix;
+  chavePix: string;
+  nomeRecebedor: string;
+  cidadePix: string;
+  emailAlertas: boolean;
+  emailResumoSemanal: boolean;
 }
 
-const PADRAO: ContaConfig = {
-  nomeConta: "Minha Conta",
-  emailParceiro: "",
-  viajante1: "",
-  viajante2: "",
-  cidadeBase: "",
-  iataBase: "",
-  moeda: "Real (R$)",
-  viajantesPadrao: "2",
-};
+function formularioDoPerfil(perfil: PerfilProprio | null): Formulario {
+  // Primeira vez: aproveita o que estava nas Configurações antigas (navegador).
+  const antigo = readLocal<{ viajante1?: string; nomeConta?: string; cidadeBase?: string; iataBase?: string }>(STORAGE_KEYS.conta, {});
+  return {
+    nome: perfil?.nome || antigo.viajante1 || "",
+    cidadeBase: perfil?.cidadeBase || antigo.cidadeBase || "",
+    iataBase: perfil?.iataBase || antigo.iataBase || "",
+    receberPix: Boolean(perfil?.pix),
+    tipoPix: perfil?.pix?.tipo ?? "email",
+    chavePix: perfil?.pix?.chave ?? "",
+    nomeRecebedor: perfil?.pix?.nomeRecebedor ?? "",
+    cidadePix: perfil?.pix?.cidade ?? "",
+    emailAlertas: perfil?.emailAlertas ?? true,
+    emailResumoSemanal: perfil?.emailResumoSemanal ?? true,
+  };
+}
 
 export function AccountForm() {
-  const [form, setForm] = useState<ContaConfig>(() =>
-    readLocal<ContaConfig>(STORAGE_KEYS.conta, PADRAO)
-  );
-  const [salvo, setSalvo] = useState(false);
+  const ctx = useContextoSync();
+  if (!ctx) {
+    return <Card className="p-6 text-sm text-muted">Carregando seu perfil…</Card>;
+  }
+  if (!ctx.servidorPronto) {
+    return (
+      <Card className="p-6 text-sm text-muted">
+        O perfil (nome, chave Pix e e-mails) fica disponível quando o banco deste ambiente for atualizado.
+      </Card>
+    );
+  }
+  // key: recomeça o formulário se o perfil mudar em outro aparelho.
+  return <FormularioPerfil key={JSON.stringify(ctx.perfil)} perfil={ctx.perfil} />;
+}
 
-  function campo(key: keyof ContaConfig) {
-    return {
-      value: form[key],
-      onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForm((prev) => ({ ...prev, [key]: e.target.value }));
-        setSalvo(false);
-      },
-    };
+function FormularioPerfil({ perfil }: { perfil: PerfilProprio | null }) {
+  const ctx = useContextoSync();
+  const [form, setForm] = useState<Formulario>(() => formularioDoPerfil(perfil));
+  const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [salvando, startSalvar] = useTransition();
+
+  function campo<K extends keyof Formulario>(chave: K, valor: Formulario[K]) {
+    setForm((atual) => ({ ...atual, [chave]: valor }));
+    setMensagem(null);
   }
 
   function salvar(e: React.FormEvent) {
     e.preventDefault();
-    writeLocal(STORAGE_KEYS.conta, form);
-    setSalvo(true);
-    setTimeout(() => setSalvo(false), 2500);
-  }
-
-  function cancelar() {
-    setForm(readLocal<ContaConfig>(STORAGE_KEYS.conta, PADRAO));
-    setSalvo(false);
+    if (form.receberPix) {
+      const chave = normalizarChavePix(form.tipoPix, form.chavePix);
+      if (!chave.ok) return setMensagem({ tipo: "erro", texto: chave.erro });
+    }
+    startSalvar(async () => {
+      try {
+        const r = await salvarPerfil({
+          nome: form.nome,
+          cidadeBase: form.cidadeBase,
+          iataBase: form.iataBase,
+          pix: form.receberPix
+            ? { tipo: form.tipoPix, chave: form.chavePix, nomeRecebedor: form.nomeRecebedor, cidade: form.cidadePix }
+            : null,
+          emailAlertas: form.emailAlertas,
+          emailResumoSemanal: form.emailResumoSemanal,
+        });
+        if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem });
+        if (ctx) {
+          atualizarContexto({
+            perfil: r.perfil,
+            membros: ctx.membros.map((m) => (m.userId === ctx.userId ? { ...m, nome: r.perfil.nome, pix: r.perfil.pix } : m)),
+          });
+        }
+        setMensagem({ tipo: "ok", texto: "Perfil salvo." });
+      } catch {
+        setMensagem({ tipo: "erro", texto: "Sem conexão: o perfil não foi salvo. Tente de novo quando a internet voltar." });
+      }
+    });
   }
 
   return (
     <form onSubmit={salvar} className="space-y-6">
       <Card className="p-6">
-        <h2 className="font-serif text-xl font-semibold">Dados da conta</h2>
-        <p className="mt-1 text-sm text-muted">Como vocês aparecem no DuoPlanner.</p>
+        <h2 className="font-serif text-xl font-semibold">Seu perfil</h2>
+        <p className="mt-1 text-sm text-muted">Como você aparece para o seu par e de onde costumam sair.</p>
         <div className="mt-5 grid gap-5 sm:grid-cols-2">
-          <ControlledField id="nomeConta" label="Nome da conta" {...campo("nomeConta")} />
-          <ControlledField id="emailParceiro" label="E-mail do parceiro(a)" type="email" placeholder="parceiro@exemplo.com" {...campo("emailParceiro")} />
-          <ControlledField id="viajante1" label="Viajante 1" placeholder="Seu nome" {...campo("viajante1")} />
-          <ControlledField id="viajante2" label="Viajante 2" placeholder="Nome do parceiro(a)" {...campo("viajante2")} />
+          <Campo id="nome" rotulo="Seu nome" valor={form.nome} onChange={(v) => campo("nome", v)} maxLength={80} obrigatorio />
+          <Campo id="cidadeBase" rotulo="Cidade base (origem)" valor={form.cidadeBase} onChange={(v) => campo("cidadeBase", v)} placeholder="Ex.: Belo Horizonte" maxLength={80} />
+          <Campo id="iataBase" rotulo="Aeroporto base (IATA)" valor={form.iataBase} onChange={(v) => campo("iataBase", v.toUpperCase())} placeholder="Ex.: CNF" maxLength={3} />
         </div>
       </Card>
 
       <Card className="p-6">
-        <h2 className="font-serif text-xl font-semibold">Preferências da viagem</h2>
-        <p className="mt-1 text-sm text-muted">Padrões usados ao montar buscas e finanças.</p>
-        <div className="mt-5 grid gap-5 sm:grid-cols-2">
-          <ControlledField id="cidadeBase" label="Cidade base (origem)" placeholder="Ex.: Belo Horizonte" {...campo("cidadeBase")} />
-          <ControlledField id="iataBase" label="Aeroporto base (IATA)" placeholder="Ex.: CNF" {...campo("iataBase")} />
-          <ControlledField id="moeda" label="Moeda" {...campo("moeda")} />
-          <ControlledField id="viajantesPadrao" label="Viajantes padrão" type="number" {...campo("viajantesPadrao")} />
+        <h2 className="font-serif text-xl font-semibold">Receber o acerto pelo Pix</h2>
+        <p className="mt-1 text-sm text-muted">
+          Com a chave cadastrada, seu par paga o saldo com um “Pix Copia e Cola” gerado no Acerto de Contas. Só ele vê a chave.
+        </p>
+        <label className="mt-4 inline-flex items-center gap-2 text-sm text-heading">
+          <input type="checkbox" checked={form.receberPix} onChange={(e) => campo("receberPix", e.target.checked)} />
+          Cadastrar chave Pix
+        </label>
+        {form.receberPix && (
+          <div className="mt-4 grid gap-5 sm:grid-cols-2">
+            <div>
+              <label htmlFor="tipoPix" className="mb-1.5 block text-sm font-medium text-muted">Tipo de chave</label>
+              <select
+                id="tipoPix"
+                value={form.tipoPix}
+                onChange={(e) => campo("tipoPix", e.target.value as TipoChavePix)}
+                className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-heading"
+              >
+                {TIPOS_CHAVE_PIX.map((t) => (
+                  <option key={t} value={t}>{ROTULOS_TIPO_CHAVE[t]}</option>
+                ))}
+              </select>
+            </div>
+            <Campo id="chavePix" rotulo="Chave Pix" valor={form.chavePix} onChange={(v) => campo("chavePix", v)} maxLength={120} obrigatorio />
+            <Campo id="nomeRecebedor" rotulo="Nome de quem recebe (até 25 letras)" valor={form.nomeRecebedor} onChange={(v) => campo("nomeRecebedor", v)} maxLength={25} obrigatorio />
+            <Campo id="cidadePix" rotulo="Cidade (até 15 letras)" valor={form.cidadePix} onChange={(v) => campo("cidadePix", v)} maxLength={15} obrigatorio />
+          </div>
+        )}
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="font-serif text-xl font-semibold">E-mails</h2>
+        <div className="mt-4 space-y-3">
+          <label className="flex items-start gap-2 text-sm text-heading">
+            <input type="checkbox" className="mt-1" checked={form.emailAlertas} onChange={(e) => campo("emailAlertas", e.target.checked)} />
+            <span>
+              Alertas de queda de preço
+              <span className="block text-xs text-muted">Quando um alerta que você criou chegar ao preço-alvo.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-2 text-sm text-heading">
+            <input type="checkbox" className="mt-1" checked={form.emailResumoSemanal} onChange={(e) => campo("emailResumoSemanal", e.target.checked)} />
+            <span>
+              Resumo semanal do orçamento da viagem
+              <span className="block text-xs text-muted">Toda segunda: gastos da semana, saldo do acerto e o que é só seu.</span>
+            </span>
+          </label>
         </div>
       </Card>
 
       <div className="flex items-center justify-end gap-3">
-        {salvo && <span className="text-sm text-[var(--color-heading)]">✓ Alterações salvas</span>}
-        <Button type="button" variant="secondary" onClick={cancelar}>
-          Cancelar
-        </Button>
-        <Button type="submit" variant="primary">
-          Salvar alterações
+        {mensagem && (
+          <span role={mensagem.tipo === "erro" ? "alert" : "status"} className={`text-sm ${mensagem.tipo === "erro" ? "text-danger" : "text-heading"}`}>
+            {mensagem.tipo === "ok" ? "✓ " : ""}
+            {mensagem.texto}
+          </span>
+        )}
+        <Button type="submit" variant="primary" disabled={salvando}>
+          {salvando ? "Salvando…" : "Salvar alterações"}
         </Button>
       </div>
     </form>
   );
 }
 
-/** Field controlado (o Field base é não-controlado; aqui passamos value/onChange). */
-function ControlledField({
+function Campo({
   id,
-  label,
-  type = "text",
-  placeholder,
-  value,
+  rotulo,
+  valor,
   onChange,
+  placeholder,
+  maxLength,
+  obrigatorio,
 }: {
   id: string;
-  label: string;
-  type?: string;
+  rotulo: string;
+  valor: string;
+  onChange: (valor: string) => void;
   placeholder?: string;
-  value: string;
-  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  maxLength?: number;
+  obrigatorio?: boolean;
 }) {
   return (
     <div>
-      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-muted">
-        {label}
-      </label>
+      <label htmlFor={id} className="mb-1.5 block text-sm font-medium text-muted">{rotulo}</label>
       <input
         id={id}
         name={id}
-        type={type}
+        value={valor}
         placeholder={placeholder}
-        value={value}
-        onChange={onChange}
+        maxLength={maxLength}
+        required={obrigatorio}
+        onChange={(e) => onChange(e.target.value)}
         className="h-11 w-full rounded-xl border border-border bg-background px-3.5 text-sm text-heading placeholder:text-subtle transition-colors focus:border-border-strong focus:outline-none focus:ring-2 focus:ring-border-strong/40"
       />
     </div>

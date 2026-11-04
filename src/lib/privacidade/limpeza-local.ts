@@ -36,6 +36,10 @@ export function cacheDoUsuario(nome: string): boolean {
 /** Limpa storage, caches do SW com dados do usuário e avisa os stores. */
 export async function limparDadosLocais(): Promise<void> {
   if (typeof window === "undefined") return;
+  // 1º avisa os stores (síncrono): o motor de sincronização para, cancela as
+  // gravações agendadas e esquece o usuário. Se a ordem fosse a inversa, uma
+  // gravação pendente poderia reescrever `pd-sync:*` depois da limpeza.
+  window.dispatchEvent(new Event(EVENTO_DADOS_LIMPOS));
   try {
     limparChavesDoStorage(window.localStorage);
   } catch {
@@ -47,6 +51,11 @@ export async function limparDadosLocais(): Promise<void> {
     // idem
   }
   try {
+    navigator.serviceWorker?.controller?.postMessage({ tipo: "limpar-dados-usuario" });
+  } catch {
+    // Sem Service Worker ativo.
+  }
+  try {
     if ("caches" in window) {
       const nomes = await caches.keys();
       await Promise.all(nomes.filter(cacheDoUsuario).map((nome) => caches.delete(nome)));
@@ -54,10 +63,4 @@ export async function limparDadosLocais(): Promise<void> {
   } catch {
     // Cache Storage indisponível (ex.: http em desenvolvimento).
   }
-  try {
-    navigator.serviceWorker?.controller?.postMessage({ tipo: "limpar-dados-usuario" });
-  } catch {
-    // Sem Service Worker ativo.
-  }
-  window.dispatchEvent(new Event(EVENTO_DADOS_LIMPOS));
 }

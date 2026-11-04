@@ -37,6 +37,8 @@ export interface GastoDoRecibo {
   descricao: string;
   valor: number;
   moeda: string;
+  /** 1 unidade da moeda em reais (null para BRL). */
+  cotacaoBrl: number | null;
   data: string; // AAAA-MM-DD
   categoria: Categoria;
   escopo: Escopo;
@@ -98,17 +100,20 @@ interface Rascunho {
   descricao: string;
   valor: string;
   moeda: string;
+  cotacao: string;
   data: string;
   categoria: Categoria;
   escopo: Escopo;
 }
 
-function rascunhoDaProposta(proposta: PropostaRecibo): Rascunho {
+function rascunhoDaProposta(proposta: PropostaRecibo, taxas: Record<string, number>): Rascunho {
   const { categoria, escopo } = escopoSugeridoParaRecibo(proposta);
+  const taxa = taxas[proposta.moeda];
   return {
     descricao: proposta.titulo,
     valor: proposta.valor.toFixed(2).replace(".", ","),
     moeda: proposta.moeda,
+    cotacao: proposta.moeda !== "BRL" && taxa ? taxa.toFixed(4).replace(".", ",") : "",
     data: proposta.data,
     categoria,
     escopo,
@@ -117,8 +122,11 @@ function rascunhoDaProposta(proposta: PropostaRecibo): Rascunho {
 
 export function ReceiptScanner({
   onConfirmar,
+  taxas = {},
 }: {
   onConfirmar: (gasto: GastoDoRecibo) => void | Promise<void>;
+  /** Cotação do dia (1 unidade = X reais) para gastos em moeda estrangeira. */
+  taxas?: Record<string, number>;
 }) {
   const inputCamera = useRef<HTMLInputElement>(null);
   const inputArquivo = useRef<HTMLInputElement>(null);
@@ -144,7 +152,7 @@ export function ReceiptScanner({
           setErro(resultado.message);
           return;
         }
-        setRascunho(rascunhoDaProposta(resultado.proposta));
+        setRascunho(rascunhoDaProposta(resultado.proposta, taxas));
         setAvisos(resultado.avisos);
       } catch (e) {
         setErro(e instanceof Error ? e.message : "Não foi possível ler o arquivo.");
@@ -172,11 +180,20 @@ export function ReceiptScanner({
       setErro("Informe a data do gasto.");
       return;
     }
+    let cotacaoBrl: number | null = null;
+    if (rascunho.moeda !== "BRL") {
+      cotacaoBrl = parseValorMonetario(rascunho.cotacao);
+      if (cotacaoBrl === null || cotacaoBrl <= 0) {
+        setErro(`Informe quanto vale 1 ${rascunho.moeda} em reais.`);
+        return;
+      }
+    }
     setErro(null);
     const gasto: GastoDoRecibo = {
       descricao: rascunho.descricao.trim().slice(0, 120),
       valor,
       moeda: rascunho.moeda,
+      cotacaoBrl,
       data: rascunho.data,
       categoria: rascunho.categoria,
       escopo: rascunho.escopo,
@@ -254,12 +271,36 @@ export function ReceiptScanner({
             </label>
             <label className="text-xs text-[var(--color-muted)]">
               Moeda
-              <select value={rascunho.moeda} onChange={(e) => atualizar("moeda", e.target.value)} className="glass-input mt-1">
+              <select
+                value={rascunho.moeda}
+                onChange={(e) => {
+                  const moeda = e.target.value;
+                  const taxa = taxas[moeda];
+                  setRascunho((atual) =>
+                    atual
+                      ? { ...atual, moeda, cotacao: moeda !== "BRL" && taxa ? taxa.toFixed(4).replace(".", ",") : "" }
+                      : atual
+                  );
+                }}
+                className="glass-input mt-1"
+              >
                 {[...new Set([rascunho.moeda, ...MOEDAS])].map((m) => (
                   <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </label>
+            {rascunho.moeda !== "BRL" && (
+              <label className="sm:col-span-2 text-xs text-[var(--color-muted)]">
+                1 {rascunho.moeda} em reais (cotação usada no acerto)
+                <input
+                  value={rascunho.cotacao}
+                  onChange={(e) => atualizar("cotacao", e.target.value)}
+                  inputMode="decimal"
+                  placeholder="ex.: 5,43"
+                  className="glass-input mt-1"
+                />
+              </label>
+            )}
             <label className="text-xs text-[var(--color-muted)]">
               Data
               <input type="date" value={rascunho.data} onChange={(e) => atualizar("data", e.target.value)} className="glass-input mt-1" />

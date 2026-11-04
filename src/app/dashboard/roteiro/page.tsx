@@ -1,135 +1,143 @@
 "use client";
 
-import { useState } from "react";
-import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
-import { Map } from "@/components/ui/icons";
+import { useMemo } from "react";
+import { Map as IconeMapa } from "@/components/ui/icons";
+import type { RoteiroDia, RoteiroItem } from "@/lib/sync/modelos";
+import {
+  atualizarRegistro,
+  criarRegistro,
+  removerRegistro,
+  useContextoSync,
+  useRegistros,
+} from "@/lib/sync/motor";
 
 /**
- * Roteiro funcional — organiza a viagem em dias, cada um com itens
- * (horário + atividade + nota). Os dados persistem no navegador (localStorage),
- * então não se perdem ao recarregar. Pronto para, depois, sincronizar no
- * Supabase via a tabela `roteiro_itens`. 100% em PT-BR.
+ * Roteiro do casal — dias e atividades sincronizados (Postgres + Realtime).
+ *
+ * O que um muda aparece para o outro na hora; offline, a última cópia fica no
+ * aparelho e as alterações sobem quando a conexão voltar. Cada tecla vira uma
+ * única atualização na fila (as edições ainda não enviadas se combinam).
  */
 
-interface ItemRoteiro {
-  id: string;
-  horario: string;
-  titulo: string;
-  nota: string;
-}
-
-interface DiaRoteiro {
-  id: string;
-  data: string; // ISO yyyy-mm-dd (opcional)
-  itens: ItemRoteiro[];
-}
-
-const novoId = () => Math.random().toString(36).substring(2, 9);
-
-function formatarData(iso: string): string {
+function formatarData(iso: string | null): string {
   if (!iso) return "Dia sem data";
   const [y, m, d] = iso.split("-");
   return `${d}/${m}/${y}`;
 }
 
+const proximaOrdem = (lista: { ordem: number }[]) => lista.reduce((max, x) => Math.max(max, x.ordem), -1) + 1;
+
 export default function RoteiroPage() {
-  const [dias, setDiasState] = useState<DiaRoteiro[]>(() =>
-    readLocal<DiaRoteiro[]>(STORAGE_KEYS.roteiro, [])
+  const dias = useRegistros("roteiro_dias");
+  const itens = useRegistros("roteiro_itens");
+  const ctx = useContextoSync();
+  const ws = ctx?.workspace?.id ?? null;
+
+  const diasOrdenados = useMemo(
+    () => [...dias].sort((a, b) => a.ordem - b.ordem || (a.data ?? "").localeCompare(b.data ?? "")),
+    [dias]
   );
+  const itensPorDia = useMemo(() => {
+    const mapa = new Map<string, RoteiroItem[]>();
+    for (const item of itens) {
+      if (!item.diaId) continue;
+      mapa.set(item.diaId, [...(mapa.get(item.diaId) ?? []), item]);
+    }
+    for (const lista of mapa.values()) lista.sort((a, b) => a.ordem - b.ordem);
+    return mapa;
+  }, [itens]);
 
-  // Toda alteração persiste no navegador para o roteiro não se perder.
-  function setDias(updater: (prev: DiaRoteiro[]) => DiaRoteiro[]) {
-    setDiasState((prev) => {
-      const next = updater(prev);
-      writeLocal(STORAGE_KEYS.roteiro, next);
-      return next;
-    });
-  }
+  const agora = () => new Date().toISOString();
 
-  const adicionarDia = () =>
-    setDias((prev) => [...prev, { id: novoId(), data: "", itens: [] }]);
+  const adicionarDia = () => {
+    if (!ctx || !ws) return;
+    const dia: RoteiroDia = {
+      id: crypto.randomUUID(),
+      workspaceId: ws,
+      userId: ctx.userId,
+      data: null,
+      ordem: proximaOrdem(dias),
+      atualizadoEm: agora(),
+      atualizadoPor: ctx.userId,
+    };
+    criarRegistro("roteiro_dias", dia);
+  };
 
-  const removerDia = (id: string) =>
-    setDias((prev) => prev.filter((d) => d.id !== id));
+  const removerDia = (id: string) => {
+    // Itens antes do dia: atividades ainda não enviadas desse dia nem saem.
+    for (const item of itensPorDia.get(id) ?? []) removerRegistro("roteiro_itens", item.id);
+    removerRegistro("roteiro_dias", id);
+  };
 
-  const atualizarData = (id: string, data: string) =>
-    setDias((prev) => prev.map((d) => (d.id === id ? { ...d, data } : d)));
+  const adicionarItem = (diaId: string) => {
+    if (!ctx || !ws) return;
+    const item: RoteiroItem = {
+      id: crypto.randomUUID(),
+      workspaceId: ws,
+      diaId,
+      horario: "",
+      titulo: "",
+      nota: "",
+      ordem: proximaOrdem(itensPorDia.get(diaId) ?? []),
+      atualizadoEm: agora(),
+      atualizadoPor: ctx.userId,
+    };
+    criarRegistro("roteiro_itens", item);
+  };
 
-  const adicionarItem = (diaId: string) =>
-    setDias((prev) =>
-      prev.map((d) =>
-        d.id === diaId
-          ? { ...d, itens: [...d.itens, { id: novoId(), horario: "", titulo: "", nota: "" }] }
-          : d
-      )
-    );
-
-  const atualizarItem = (diaId: string, itemId: string, campo: keyof ItemRoteiro, valor: string) =>
-    setDias((prev) =>
-      prev.map((d) =>
-        d.id === diaId
-          ? { ...d, itens: d.itens.map((it) => (it.id === itemId ? { ...it, [campo]: valor } : it)) }
-          : d
-      )
-    );
-
-  const removerItem = (diaId: string, itemId: string) =>
-    setDias((prev) =>
-      prev.map((d) =>
-        d.id === diaId ? { ...d, itens: d.itens.filter((it) => it.id !== itemId) } : d
-      )
-    );
+  const semEspaco = !ws;
 
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
         <div>
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">Roteiro</h1>
-          <p className="mt-2 text-sm text-[var(--color-muted)]">Organize a viagem dia a dia, a dois.</p>
+          <p className="mt-2 text-sm text-[var(--color-muted)]">Organizem a viagem dia a dia, juntos e em tempo real.</p>
         </div>
         <button
           type="button"
           onClick={adicionarDia}
-          className="self-start sm:self-auto px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
+          disabled={semEspaco}
+          className="self-start sm:self-auto px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
         >
           + Adicionar dia
         </button>
       </div>
 
-      {dias.length === 0 ? (
+      {diasOrdenados.length === 0 ? (
         <div className="glass-panel rounded-2xl p-16 text-center">
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-black/5 dark:bg-white/10 text-[var(--color-heading)]">
-            <Map className="h-6 w-6" />
+            <IconeMapa className="h-6 w-6" />
           </div>
           <h2 className="font-serif text-2xl font-semibold text-[var(--color-heading)]">Ainda sem roteiro</h2>
           <p className="mt-2 max-w-sm mx-auto text-sm text-[var(--color-muted)]">
-            Crie o primeiro dia da viagem e comece a adicionar atividades, reservas e anotações.
+            {semEspaco
+              ? "Preparando o espaço do casal…"
+              : "Crie o primeiro dia da viagem e comece a adicionar atividades, reservas e anotações."}
           </p>
           <button
             type="button"
             onClick={adicionarDia}
-            className="mt-6 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer"
+            disabled={semEspaco}
+            className="mt-6 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
           >
             + Adicionar dia
           </button>
         </div>
       ) : (
         <div className="space-y-6">
-          {dias.map((dia, idx) => (
-            <div key={dia.id} className="glass-panel rounded-2xl p-6">
+          {diasOrdenados.map((dia, idx) => (
+            <section key={dia.id} className="glass-panel rounded-2xl p-6" aria-label={`Dia ${idx + 1}`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
-                  <span className="font-serif text-2xl font-bold text-[var(--color-subtle)]">
-                    {String(idx + 1).padStart(2, "0")}
-                  </span>
+                  <span className="font-serif text-2xl font-bold text-[var(--color-subtle)]">{String(idx + 1).padStart(2, "0")}</span>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">
-                      {formatarData(dia.data)}
-                    </p>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">{formatarData(dia.data)}</p>
                     <input
                       type="date"
-                      value={dia.data}
-                      onChange={(e) => atualizarData(dia.id, e.target.value)}
+                      aria-label={`Data do dia ${idx + 1}`}
+                      value={dia.data ?? ""}
+                      onChange={(e) => atualizarRegistro("roteiro_dias", dia.id, { data: e.target.value || null })}
                       className="glass-input mt-1 max-w-[180px]"
                     />
                   </div>
@@ -144,32 +152,37 @@ export default function RoteiroPage() {
               </div>
 
               <div className="space-y-2.5">
-                {dia.itens.map((item) => (
-                  <div key={item.id} className="rounded-xl border border-[var(--color-border)] p-3 grid grid-cols-1 sm:grid-cols-[90px_1fr_1fr_auto] gap-2.5 items-center">
+                {(itensPorDia.get(dia.id) ?? []).map((item) => (
+                  <div key={item.id} className="rounded-xl border border-[var(--color-border)] p-3 grid grid-cols-1 sm:grid-cols-[100px_1fr_1fr_auto] gap-2.5 items-center">
                     <input
                       type="time"
+                      aria-label="Horário"
                       value={item.horario}
-                      onChange={(e) => atualizarItem(dia.id, item.id, "horario", e.target.value)}
+                      onChange={(e) => atualizarRegistro("roteiro_itens", item.id, { horario: e.target.value })}
                       className="glass-input"
                     />
                     <input
                       type="text"
+                      aria-label="Atividade"
                       placeholder="Atividade (ex.: passeio de barco)"
                       value={item.titulo}
-                      onChange={(e) => atualizarItem(dia.id, item.id, "titulo", e.target.value)}
+                      maxLength={120}
+                      onChange={(e) => atualizarRegistro("roteiro_itens", item.id, { titulo: e.target.value })}
                       className="glass-input"
                     />
                     <input
                       type="text"
+                      aria-label="Nota ou reserva"
                       placeholder="Nota / reserva (opcional)"
                       value={item.nota}
-                      onChange={(e) => atualizarItem(dia.id, item.id, "nota", e.target.value)}
+                      maxLength={500}
+                      onChange={(e) => atualizarRegistro("roteiro_itens", item.id, { nota: e.target.value })}
                       className="glass-input"
                     />
                     <button
                       type="button"
-                      onClick={() => removerItem(dia.id, item.id)}
-                      aria-label="Remover item"
+                      onClick={() => removerRegistro("roteiro_itens", item.id)}
+                      aria-label="Remover atividade"
                       className="justify-self-end px-2.5 py-2 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
                     >
                       ✕
@@ -185,7 +198,7 @@ export default function RoteiroPage() {
               >
                 + Adicionar atividade
               </button>
-            </div>
+            </section>
           ))}
         </div>
       )}
