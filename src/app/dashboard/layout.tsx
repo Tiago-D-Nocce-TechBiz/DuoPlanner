@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { InviteButton } from "@/components/dashboard/invite-button";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { SairModal } from "@/components/dashboard/sair-modal";
 import { BrandLogo } from "@/components/brand/logo";
 import { NoraProvider } from "@/components/ai/nora-provider";
 import { NoraTrigger } from "@/components/ai/nora-trigger";
 import { NoraDrawer } from "@/components/ai/nora-drawer";
-import { logoutAction } from "@/app/(auth)/actions";
 import {
   LayoutDashboard,
   Plane,
@@ -71,14 +71,6 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname();
   const [modalSairAberto, setModalSairAberto] = useState(false);
-  const [saindo, startSaida] = useTransition();
-
-  // Encerra a sessão real no Supabase e volta à Landing Page.
-  const confirmarSaida = () => {
-    startSaida(async () => {
-      await logoutAction();
-    });
-  };
 
   return (
     <NoraProvider>
@@ -178,36 +170,8 @@ export default function DashboardLayout({
         </main>
       </div>
 
-      {/* Modal de Confirmação ao Clicar na Logo ou em Sair */}
-      {modalSairAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="glass-panel rounded-2xl p-6 max-w-md w-full">
-            <h3 className="font-serif text-xl font-bold text-[var(--color-heading)]">
-              Deseja realmente encerrar a sessão?
-            </h3>
-            <p className="mt-2 text-sm text-[var(--color-muted)]">
-              Ao confirmar, sua sessão atual será encerrada e você retornará à página inicial (Landing Page) do DuoPlanner.
-            </p>
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setModalSairAberto(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
-              >
-                Permanecer conectado
-              </button>
-              <button
-                type="button"
-                onClick={confirmarSaida}
-                disabled={saindo}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
-              >
-                {saindo ? "Encerrando…" : "Sim, encerrar e ir ao início"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Confirmação ao clicar na logo ou em Sair: limpa os dados deste navegador */}
+      <SairModal aberto={modalSairAberto} onFechar={() => setModalSairAberto(false)} />
 
       {/* Painel lateral da Nora — acessível de qualquer rota do dashboard */}
       <NoraDrawer />

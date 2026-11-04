@@ -13,6 +13,11 @@ const nextConfig: NextConfig = {
     // Fotos das hospedagens vêm do CDN da Booking.com.
     remotePatterns: [{ protocol: "https", hostname: "**.bstatic.com" }],
   },
+  // Rotas consolidadas: /registo era cópia de /cadastro. `permanent: true`
+  // responde 308 (preserva método e query, ex.: ?convite=CODIGO).
+  async redirects() {
+    return [{ source: "/registo", destination: "/cadastro", permanent: true }];
+  },
   turbopack: {
     rules: {
       "*.css": {

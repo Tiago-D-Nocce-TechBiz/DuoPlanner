@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { exigirSessaoApi } from "@/lib/auth/sessao";
 import { loadPreferencesSafe } from "@/lib/memory/store";
+import { consumirCota, respostaCotaNegada } from "@/lib/seguranca/cotas";
 import {
   invalidParamsResponse,
   notConfiguredResponse,
@@ -31,11 +33,16 @@ import type { FlightSearchResponse } from "@/lib/travel/types";
  *
  * Exemplo: /api/flights?from=GRU&to=LIS&dateFrom=2026-12-01&dateTo=2026-12-10&nightsFrom=7&nightsTo=10
  *
- * Resposta: FlightSearchResponse (preços totais e por pessoa, em BRL).
- * Com Cache Components, a leitura da query torna o handler dinâmico; o cache
- * fica na chamada à Kiwi (`fetchKiwiOffers`, 10 min).
+ * Ordem: sessão (401) → parâmetros (400) → cota por usuário (429) → Kiwi.
+ * A sessão é verificada aqui mesmo que o proxy já filtre: defesa em camadas.
+ * A cota vem depois da validação para um erro de digitação não gastar o
+ * limite. O cache fica na chamada à Kiwi (`fetchKiwiOffers`, 10 min).
  */
 export async function GET(request: NextRequest) {
+  const auth = await exigirSessaoApi();
+  if (!auth.ok) return auth.resposta;
+  const { supabase, userId } = auth.sessao;
+
   const parsed = parseFlightSearchParams(request.nextUrl.searchParams);
   if (!parsed.success) return invalidParamsResponse(parsed.error);
 
@@ -45,6 +52,9 @@ export async function GET(request: NextRequest) {
       "Motor de voos indisponível: defina KIWI_API_KEY (chave de parceiro Tequila da Kiwi.com)."
     );
   }
+
+  const cota = await consumirCota(supabase, userId, "voos");
+  if (!cota.permitido) return respostaCotaNegada(cota);
 
   const preferences = parsed.data.memory ? await loadPreferencesSafe() : {};
   const { query, applied } = applyFlightPreferences(parsed.data, preferences);

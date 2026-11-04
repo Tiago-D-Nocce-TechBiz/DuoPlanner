@@ -1,38 +1,35 @@
 "use server";
 
-import { refresh } from "next/cache";
 import { AiNotConfiguredError, isGeminiConfigured } from "@/lib/ai/model";
-import { runReceiptAgent, type ExtractedExpense } from "@/lib/ai/receipt-agent";
+import { runReceiptAgent } from "@/lib/ai/receipt-agent";
+import type { PropostaRecibo } from "@/lib/finance/recibo";
 import { parseBase64Upload } from "@/lib/ai/upload";
+import { obterSessao } from "@/lib/auth/sessao";
 import { todayInSaoPaulo } from "@/lib/dates";
-import {
-  createSupabaseServerClient,
-  getCurrentUserId,
-} from "@/lib/supabase/server";
+import { consumirCota } from "@/lib/seguranca/cotas";
 
 /**
- * Finanças Duo — OCR de notas fiscais e recibos com IA.
+ * Finanças Duo — leitura de recibos e comprovantes Pix com IA (Gemini Vision).
  *
- * Fluxo: valida o arquivo → Agente de Leitura de Recibos (LangGraph + Gemini
- * Vision) extrai { titulo, valor, data } → a despesa é inserida em
- * `despesas` no Supabase → a página é atualizada com refresh().
+ * Fluxo: sessão (getClaims) → valida o arquivo → cota "ia" do usuário →
+ * agente LangGraph extrai { titulo, estabelecimento, valor, data, moeda,
+ * categoria } → devolve uma PROPOSTA. Nada é gravado aqui: o usuário revisa
+ * e confirma na tela, e só então o gasto entra na fila de sincronização.
+ *
+ * Antes, esta action gravava direto em `despesas` e funcionava sem login
+ * (user_id nulo), porque Server Actions aceitam POST em qualquer rota.
  *
  * Nunca lança para o cliente: devolve sempre um resultado com mensagem em PT-BR.
  */
 
 export type ReceiptScanResult =
-  | {
-      ok: true;
-      despesa: ExtractedExpense;
-      salvo: boolean;
-      avisos: string[];
-      message: string;
-    }
+  | { ok: true; proposta: PropostaRecibo; avisos: string[] }
   | { ok: false; message: string };
 
-export async function processReceiptImage(
-  base64Image: string
-): Promise<ReceiptScanResult> {
+export async function processReceiptImage(base64Image: string): Promise<ReceiptScanResult> {
+  const auth = await obterSessao();
+  if (!auth.ok) return { ok: false, message: auth.mensagem };
+
   const upload = parseBase64Upload(base64Image);
   if (!upload.ok) return upload;
 
@@ -40,36 +37,24 @@ export async function processReceiptImage(
     return { ok: false, message: new AiNotConfiguredError().message };
   }
 
+  const cota = await consumirCota(auth.sessao.supabase, auth.sessao.userId, "ia");
+  if (!cota.permitido) return { ok: false, message: cota.mensagem };
+
   try {
-    const supabase = await createSupabaseServerClient();
-    const userId = supabase ? await getCurrentUserId(supabase) : null;
-
-    const state = await runReceiptAgent(
-      { mimeType: upload.mimeType, base64: upload.base64, hoje: todayInSaoPaulo() },
-      { supabase, userId }
-    );
-
-    if (state.erro || !state.despesa) {
-      return { ok: false, message: state.erro ?? "Não foi possível ler o recibo." };
+    const state = await runReceiptAgent({
+      mimeType: upload.mimeType,
+      base64: upload.base64,
+      hoje: todayInSaoPaulo(),
+    });
+    if (state.erro || !state.proposta) {
+      return { ok: false, message: state.erro ?? "Não foi possível ler o comprovante." };
     }
-
-    const salvo = Boolean(state.despesaId);
-    if (salvo) refresh();
-
-    return {
-      ok: true,
-      despesa: state.despesa,
-      salvo,
-      avisos: state.avisos,
-      message: salvo
-        ? "Despesa registrada nas Finanças Duo."
-        : "Recibo lido, mas a despesa não foi salva.",
-    };
+    return { ok: true, proposta: state.proposta, avisos: state.avisos };
   } catch (error) {
     console.error("[processReceiptImage]", error);
     return {
       ok: false,
-      message: "A IA não conseguiu processar o recibo agora. Tente novamente em instantes.",
+      message: "A IA não conseguiu processar o comprovante agora. Tente novamente em instantes.",
     };
   }
 }

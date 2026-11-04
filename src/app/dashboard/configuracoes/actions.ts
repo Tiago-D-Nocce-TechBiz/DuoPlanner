@@ -3,20 +3,21 @@
 import { refresh } from "next/cache";
 import { runMemoryAgent } from "@/lib/ai/memory-agent";
 import { AiNotConfiguredError, isGeminiConfigured } from "@/lib/ai/model";
+import { obterSessao } from "@/lib/auth/sessao";
 import { PREFERENCE_LABELS, isPreferenceKey } from "@/lib/memory/preferences";
 import {
   appendMemoryEntry,
   deletePreferences,
 } from "@/lib/memory/store";
-import {
-  createSupabaseServerClient,
-  getCurrentUserId,
-} from "@/lib/supabase/server";
+import { consumirCota } from "@/lib/seguranca/cotas";
 
 /**
  * Agente de Contexto e Memória — ações da tela de Configurações.
  * - ensinarPreferenciasAction: texto livre → preferências tipadas (via IA).
  * - esquecerPreferenciaAction: remove uma preferência memorizada.
+ *
+ * Ambas exigem sessão (getClaims) dentro da própria action. Antes, sem
+ * sessão, a memória era gravada com user_id nulo.
  */
 
 export interface TeachMemoryState {
@@ -28,6 +29,10 @@ export async function ensinarPreferenciasAction(
   _previous: TeachMemoryState,
   formData: FormData
 ): Promise<TeachMemoryState> {
+  const auth = await obterSessao();
+  if (!auth.ok) return { ok: false, message: auth.mensagem };
+  const { supabase, userId } = auth.sessao;
+
   const mensagem = String(formData.get("mensagem") ?? "").trim();
   if (mensagem.length < 3) {
     return { ok: false, message: "Escreva o que a IA deve lembrar sobre a dupla." };
@@ -39,16 +44,10 @@ export async function ensinarPreferenciasAction(
     return { ok: false, message: new AiNotConfiguredError().message };
   }
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return {
-      ok: false,
-      message: "Configure o Supabase para a IA guardar a memória da dupla.",
-    };
-  }
+  const cota = await consumirCota(supabase, userId, "ia");
+  if (!cota.permitido) return { ok: false, message: cota.mensagem };
 
   try {
-    const userId = await getCurrentUserId(supabase);
     const state = await runMemoryAgent(mensagem, { supabase, userId });
     if (state.erro) return { ok: false, message: state.erro };
 
@@ -64,13 +63,13 @@ export async function ensinarPreferenciasAction(
 }
 
 export async function esquecerPreferenciaAction(formData: FormData): Promise<void> {
+  const auth = await obterSessao();
+  if (!auth.ok) return;
+  const { supabase, userId } = auth.sessao;
+
   const chave = formData.get("chave");
   if (!isPreferenceKey(chave)) return;
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return;
-
-  const userId = await getCurrentUserId(supabase);
   const { error } = await deletePreferences(supabase, userId, [chave]);
   if (error) {
     console.error("[esquecerPreferencia]", error);

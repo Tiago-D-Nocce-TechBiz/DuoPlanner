@@ -1,45 +1,54 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import {
-  createSupabaseServerClient,
-  getCurrentUserId,
-} from "@/lib/supabase/server";
+import { obterSessao } from "@/lib/auth/sessao";
+import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   SITE_URL,
   codigoConviteValido,
   destinoSeguro,
   funcaoRpcAusente,
 } from "@/lib/auth/seguranca";
+import {
+  campoTexto,
+  erroEmailJaCadastrado,
+  esquemaCadastro,
+  esquemaLogin,
+  mensagemCadastroNeutra,
+  primeiraMensagem,
+} from "@/lib/auth/validacao";
 
 /**
  * Autenticação real via Supabase Auth (e-mail/senha) + pareamento de contas.
  *
- * As ações devolvem um estado de erro (string) para o cliente exibir, ou
- * redirecionam em caso de sucesso. Quando o Supabase não está configurado,
- * caímos num modo de demonstração que apenas navega para o painel (sem sessão
- * real), mantendo o fluxo utilizável.
+ * As ações devolvem um estado (erro ou aviso neutro) para o cliente exibir,
+ * ou redirecionam em caso de sucesso. Entradas validadas com zod
+ * (`@/lib/auth/validacao`). Quando o Supabase não está configurado, caímos
+ * num modo de demonstração que apenas navega para o painel (sem sessão real).
  *
  * Convite: o código digitado no cadastro fica guardado na conta
- * (`user_metadata.convite_pendente`) e é aplicado no primeiro login, mesmo
- * quando o Supabase exige confirmar o e-mail antes (sem sessão no cadastro).
+ * (`user_metadata.convite_pendente`) e, no primeiro login, a pessoa vai para
+ * /convite, onde CONFIRMA o aceite (POST). Antes, abrir o link já aceitava:
+ * um link malicioso colocava a vítima no espaço de outra pessoa sem aviso.
  */
 
-export type AuthState = { erro?: string } | void;
+export type AuthState = { erro?: string; aviso?: string } | void;
 
 /** Entrar com e-mail e senha. */
 export async function loginAction(
   _prev: AuthState,
   formData: FormData
 ): Promise<AuthState> {
-  const email = String(formData.get("email") ?? "").trim();
-  const senha = String(formData.get("senha") ?? formData.get("password") ?? "");
-  const destino = destinoSeguro(String(formData.get("redirect") ?? ""));
-  const conviteDoForm = codigoConviteValido(String(formData.get("codigoConvite") ?? ""));
-
-  if (!email || !senha) {
-    return { erro: "Informe e-mail e senha." };
-  }
+  const lido = esquemaLogin.safeParse({
+    email: campoTexto(formData, "email"),
+    senha: campoTexto(formData, "senha", "password"),
+    redirect: campoTexto(formData, "redirect"),
+    codigoConvite: campoTexto(formData, "codigoConvite"),
+  });
+  if (!lido.success) return { erro: primeiraMensagem(lido.error) };
+  const { email, senha } = lido.data;
+  const destino = destinoSeguro(lido.data.redirect);
+  const conviteDoForm = codigoConviteValido(lido.data.codigoConvite);
 
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
@@ -47,16 +56,11 @@ export async function loginAction(
     redirect(destino);
   }
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password: senha,
-  });
-  if (error) {
-    return { erro: traduzErroSupabase(error.message) };
-  }
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  if (error) return { erro: traduzErroSupabase(error.message) };
 
   // Convite do link (?convite=) ou guardado no cadastro: a página /convite
-  // aceita e mostra o resultado (sucesso → painel; erro → mensagem clara).
+  // mostra quem convidou e pede a confirmação.
   const pendente = codigoConviteValido(
     String((data.user?.user_metadata as { convite_pendente?: unknown } | undefined)?.convite_pendente ?? "")
   );
@@ -64,35 +68,26 @@ export async function loginAction(
     await supabase.auth.updateUser({ data: { convite_pendente: null } });
   }
   const convite = conviteDoForm ?? pendente;
-  if (convite) {
-    redirect(`/convite?code=${encodeURIComponent(convite)}`);
-  }
+  if (convite) redirect(`/convite?code=${encodeURIComponent(convite)}`);
 
   redirect(destino);
 }
 
-/** Criar conta; opcionalmente já aceitando um convite por código. */
+/** Criar conta; opcionalmente já levando um código de convite. */
 export async function cadastroAction(
   _prev: AuthState,
   formData: FormData
 ): Promise<AuthState> {
-  const nome = String(formData.get("nome") ?? "").trim().slice(0, 80);
-  const email = String(formData.get("email") ?? "").trim();
-  const senha = String(formData.get("senha") ?? formData.get("password") ?? "");
-  const conviteDigitado = String(formData.get("codigoConvite") ?? "").trim();
-  const codigoConvite = codigoConviteValido(conviteDigitado);
-
-  if (!email || !senha) {
-    return { erro: "Informe e-mail e senha para criar a conta." };
-  }
-  if (senha.length < 8) {
-    return { erro: "A senha deve ter pelo menos 8 caracteres." };
-  }
-  // Exige ao menos uma letra e um número, para reduzir senhas fracas.
-  if (!/[a-zA-Z]/.test(senha) || !/\d/.test(senha)) {
-    return { erro: "Use ao menos uma letra e um número na senha." };
-  }
-  if (conviteDigitado && !codigoConvite) {
+  const lido = esquemaCadastro.safeParse({
+    nome: campoTexto(formData, "nome"),
+    email: campoTexto(formData, "email"),
+    senha: campoTexto(formData, "senha", "password"),
+    codigoConvite: campoTexto(formData, "codigoConvite"),
+  });
+  if (!lido.success) return { erro: primeiraMensagem(lido.error) };
+  const { nome, email, senha } = lido.data;
+  const codigoConvite = codigoConviteValido(lido.data.codigoConvite);
+  if (lido.data.codigoConvite && !codigoConvite) {
     return { erro: "Código de convite inválido. Confira o link recebido ou deixe o campo em branco." };
   }
 
@@ -115,18 +110,14 @@ export async function cadastroAction(
       emailRedirectTo: `${SITE_URL}/auth/callback?next=${encodeURIComponent(next)}`,
     },
   });
+
+  // E-mail já cadastrado recebe a MESMA resposta de um cadastro novo que
+  // aguarda confirmação: a tela não revela quais e-mails têm conta.
   if (error) {
+    if (erroEmailJaCadastrado(error.message)) return { aviso: mensagemCadastroNeutra(Boolean(codigoConvite)) };
     return { erro: traduzErroSupabase(error.message) };
   }
-
-  // Dependendo da configuração do projeto, pode exigir confirmação por e-mail.
-  if (!data.session) {
-    return {
-      erro: codigoConvite
-        ? "Conta criada! Confirme o e-mail enviado e depois entre: o convite será aplicado no primeiro acesso."
-        : "Conta criada! Confirme o e-mail enviado para concluir e depois entre.",
-    };
-  }
+  if (!data.session) return { aviso: mensagemCadastroNeutra(Boolean(codigoConvite)) };
 
   // Sessão já aberta (confirmação de e-mail desligada no projeto).
   if (codigoConvite) {
@@ -136,7 +127,7 @@ export async function cadastroAction(
   redirect("/dashboard");
 }
 
-/** Encerra a sessão e volta à página inicial. */
+/** Encerra a sessão (revoga o refresh token no Supabase) e volta ao início. */
 export async function logoutAction(): Promise<void> {
   const supabase = await createSupabaseServerClient();
   if (supabase) {
@@ -145,9 +136,60 @@ export async function logoutAction(): Promise<void> {
   redirect("/");
 }
 
+export interface InfoConvite {
+  valido: boolean;
+  mensagem: string;
+  nomeEspaco?: string;
+  nomeConvidante?: string;
+  /** false quando a RPC ainda não existe (migration pendente). */
+  detalhado: boolean;
+}
+
+/**
+ * Dados públicos do convite para a tela de confirmação (quem convidou e o
+ * nome do espaço), via RPC `obter_convite` — sem expor a tabela.
+ */
+export async function obterConvite(codigoBruto: string): Promise<InfoConvite> {
+  const codigo = codigoConviteValido(codigoBruto);
+  if (!codigo) return { valido: false, mensagem: "Convite inválido.", detalhado: true };
+
+  const auth = await obterSessao();
+  if (!auth.ok) return { valido: false, mensagem: auth.mensagem, detalhado: true };
+
+  const rpc = await auth.sessao.supabase.rpc("obter_convite", { p_codigo: codigo });
+  if (rpc.error) {
+    if (funcaoRpcAusente(rpc.error)) {
+      return { valido: true, mensagem: "", detalhado: false };
+    }
+    console.error("[convites] falha ao consultar convite:", rpc.error.message);
+    return { valido: false, mensagem: "Não foi possível consultar o convite agora.", detalhado: true };
+  }
+  const linha = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as
+    | { valido?: boolean; mensagem?: string; nome_espaco?: string; nome_convidante?: string }
+    | null;
+  return {
+    valido: Boolean(linha?.valido),
+    mensagem: String(linha?.mensagem ?? ""),
+    nomeEspaco: linha?.nome_espaco ?? undefined,
+    nomeConvidante: linha?.nome_convidante ?? undefined,
+    detalhado: true,
+  };
+}
+
+/** Aceite confirmado na tela /convite (formulário POST com o código). */
+export async function aceitarConviteAction(
+  _prev: { erro?: string } | void,
+  formData: FormData
+): Promise<{ erro?: string } | void> {
+  const resultado = await aceitarConvitePorCodigo(String(formData.get("codigo") ?? ""));
+  if (!resultado.ok) return { erro: resultado.mensagem };
+  redirect("/dashboard");
+}
+
 /**
  * Vincula o usuário logado ao workspace de um convite (por código).
- * Usada no fluxo de cadastro e na página /convite.
+ * Exige sessão verificada (getClaims). A RPC `aceitar_convite` valida o
+ * status, a validade, o limite de 2 pessoas e o e-mail convidado.
  */
 export async function aceitarConvitePorCodigo(
   codigoBruto: string
@@ -155,16 +197,12 @@ export async function aceitarConvitePorCodigo(
   const codigo = codigoConviteValido(codigoBruto);
   if (!codigo) return { ok: false, mensagem: "Convite inválido." };
 
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return { ok: false, mensagem: "Supabase não configurado." };
+  const auth = await obterSessao();
+  if (!auth.ok) return { ok: false, mensagem: auth.mensagem };
+  const { supabase, userId } = auth.sessao;
 
-  const userId = await getCurrentUserId(supabase);
-  if (!userId) {
-    return { ok: false, mensagem: "Entre na sua conta para aceitar o convite." };
-  }
-
-  // Caminho seguro: RPC `aceitar_convite` (security-hardening.sql), que valida
-  // e grava sem expor a tabela de convites.
+  // Caminho seguro: RPC `aceitar_convite` (migration de endurecimento), que
+  // valida e grava sem expor a tabela de convites.
   const rpc = await supabase.rpc("aceitar_convite", { p_codigo: codigo });
   if (!rpc.error) {
     const linha = (Array.isArray(rpc.data) ? rpc.data[0] : rpc.data) as
@@ -180,26 +218,19 @@ export async function aceitarConvitePorCodigo(
     return { ok: false, mensagem: "Não foi possível aceitar o convite agora. Tente de novo em instantes." };
   }
 
-  // Caminho antigo, só enquanto a RPC não existe no banco (SQL de
-  // endurecimento ainda não aplicado). Depois do SQL, nunca é usado.
+  // Caminho antigo, só enquanto a RPC não existe no banco (migration ainda
+  // não aplicada). Depois do SQL, nunca é usado; remover na limpeza seguinte.
   const { data: convite } = await supabase
     .from("convites")
     .select("id, workspace_id, status")
     .eq("codigo", codigo)
     .maybeSingle();
 
-  // Só aceita convites PENDENTES (não revogados nem já aceitos), evitando
-  // reuso indevido de códigos.
-  if (!convite) {
-    return { ok: false, mensagem: "Convite inválido." };
-  }
+  if (!convite) return { ok: false, mensagem: "Convite inválido." };
   if (convite.status !== "pendente") {
     return {
       ok: false,
-      mensagem:
-        convite.status === "revogado"
-          ? "Este convite foi revogado."
-          : "Este convite já foi utilizado.",
+      mensagem: convite.status === "revogado" ? "Este convite foi revogado." : "Este convite já foi utilizado.",
     };
   }
 
@@ -216,14 +247,15 @@ export async function aceitarConvitePorCodigo(
   return { ok: true, mensagem: "Conta vinculada ao espaço compartilhado!" };
 }
 
-/** Converte mensagens comuns do Supabase para PT-BR. */
+/** Converte mensagens comuns do Supabase para PT-BR (sem revelar contas). */
 function traduzErroSupabase(msg: string): string {
   const m = msg.toLowerCase();
   if (m.includes("invalid login credentials")) return "E-mail ou senha incorretos.";
-  if (m.includes("user already registered") || m.includes("already been registered"))
-    return "Este e-mail já tem uma conta. Tente entrar.";
   if (m.includes("email not confirmed")) return "Confirme seu e-mail antes de entrar.";
+  if (m.includes("rate limit") || m.includes("too many")) return "Muitas tentativas. Aguarde alguns minutos.";
+  if (m.includes("weak") || m.includes("pwned") || m.includes("leaked")) {
+    return "Esta senha é fraca ou já apareceu em vazamentos. Escolha outra.";
+  }
   if (m.includes("password")) return "Senha inválida (mínimo de 8 caracteres, com letra e número).";
-  if (m.includes("rate limit")) return "Muitas tentativas. Aguarde um instante.";
   return "Não foi possível concluir. Tente novamente.";
 }

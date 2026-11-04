@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { createSupabaseServerClient, getCurrentUserId } from "./server";
+import { obterSessao } from "@/lib/auth/sessao";
 import { getWorkspaceAtual } from "./workspace";
 
 /**
@@ -10,9 +10,9 @@ import { getWorkspaceAtual } from "./workspace";
  * Grava pelo servidor, com `user_id` e `workspace_id` da sessão: antes o
  * browser inseria anonimamente (sem dono), o que deixava a linha legível para
  * qualquer um enquanto as políticas de desenvolvimento aceitavam
- * `user_id is null`. Sem sessão, não grava.
+ * `user_id is null`. Sem sessão verificada (getClaims), não grava.
  *
- * Tabela `viagens` (ver supabase/schema.sql): voos e hospedagens, separados
+ * Tabela `viagens` (ver supabase/migrations): voos e hospedagens, separados
  * pela coluna `tipo`; o payload validado fica em `dados` (jsonb).
  */
 
@@ -59,14 +59,17 @@ export async function saveSearch(tipo: SearchKind, dados: Record<string, unknown
   if (tipo !== "voo" && tipo !== "hospedagem") {
     return { ok: false, message: "Tipo de busca inválido." };
   }
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return { ok: false, message: "Supabase não configurado — busca gerada sem salvar." };
+  const auth = await obterSessao();
+  if (!auth.ok) {
+    return {
+      ok: false,
+      message:
+        auth.motivo === "nao_configurado"
+          ? "Supabase não configurado — busca gerada sem salvar."
+          : "Entre na sua conta para salvar o histórico de buscas.",
+    };
   }
-  const userId = await getCurrentUserId(supabase);
-  if (!userId) {
-    return { ok: false, message: "Entre na sua conta para salvar o histórico de buscas." };
-  }
+  const { supabase, userId } = auth.sessao;
   const lido = esquemaDados.safeParse(dados ?? {});
   if (!lido.success) {
     return { ok: false, message: "Dados de busca inválidos." };

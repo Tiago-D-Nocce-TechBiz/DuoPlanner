@@ -112,6 +112,11 @@ export interface SearchErrorBody {
     | "RATE_LIMITED"
     | "NOT_FOUND"
     // Origem/destino sem código IATA resolvido: só deep links ficam disponíveis.
-    | "IATA_NECESSARIO";
+    | "IATA_NECESSARIO"
+    // Sessão e cota por usuário (rotas pagas).
+    | "NAO_AUTENTICADO"
+    | "AUTH_NAO_CONFIGURADO"
+    | "COTA_EXCEDIDA"
+    | "COTA_INDISPONIVEL";
   issues?: Record<string, string[] | undefined>;
 }

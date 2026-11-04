@@ -5,194 +5,335 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
-  Plus,
   ScanLine,
+  ShieldCheck,
   Sparkles,
+  Users,
 } from "@/components/ui/icons";
-import {
-  processReceiptImage,
-  type ReceiptScanResult,
-} from "@/app/dashboard/financas/actions";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { formatCurrency, formatDateBR } from "@/lib/utils";
+import { processReceiptImage } from "@/app/dashboard/financas/actions";
+import { CATEGORIAS, type Categoria, type Escopo } from "@/lib/finance/classificar";
+import { parseValorMonetario } from "@/lib/finance/importar";
+import { escopoSugeridoParaRecibo, type PropostaRecibo } from "@/lib/finance/recibo";
 
 /**
- * Captura de despesas com IA (Finanças Duo).
+ * Leitura de recibos e comprovantes Pix com IA (Finanças Duo).
  *
- * "Escanear Recibo com IA" abre a câmera/galeria, reduz a foto no navegador e
- * envia o base64 para a Server Action `processReceiptImage`, que extrai
- * { titulo, valor, data } com o Gemini e já grava a despesa no Supabase.
+ * Fluxo: foto/arquivo → reduzido no navegador → Server Action
+ * `processReceiptImage` (Gemini) → PROPOSTA editável → o usuário confirma.
+ * Este componente não grava nada: entrega o gasto confirmado em
+ * `onConfirmar` e a página decide como salvar (fila de sincronização).
  */
 
-const MAX_DIMENSION = 1600; // px no maior lado: legível para OCR e leve para enviar
-const MAX_UPLOAD_BYTES = 6 * 1024 * 1024;
+/** Teto do arquivo enviado (cabe no limite de 1 MB das Server Actions). */
+const LIMITE_BYTES = 700 * 1024;
+const TENTATIVAS: { lado: number; qualidade: number }[] = [
+  { lado: 1600, qualidade: 0.82 },
+  { lado: 1280, qualidade: 0.72 },
+  { lado: 1024, qualidade: 0.65 },
+];
+const MOEDAS = ["BRL", "USD", "EUR", "GBP", "ARS", "CLP"];
 
-function readAsDataUrl(file: Blob): Promise<string> {
+export interface GastoDoRecibo {
+  descricao: string;
+  valor: number;
+  moeda: string;
+  data: string; // AAAA-MM-DD
+  categoria: Categoria;
+  escopo: Escopo;
+}
+
+function lerComoDataUrl(arquivo: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("Falha ao ler o arquivo."));
-    reader.readAsDataURL(file);
+    const leitor = new FileReader();
+    leitor.onload = () => resolve(String(leitor.result));
+    leitor.onerror = () => reject(leitor.error ?? new Error("Falha ao ler o arquivo."));
+    leitor.readAsDataURL(arquivo);
   });
 }
 
-async function prepareReceipt(file: File): Promise<string> {
-  if (file.type === "application/pdf") {
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error("PDF grande demais (máximo de 6 MB).");
-    return readAsDataUrl(file);
-  }
-  try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_DIMENSION / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Canvas indisponível.");
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close();
-    return canvas.toDataURL("image/jpeg", 0.85);
-  } catch {
-    // Formatos que o navegador não decodifica (ex.: HEIC fora do Safari) vão como estão.
-    if (file.size > MAX_UPLOAD_BYTES) throw new Error("Imagem grande demais (máximo de 6 MB).");
-    return readAsDataUrl(file);
-  }
+/** Tamanho real (bytes) de um data URL base64. */
+function bytesDoDataUrl(dataUrl: string): number {
+  const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
+  return Math.floor((base64.length * 3) / 4);
 }
 
-export function ReceiptScanner() {
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [pending, startTransition] = useTransition();
-  const [fileName, setFileName] = useState<string | null>(null);
-  const [result, setResult] = useState<ReceiptScanResult | null>(null);
+async function prepararArquivo(arquivo: File): Promise<string> {
+  if (arquivo.type === "application/pdf") {
+    if (arquivo.size > LIMITE_BYTES) {
+      throw new Error("PDF grande demais (máximo de 700 KB). Envie uma foto ou um print do comprovante.");
+    }
+    return lerComoDataUrl(arquivo);
+  }
 
-  function onFileChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = ""; // permite escolher o mesmo arquivo de novo
-    if (!file) return;
+  let bitmap: ImageBitmap;
+  try {
+    bitmap = await createImageBitmap(arquivo);
+  } catch {
+    // Formatos que o navegador não decodifica (ex.: HEIC fora do Safari) vão como estão.
+    if (arquivo.size > LIMITE_BYTES) {
+      throw new Error("Imagem grande demais. Tire um print do comprovante ou use JPG/PNG.");
+    }
+    return lerComoDataUrl(arquivo);
+  }
 
-    setFileName(file.name);
-    setResult(null);
-    startTransition(async () => {
-      let next: ReceiptScanResult;
+  try {
+    for (const { lado, qualidade } of TENTATIVAS) {
+      const escala = Math.min(1, lado / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.round(bitmap.width * escala);
+      canvas.height = Math.round(bitmap.height * escala);
+      const contexto = canvas.getContext("2d");
+      if (!contexto) break;
+      contexto.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      const dataUrl = canvas.toDataURL("image/jpeg", qualidade);
+      if (bytesDoDataUrl(dataUrl) <= LIMITE_BYTES) return dataUrl;
+    }
+  } finally {
+    bitmap.close();
+  }
+  throw new Error("Não consegui reduzir a imagem o suficiente. Tente um print do comprovante.");
+}
+
+interface Rascunho {
+  descricao: string;
+  valor: string;
+  moeda: string;
+  data: string;
+  categoria: Categoria;
+  escopo: Escopo;
+}
+
+function rascunhoDaProposta(proposta: PropostaRecibo): Rascunho {
+  const { categoria, escopo } = escopoSugeridoParaRecibo(proposta);
+  return {
+    descricao: proposta.titulo,
+    valor: proposta.valor.toFixed(2).replace(".", ","),
+    moeda: proposta.moeda,
+    data: proposta.data,
+    categoria,
+    escopo,
+  };
+}
+
+export function ReceiptScanner({
+  onConfirmar,
+}: {
+  onConfirmar: (gasto: GastoDoRecibo) => void | Promise<void>;
+}) {
+  const inputCamera = useRef<HTMLInputElement>(null);
+  const inputArquivo = useRef<HTMLInputElement>(null);
+  const [lendo, startLeitura] = useTransition();
+  const [salvando, startSalvar] = useTransition();
+  const [erro, setErro] = useState<string | null>(null);
+  const [avisos, setAvisos] = useState<string[]>([]);
+  const [rascunho, setRascunho] = useState<Rascunho | null>(null);
+  const [confirmado, setConfirmado] = useState<string | null>(null);
+
+  function aoEscolher(evento: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = evento.target.files?.[0];
+    evento.target.value = ""; // permite escolher o mesmo arquivo de novo
+    if (!arquivo) return;
+    setErro(null);
+    setAvisos([]);
+    setRascunho(null);
+    setConfirmado(null);
+    startLeitura(async () => {
       try {
-        next = await processReceiptImage(await prepareReceipt(file));
-      } catch (error) {
-        next = {
-          ok: false,
-          message: error instanceof Error ? error.message : "Não foi possível ler o arquivo.",
-        };
+        const resultado = await processReceiptImage(await prepararArquivo(arquivo));
+        if (!resultado.ok) {
+          setErro(resultado.message);
+          return;
+        }
+        setRascunho(rascunhoDaProposta(resultado.proposta));
+        setAvisos(resultado.avisos);
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "Não foi possível ler o arquivo.");
       }
-      startTransition(() => setResult(next));
+    });
+  }
+
+  function atualizar<K extends keyof Rascunho>(campo: K, valor: Rascunho[K]) {
+    setRascunho((atual) => (atual ? { ...atual, [campo]: valor } : atual));
+  }
+
+  function confirmar(evento: React.FormEvent) {
+    evento.preventDefault();
+    if (!rascunho) return;
+    const valor = parseValorMonetario(rascunho.valor);
+    if (!rascunho.descricao.trim()) {
+      setErro("Informe uma descrição.");
+      return;
+    }
+    if (valor === null || valor <= 0) {
+      setErro("Valor inválido. Use, por exemplo, 180,00 ou 1.250,90.");
+      return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rascunho.data)) {
+      setErro("Informe a data do gasto.");
+      return;
+    }
+    setErro(null);
+    const gasto: GastoDoRecibo = {
+      descricao: rascunho.descricao.trim().slice(0, 120),
+      valor,
+      moeda: rascunho.moeda,
+      data: rascunho.data,
+      categoria: rascunho.categoria,
+      escopo: rascunho.escopo,
+    };
+    startSalvar(async () => {
+      await onConfirmar(gasto);
+      setConfirmado(gasto.descricao);
+      setRascunho(null);
+      setAvisos([]);
     });
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-elevated">
-            <Sparkles className="h-5 w-5 text-heading" />
+    <div className="glass-panel rounded-2xl p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-start gap-3">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-black/5 dark:bg-white/10 text-[var(--color-heading)]">
+            <Sparkles className="h-5 w-5" />
           </span>
           <div>
-            <h2 className="font-serif text-xl font-semibold">Despesas sem digitação</h2>
-            <p className="mt-1.5 max-w-xl text-sm leading-relaxed text-foreground">
-              Fotografe uma nota fiscal ou recibo: a IA lê o título, o valor e a
-              data e registra a despesa da dupla automaticamente.
+            <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Ler recibo ou comprovante Pix</h2>
+            <p className="mt-1 text-xs sm:text-sm text-[var(--color-muted)] leading-relaxed">
+              A IA lê valor, data, moeda e categoria. Você confere antes de salvar.
             </p>
           </div>
         </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Button
+        <div className="flex flex-wrap gap-2">
+          <button
             type="button"
-            variant="primary"
-            size="lg"
-            onClick={() => inputRef.current?.click()}
-            disabled={pending}
+            onClick={() => inputCamera.current?.click()}
+            disabled={lendo}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
           >
-            {pending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <ScanLine className="h-4 w-4" />
-            )}
-            {pending ? "Lendo recibo…" : "Escanear Recibo com IA"}
-          </Button>
-          <Button type="button" variant="secondary" size="lg" disabled title="Em breve">
-            <Plus className="h-4 w-4" />
-            Lançamento manual
-          </Button>
-          <input
-            ref={inputRef}
-            type="file"
-            accept="image/*,application/pdf"
-            className="hidden"
-            onChange={onFileChange}
-          />
+            {lendo ? <Loader2 className="h-4 w-4 animate-spin" /> : <ScanLine className="h-4 w-4" />}
+            {lendo ? "Lendo…" : "Tirar foto"}
+          </button>
+          <button
+            type="button"
+            onClick={() => inputArquivo.current?.click()}
+            disabled={lendo}
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-60"
+          >
+            Escolher arquivo
+          </button>
+          <input ref={inputCamera} type="file" accept="image/*" capture="environment" className="hidden" onChange={aoEscolher} />
+          <input ref={inputArquivo} type="file" accept="image/*,application/pdf" className="hidden" onChange={aoEscolher} />
         </div>
       </div>
 
       <div aria-live="polite">
-        {pending && (
-          <p className="mt-6 flex items-center gap-2 rounded-xl border border-border bg-background p-4 text-sm text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Lendo {fileName ?? "o recibo"} com o Gemini…
+        {erro && (
+          <p role="alert" className="mt-4 flex items-start gap-2 text-xs text-[var(--color-danger)]">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {erro}
           </p>
         )}
-
-        {!pending && result?.ok && (
-          <div className="mt-6 rounded-xl border border-border bg-background p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="flex items-center gap-2 text-sm font-medium text-heading">
-                <CheckCircle2 className="h-4 w-4" />
-                {result.message}
-              </p>
-              <Badge variant={result.salvo ? "accent" : "outline"}>
-                {result.salvo ? "Salvo no Supabase" : "Não salvo"}
-              </Badge>
-            </div>
-            <dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-              <div>
-                <dt className="text-xs text-subtle">Título</dt>
-                <dd className="mt-1 text-heading">{result.despesa.titulo}</dd>
-              </div>
-              <div>
-                <dt className="text-xs text-subtle">Valor</dt>
-                <dd className="mt-1 font-semibold tabular-nums text-heading">
-                  {formatCurrency(result.despesa.valor, result.despesa.moeda)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs text-subtle">Data</dt>
-                <dd className="mt-1 text-heading">{formatDateBR(result.despesa.data)}</dd>
-              </div>
-            </dl>
-            {result.avisos.length > 0 && (
-              <ul className="mt-4 space-y-1.5">
-                {result.avisos.map((aviso) => (
-                  <li key={aviso} className="flex items-start gap-2 text-xs text-muted">
-                    <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                    {aviso}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-
-        {!pending && result && !result.ok && (
-          <p className="mt-6 flex items-start gap-2 rounded-xl border border-border bg-background p-4 text-sm text-danger">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            {result.message}
+        {confirmado && !rascunho && (
+          <p role="status" className="mt-4 flex items-center gap-2 text-xs text-[var(--color-heading)]">
+            <CheckCircle2 className="h-4 w-4" />“{confirmado}” foi salvo nas Finanças Duo.
           </p>
         )}
       </div>
 
-      <p className="mt-5 text-xs text-subtle">
-        A imagem vai para o Google Gemini só para leitura e não fica armazenada.
-        Aceita JPG, PNG, WEBP, HEIC ou PDF (até 6 MB).
+      {rascunho && (
+        <form onSubmit={confirmar} className="mt-5 rounded-xl border border-[var(--color-border-strong)] p-4 space-y-3">
+          <p className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)]">Confira antes de salvar</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label className="sm:col-span-2 text-xs text-[var(--color-muted)]">
+              Descrição
+              <input value={rascunho.descricao} onChange={(e) => atualizar("descricao", e.target.value)} className="glass-input mt-1" maxLength={120} />
+            </label>
+            <label className="text-xs text-[var(--color-muted)]">
+              Valor
+              <input value={rascunho.valor} onChange={(e) => atualizar("valor", e.target.value)} inputMode="decimal" className="glass-input mt-1" />
+            </label>
+            <label className="text-xs text-[var(--color-muted)]">
+              Moeda
+              <select value={rascunho.moeda} onChange={(e) => atualizar("moeda", e.target.value)} className="glass-input mt-1">
+                {[...new Set([rascunho.moeda, ...MOEDAS])].map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </label>
+            <label className="text-xs text-[var(--color-muted)]">
+              Data
+              <input type="date" value={rascunho.data} onChange={(e) => atualizar("data", e.target.value)} className="glass-input mt-1" />
+            </label>
+            <label className="text-xs text-[var(--color-muted)]">
+              Categoria
+              <select value={rascunho.categoria} onChange={(e) => atualizar("categoria", e.target.value as Categoria)} className="glass-input mt-1">
+                {CATEGORIAS.map((c) => (
+                  <option key={c} value={c}>{c === "Gasto Pessoal (Fora da Viagem)" ? "Gasto Pessoal (Privado)" : c}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {(["viagem_compartilhado", "pessoal_privado"] as Escopo[]).map((escopo) => {
+              const ativo = rascunho.escopo === escopo;
+              const Icone = escopo === "viagem_compartilhado" ? Users : ShieldCheck;
+              return (
+                <button
+                  key={escopo}
+                  type="button"
+                  aria-pressed={ativo}
+                  onClick={() => atualizar("escopo", escopo)}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer ${
+                    ativo
+                      ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                      : "bg-black/5 dark:bg-white/10 text-[var(--color-muted)]"
+                  }`}
+                >
+                  <Icone className="h-3.5 w-3.5" />
+                  {escopo === "viagem_compartilhado" ? "Gasto da viagem" : "Pessoal (privado)"}
+                </button>
+              );
+            })}
+          </div>
+
+          {avisos.length > 0 && (
+            <ul className="space-y-1">
+              {avisos.map((aviso) => (
+                <li key={aviso} className="flex items-start gap-2 text-xs text-[var(--color-muted)]">
+                  <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                  {aviso}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setRascunho(null);
+                setAvisos([]);
+              }}
+              className="px-3.5 py-2 rounded-xl text-xs font-semibold glass-panel cursor-pointer"
+            >
+              Descartar
+            </button>
+            <button
+              type="submit"
+              disabled={salvando}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              {salvando ? "Salvando…" : "Confirmar e salvar"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <p className="mt-4 text-[11px] text-[var(--color-subtle)]">
+        A imagem vai para o Google Gemini só para leitura e não fica guardada. JPG, PNG, WEBP, HEIC ou PDF (até 700 KB).
       </p>
-    </Card>
+    </div>
   );
 }

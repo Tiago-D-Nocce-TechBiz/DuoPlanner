@@ -1,7 +1,7 @@
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
-# dependencies
-/node_modules
+# dependencies (em qualquer nível: inclui node_modules de ferramentas locais)
+node_modules/
 /.pnp
 .pnp.*
 .yarn/*
@@ -12,8 +12,11 @@
 
 # testing
 /coverage
-# ambiente temporário de testes e2e (não deve ser versionado)
-/.tmp-e2e
+# ambientes temporários de testes (e2e, validação de SQL): nunca versionar
+.tmp-e2e/
+.tmp-*/
+/playwright-report/
+/test-results/
 
 # next.js
 /.next/

@@ -2,25 +2,25 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 /**
- * Logo oficial do DuoPlanner.
+ * Logo oficial do DuoPlanner — o ÚNICO componente de marca do app (o antigo
+ * `ui/logo.tsx`, só tipográfico, foi removido).
  *
- * A marca definitiva é uma imagem (PNG) em `public/brand/logo.png` — o
- * monograma "PD" com o avião em ascensão e o gráfico de crescimento.
+ * A marca definitiva é o monograma "PD" com o avião em ascensão e o gráfico
+ * de crescimento. O arquivo-fonte fica em `public/brand/logo.png`; a
+ * interface usa as versões WebP otimizadas (`logo-96.webp`, `logo-192.webp`)
+ * e o PWA usa os ícones de `public/icons/`, todos gerados a partir dele.
  *
- * Como a imagem é um arquivo que o mantenedor salva manualmente (igual ao
- * modelo 3D `public/models/aviao.glb`), o ícone degrada com elegância: se o
- * PNG ainda não existir, o símbolo vetorial de reserva (`BrandIconFallback`)
- * aparece por baixo e o build nunca quebra. Quando a imagem existe, ela cobre
- * totalmente o fallback.
- *
- * Caminho esperado do arquivo: `public/brand/logo.png`
- * (recomendado: PNG quadrado com fundo transparente, >= 256x256).
+ * O ícone degrada com elegância: se a imagem falhar, o símbolo vetorial de
+ * reserva (`BrandIconFallback`) aparece por baixo e o build nunca quebra.
  */
 
-// O sufixo `?v=` força o navegador a buscar a imagem nova e ignorar qualquer
-// versão antiga em cache (inclusive o 404 de quando o arquivo ainda não
-// existia). Incremente este número sempre que a logo for trocada.
-const LOGO_SRC = "/brand/logo.png?v=2";
+// Versões otimizadas geradas a partir de `public/brand/logo.png` (1,45 MB,
+// 1254 px — o arquivo-fonte da marca, que não é mais baixado pela interface).
+// O ícone aparece a 32 px: 96 px (1,7 KB) cobre telas 1x; 192 px, as 2x/3x.
+// O sufixo `?v=` força o navegador a buscar a imagem nova; incremente-o
+// sempre que a logo for trocada (e gere os arquivos de novo).
+const LOGO_SRC = "/brand/logo-96.webp?v=3";
+const LOGO_SRCSET = "/brand/logo-96.webp?v=3 1x, /brand/logo-192.webp?v=3 2x";
 
 /** Símbolo vetorial de reserva, exibido se o PNG ainda não foi salvo. */
 function BrandIconFallback({ className }: { className?: string }) {
@@ -95,7 +95,11 @@ export function BrandIcon({ className }: { className?: string }) {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={LOGO_SRC}
+        srcSet={LOGO_SRCSET}
         alt="DuoPlanner"
+        width={32}
+        height={32}
+        decoding="async"
         className="absolute inset-0 h-full w-full object-cover"
         draggable={false}
       />

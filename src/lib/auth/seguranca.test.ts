@@ -4,6 +4,7 @@ import {
   destinoPosConfirmacao,
   destinoSeguro,
   funcaoRpcAusente,
+  tabelaAusente,
 } from "./seguranca";
 
 describe("destinoSeguro (sem open redirect)", () => {
@@ -59,5 +60,20 @@ describe("funcaoRpcAusente", () => {
   it("outros erros não disparam o caminho antigo", () => {
     expect(funcaoRpcAusente({ code: "42501", message: "permission denied" })).toBe(false);
     expect(funcaoRpcAusente(null)).toBe(false);
+  });
+});
+
+describe("tabelaAusente (migration ainda não aplicada)", () => {
+  it("reconhece PGRST205, 42P01 e a mensagem do PostgREST", () => {
+    expect(tabelaAusente({ code: "PGRST205", message: "x" })).toBe(true);
+    expect(tabelaAusente({ code: "42P01", message: 'relation "public.x" does not exist' })).toBe(true);
+    expect(
+      tabelaAusente({ message: "Could not find the table 'public.despesas_viagem' in the schema cache" })
+    ).toBe(true);
+  });
+
+  it("erro de permissão ou de rede não é tabela ausente", () => {
+    expect(tabelaAusente({ code: "42501", message: "permission denied for table x" })).toBe(false);
+    expect(tabelaAusente(null)).toBe(false);
   });
 });

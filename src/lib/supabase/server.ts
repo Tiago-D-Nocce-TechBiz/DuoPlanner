@@ -39,7 +39,7 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient | nul
           );
         } catch {
           // Chamado a partir de um Server Component, que não escreve cookies.
-          // Pode ser ignorado: ainda não há login real (ver getCurrentUserId).
+          // Pode ser ignorado: o proxy renova a sessão a cada requisição.
         }
       },
     },
@@ -47,14 +47,12 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient | nul
 }
 
 /**
- * Dono dos registros.
+ * Dono dos registros: o `sub` do JWT verificado por getClaims() (nunca
+ * getSession() no servidor), ou null sem sessão.
  *
- * Com Supabase Auth ativo, devolve o `sub` do JWT verificado por getClaims()
- * (nunca confie em getSession() no servidor). O login da Fase 1 ainda é um
- * placeholder, então hoje não há sessão e a função devolve null: os dados
- * ficam no "modo dupla única" que as políticas RLS de desenvolvimento
- * permitem (`user_id is null`). Quando o Auth for ligado, as mesmas consultas
- * passam a filtrar pelo usuário sem mudar as chamadas.
+ * Para Server Actions e Route Handlers, prefira `obterSessao()`
+ * (`@/lib/auth/sessao`), que já devolve cliente + usuário e a mensagem de
+ * recusa. Esta função fica para leituras em Server Components.
  */
 export async function getCurrentUserId(
   supabase: SupabaseClient

@@ -44,3 +44,16 @@ export function funcaoRpcAusente(erro: { code?: string; message?: string } | nul
   if (!erro) return false;
   return erro.code === "PGRST202" || /could not find the function/i.test(erro.message ?? "");
 }
+
+/**
+ * O erro indica tabela inexistente (migration ainda não aplicada): PostgREST
+ * 12+ responde PGRST205; versões antigas repassam o 42P01 do Postgres.
+ */
+export function tabelaAusente(erro: { code?: string; message?: string } | null | undefined): boolean {
+  if (!erro) return false;
+  return (
+    erro.code === "PGRST205" ||
+    erro.code === "42P01" ||
+    /could not find the table|relation .* does not exist/i.test(erro.message ?? "")
+  );
+}

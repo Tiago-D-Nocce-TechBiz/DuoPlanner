@@ -1,9 +1,10 @@
-"use client";
-
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { BrandLogo } from "@/components/brand/logo";
 import { FlightRoute3D } from "@/components/marketing/flight-route-3d";
+
+// Landing como Server Component: o HTML sai pronto do build e só as ilhas
+// interativas (tema e avião) mandam JS. O avião 3D carrega sob demanda.
 
 // Ano de copyright como constante: evita `new Date()` no prerender
 // (Cache Components) e mantém o rodapé totalmente estático.
@@ -34,7 +35,7 @@ export default function LandingPage() {
               Entrar
             </Link>
             <Link
-              href="/login"
+              href="/cadastro"
               className="px-4 py-2 rounded-xl text-sm font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-sm hover:opacity-90 transition-all"
             >
               Criar conta
@@ -59,7 +60,7 @@ export default function LandingPage() {
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
           <Link
-            href="/login"
+            href="/cadastro"
             className="px-6 py-3.5 rounded-xl font-semibold text-sm bg-[var(--color-accent)] text-[var(--color-accent-foreground)] shadow-md hover:scale-[1.02] transition-all"
           >
             Começar agora →

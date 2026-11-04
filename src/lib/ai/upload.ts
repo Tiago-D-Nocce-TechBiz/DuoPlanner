@@ -16,8 +16,12 @@ const ALLOWED_MIME = new Set([
   "application/pdf",
 ]);
 
-/** Limite do arquivo decodificado. O limite do corpo da action está em next.config.ts. */
-export const MAX_RECEIPT_BYTES = 6 * 1024 * 1024;
+/**
+ * Limite do arquivo decodificado. Em base64 ele cresce ~33% e precisa caber
+ * no limite padrão de 1 MB do corpo das Server Actions (mantido de propósito
+ * em next.config.ts). O navegador reduz as fotos antes de enviar.
+ */
+export const MAX_RECEIPT_BYTES = 700 * 1024;
 
 export type ParsedUpload =
   | { ok: true; mimeType: string; base64: string; bytes: number }
@@ -64,7 +68,10 @@ export function parseBase64Upload(input: unknown): ParsedUpload {
   const bytes = Math.floor((base64.length * 3) / 4) - padding;
   if (bytes < 100) return { ok: false, message: "Arquivo vazio ou corrompido." };
   if (bytes > MAX_RECEIPT_BYTES) {
-    return { ok: false, message: "Arquivo grande demais (máximo de 6 MB)." };
+    return {
+      ok: false,
+      message: "Arquivo grande demais (máximo de 700 KB). Envie uma foto ou um print do comprovante.",
+    };
   }
 
   const mimeType = sniffMime(Buffer.from(base64.slice(0, 64), "base64")) ?? declared;

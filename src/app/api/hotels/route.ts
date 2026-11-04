@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { exigirSessaoApi } from "@/lib/auth/sessao";
 import { loadPreferencesSafe } from "@/lib/memory/store";
+import { consumirCota, respostaCotaNegada } from "@/lib/seguranca/cotas";
 import {
   applyHotelPreferences,
   isBookingConfigured,
@@ -25,9 +27,14 @@ import type { HotelSearchResponse } from "@/lib/travel/types";
  *   minScore            nota mínima (0–10)
  *   memory              1 | 0 — aplica as preferências memorizadas pela IA
  *
+ * Ordem: sessão (401) → parâmetros (400) → cota por usuário (429) → RapidAPI.
  * Resposta: HotelSearchResponse, ordenada por custo-benefício (valueScore).
  */
 export async function GET(request: NextRequest) {
+  const auth = await exigirSessaoApi();
+  if (!auth.ok) return auth.resposta;
+  const { supabase, userId } = auth.sessao;
+
   const parsed = parseHotelSearchParams(request.nextUrl.searchParams);
   if (!parsed.success) return invalidParamsResponse(parsed.error);
 
@@ -37,6 +44,9 @@ export async function GET(request: NextRequest) {
       "Motor de hospedagem indisponível: defina RAPIDAPI_KEY com assinatura da API Booking.com15."
     );
   }
+
+  const cota = await consumirCota(supabase, userId, "hospedagem");
+  if (!cota.permitido) return respostaCotaNegada(cota);
 
   const preferences = parsed.data.memory ? await loadPreferencesSafe() : {};
   const { query, applied } = applyHotelPreferences(parsed.data, preferences);

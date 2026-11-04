@@ -21,6 +21,17 @@ export type Categoria =
 
 export type Escopo = "viagem_compartilhado" | "pessoal_privado";
 
+/** Todas as categorias, na ordem exibida nos seletores (tupla: serve ao z.enum). */
+export const CATEGORIAS = [
+  "Passagens & Transporte",
+  "Hospedagem",
+  "Alimentação & Gastronomia",
+  "Passeios & Lazer",
+  "Gasto Pessoal (Fora da Viagem)",
+] as const satisfies readonly Categoria[];
+
+export const ESCOPOS = ["viagem_compartilhado", "pessoal_privado"] as const satisfies readonly Escopo[];
+
 export interface Classificacao {
   categoria: Categoria;
   escopo: Escopo;

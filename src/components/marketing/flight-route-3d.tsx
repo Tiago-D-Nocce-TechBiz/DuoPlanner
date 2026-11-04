@@ -1,19 +1,20 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { ErrorBoundary } from "@/components/ui/error-boundary";
 import { PlaneEmblem } from "@/components/marketing/plane-emblem";
 
 /**
- * Showcase do avião 3D realista (Three.js) com uma rota decorativa ao fundo.
+ * Showcase do avião 3D (Three.js) com uma rota decorativa ao fundo.
  *
- * A cena WebGL é carregada só no cliente (dynamic import, ssr: false) e
- * protegida por Suspense + ErrorBoundary: se o WebGL não estiver disponível
- * (navegador antigo, GPU bloqueada), caímos no emblema 2D sem quebrar a página.
- *
- * Interação: segure e arraste para girar o avião livremente em todos os
- * ângulos; ocioso, ele gira sozinho com leve balanço.
+ * Carregamento ESTRITAMENTE sob demanda: o pacote 3D (~1 MB de JS + modelo
+ * .glb de ~1,9 MB) fica fora do bundle inicial (`next/dynamic`, `ssr: false`)
+ * e só é pedido quando:
+ *  - o bloco entra na tela E o navegador está ocioso, num aparelho capaz
+ *    (WebGL, sem "reduzir movimento", sem economia de dados, memória ≥ 4 GB);
+ *  - ou a pessoa toca em "Ver em 3D" (aparelhos limitados ficam no 2D).
+ * Até lá, e se o WebGL falhar, aparece o emblema 2D (ErrorBoundary).
  */
 const PlaneScene = dynamic(
   () => import("./plane-scene").then((m) => m.PlaneScene),
@@ -23,7 +24,68 @@ const PlaneScene = dynamic(
   }
 );
 
+interface NavegadorComExtras extends Navigator {
+  connection?: { saveData?: boolean; effectiveType?: string };
+  deviceMemory?: number;
+}
+
+function suportaWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+/** Aparelho e preferências permitem carregar o 3D sem a pessoa pedir? */
+function podeCarregarSozinho(): boolean {
+  const nav = navigator as NavegadorComExtras;
+  const reduzirMovimento = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const economia =
+    nav.connection?.saveData === true || /(^|-)2g$/.test(nav.connection?.effectiveType ?? "");
+  const memoriaBaixa = typeof nav.deviceMemory === "number" && nav.deviceMemory < 4;
+  return !reduzirMovimento && !economia && !memoriaBaixa && suportaWebGL();
+}
+
 export function FlightRoute3D({ className }: { className?: string }) {
+  const palco = useRef<HTMLDivElement>(null);
+  const [modo3d, setModo3d] = useState(false);
+
+  useEffect(() => {
+    const elemento = palco.current;
+    if (!elemento || !("IntersectionObserver" in window) || !podeCarregarSozinho()) return;
+
+    let cancelado = false;
+    let idle: number | null = null;
+    let timer: number | null = null;
+    const carregar = () => {
+      if (!cancelado) setModo3d(true);
+    };
+
+    const observador = new IntersectionObserver(
+      (entradas) => {
+        if (!entradas.some((e) => e.isIntersecting)) return;
+        observador.disconnect();
+        // Safari ainda não tem requestIdleCallback: cai num atraso curto.
+        if (typeof window.requestIdleCallback === "function") {
+          idle = window.requestIdleCallback(carregar, { timeout: 2500 });
+        } else {
+          timer = window.setTimeout(carregar, 1200);
+        }
+      },
+      { rootMargin: "120px" }
+    );
+    observador.observe(elemento);
+
+    return () => {
+      cancelado = true;
+      observador.disconnect();
+      if (idle !== null) window.cancelIdleCallback(idle);
+      if (timer !== null) window.clearTimeout(timer);
+    };
+  }, []);
+
   return (
     <div className={`relative select-none ${className ?? ""}`}>
       {/* Rota decorativa ao fundo (SVG estático) */}
@@ -51,13 +113,26 @@ export function FlightRoute3D({ className }: { className?: string }) {
         <circle cx="610" cy="80" r="5" fill="var(--color-background)" stroke="var(--color-heading)" strokeWidth="2" />
       </svg>
 
-      {/* Palco 3D */}
-      <div className="relative z-[1] h-full w-full">
-        <ErrorBoundary fallback={<SceneFallback />}>
-          <Suspense fallback={<SceneFallback texto="Carregando modelo 3D…" />}>
-            <PlaneScene />
-          </Suspense>
-        </ErrorBoundary>
+      {/* Palco: 2D até o 3D ser pedido ou o navegador ficar ocioso */}
+      <div ref={palco} className="relative z-[1] h-full w-full">
+        {modo3d ? (
+          <ErrorBoundary fallback={<SceneFallback />}>
+            <Suspense fallback={<SceneFallback texto="Carregando modelo 3D…" />}>
+              <PlaneScene />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
+          <div className="flex h-full w-full flex-col items-center justify-center gap-3">
+            <PlaneEmblem className="h-24 w-24" />
+            <button
+              type="button"
+              onClick={() => setModo3d(true)}
+              className="rounded-full border border-[var(--color-border)] px-3 py-1 text-[11px] font-medium text-[var(--color-muted)] hover:text-[var(--color-heading)] hover:border-[var(--color-border-strong)] transition-colors cursor-pointer"
+            >
+              Ver o avião em 3D
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

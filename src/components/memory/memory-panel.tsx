@@ -31,15 +31,14 @@ export async function MemoryPanel() {
       {!memory.configured ? (
         <p className="mt-6 flex items-start gap-3 rounded-xl border border-border bg-background p-4 text-sm text-muted">
           <Database className="mt-0.5 h-4 w-4 shrink-0 text-subtle" />
-          Configure o Supabase (.env.local) e rode supabase/schema.sql para a IA
-          guardar a memória da dupla.
+          A memória da IA fica disponível quando o banco de dados estiver
+          configurado neste ambiente.
         </p>
       ) : (
         <div className="mt-6 space-y-6">
           {memory.error && (
             <p className="rounded-xl border border-border bg-background p-4 text-sm text-danger">
-              Não foi possível ler a memória ({memory.error}). Rode novamente
-              supabase/schema.sql para criar as tabelas da Fase 2.
+              Não foi possível ler a memória da IA agora. Tente de novo em instantes.
             </p>
           )}
 

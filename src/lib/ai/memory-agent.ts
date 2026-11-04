@@ -117,8 +117,10 @@ function buildMemoryGraph(deps: MemoryDeps) {
   async function carregar() {
     const memory = await readDuoMemory(deps.supabase, deps.userId, 5);
     if (memory.error) {
+      // O detalhe técnico fica no log do servidor; a tela recebe só a mensagem.
+      console.error("[memória] leitura falhou:", memory.error);
       return {
-        erro: `Não consegui ler a memória no Supabase (${memory.error}). Rode supabase/schema.sql.`,
+        erro: "Não consegui ler a memória da dupla agora. Tente de novo em instantes.",
       };
     }
     return {

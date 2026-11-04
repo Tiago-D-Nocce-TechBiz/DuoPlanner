@@ -8,9 +8,9 @@ import { BrandLogo } from "@/components/brand/logo";
 import { loginAction, cadastroAction, type AuthState } from "@/app/(auth)/actions";
 
 /**
- * Tela de acesso real (Supabase Auth), reutilizada por /login, /cadastro e
- * /registo. Alterna entre Entrar e Criar conta, com suporte a código de
- * convite para vincular a conta ao espaço compartilhado da dupla.
+ * Tela de acesso real (Supabase Auth), reutilizada por /login e /cadastro
+ * (/registo redireciona com 308). Alterna entre Entrar e Criar conta, com
+ * suporte a código de convite para vincular a conta ao espaço da dupla.
  * Interface 100% em Português do Brasil.
  */
 export function AuthScreen({
@@ -43,7 +43,10 @@ export function AuthScreen({
   >(cadastroAction, undefined);
 
   const carregando = loginPendente || cadastroPendente;
-  const mensagem = modo === "login" ? estadoLogin?.erro : estadoCadastro?.erro;
+  const estado = modo === "login" ? estadoLogin : estadoCadastro;
+  const mensagem = estado?.erro;
+  // Aviso neutro (ex.: "confirme o e-mail"): não é erro, não vai em vermelho.
+  const aviso = estado?.aviso;
 
   return (
     <div className="min-h-screen flex flex-col justify-between p-4 sm:p-6">
@@ -120,6 +123,8 @@ export function AuthScreen({
                   type="text"
                   name="nome"
                   required
+                  maxLength={80}
+                  autoComplete="name"
                   placeholder="Ex.: Tiago"
                   className="glass-input"
                 />
@@ -134,6 +139,9 @@ export function AuthScreen({
                 type="email"
                 name="email"
                 required
+                maxLength={254}
+                autoComplete="email"
+                inputMode="email"
                 placeholder="seu@email.com.br"
                 className="glass-input"
               />
@@ -147,9 +155,17 @@ export function AuthScreen({
                 type="password"
                 name="senha"
                 required
+                minLength={modo === "cadastro" ? 8 : undefined}
+                maxLength={72}
+                autoComplete={modo === "cadastro" ? "new-password" : "current-password"}
                 placeholder="••••••••"
                 className="glass-input"
               />
+              {modo === "cadastro" && (
+                <p className="mt-1 text-[11px] text-[var(--color-subtle)]">
+                  Mínimo de 8 caracteres, com letra e número.
+                </p>
+              )}
             </div>
 
             {modo === "cadastro" && (
@@ -168,7 +184,12 @@ export function AuthScreen({
             )}
 
             {mensagem && (
-              <p className="text-xs text-[var(--color-danger)] font-medium">{mensagem}</p>
+              <p role="alert" className="text-xs text-[var(--color-danger)] font-medium">{mensagem}</p>
+            )}
+            {aviso && (
+              <p role="status" className="rounded-xl border border-[var(--color-border-strong)] px-3 py-2.5 text-xs text-[var(--color-heading)]">
+                {aviso}
+              </p>
             )}
 
             <button

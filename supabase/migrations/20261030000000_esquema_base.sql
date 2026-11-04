@@ -1,8 +1,15 @@
--- PlannerDuo — Esquema completo (Supabase / PostgreSQL)
--- Execute no SQL Editor do Supabase. Idempotente e à prova de tabelas
--- parcialmente criadas: todas as colunas são garantidas com
--- "add column if not exists" ANTES de índices, funções, policies e triggers
--- que dependem delas. Requer PostgreSQL 15+ (padrão do Supabase).
+-- DuoPlanner — Migration 20261030000000: esquema base (antigo supabase/schema.sql)
+-- ============================================================================
+-- JÁ APLICADA em produção. Fica aqui como linha de base: um ambiente novo roda
+-- todas as migrations em ordem (esta primeiro). As políticas "fail-open"
+-- abaixo (`user_id is null`) são SUBSTITUÍDAS pela migration seguinte
+-- (20261104120000_endurecimento_seguranca.sql) — nunca rode esta sozinha em
+-- produção.
+--
+-- Idempotente e à prova de tabelas parcialmente criadas: todas as colunas são
+-- garantidas com "add column if not exists" ANTES de índices, funções,
+-- policies e triggers que dependem delas. Requer PostgreSQL 15+.
+-- ============================================================================
 
 create extension if not exists "pgcrypto";
 
