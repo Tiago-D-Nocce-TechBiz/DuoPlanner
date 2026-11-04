@@ -105,7 +105,7 @@ function notificarGastoCompartilhado(item: ItemDespesa) {
         titulo: "Novo gasto compartilhado",
         descricao: `${item.estabelecimento} — ${brlInterno(item.valor)} entrou na divisão da viagem.`,
         href: "/dashboard/financas",
-        origem: "Finanças Duo",
+        origem: "DuoFinance",
       });
     })
     .catch(() => {});

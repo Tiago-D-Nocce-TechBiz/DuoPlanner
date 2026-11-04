@@ -37,7 +37,7 @@ export function Hero() {
             {[
               { icon: Plane, title: "Buscar Viagem", note: "Kiwi.com · datas flexíveis · low-cost" },
               { icon: Hotel, title: "Buscar Hospedagem", note: "Booking.com · total p/ 2 · custo-benefício" },
-              { icon: Wallet, title: "Finanças Duo", note: "Recibos lidos por IA" },
+              { icon: Wallet, title: "DuoFinance", note: "Fatura separada e categorizada" },
             ].map(({ icon: Icon, title, note }) => (
               <div
                 key={title}

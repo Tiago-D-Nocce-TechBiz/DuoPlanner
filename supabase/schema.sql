@@ -74,6 +74,15 @@ alter table public.despesas add column if not exists origem text not null defaul
 alter table public.despesas add column if not exists workspace_id uuid references public.workspaces (id) on delete cascade;
 alter table public.despesas add column if not exists escopo text not null default 'viagem_compartilhado';
 alter table public.despesas add column if not exists categoria_destino text;
+-- DuoFinance — metadados ricos da importação de fatura de cartão
+alter table public.despesas add column if not exists descricao_original text;
+alter table public.despesas add column if not exists estabelecimento_limpo text;
+alter table public.despesas add column if not exists o_que_foi_gasto text;
+alter table public.despesas add column if not exists eh_parcelado boolean not null default false;
+alter table public.despesas add column if not exists parcela_atual integer;
+alter table public.despesas add column if not exists total_parcelas integer;
+alter table public.despesas add column if not exists valor_total_compra numeric(12, 2);
+alter table public.despesas add column if not exists fatura_referencia text;
 
 -- preferencias_duo
 alter table public.preferencias_duo add column if not exists user_id uuid references auth.users (id) on delete cascade;
@@ -123,7 +132,7 @@ begin
     alter table public.viagens add constraint viagens_tipo_check check (tipo is null or tipo in ('voo', 'hospedagem'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'despesas_origem_check') then
-    alter table public.despesas add constraint despesas_origem_check check (origem in ('manual', 'ocr'));
+    alter table public.despesas add constraint despesas_origem_check check (origem in ('manual', 'ocr', 'fatura'));
   end if;
   if not exists (select 1 from pg_constraint where conname = 'despesas_escopo_check') then
     alter table public.despesas add constraint despesas_escopo_check check (escopo in ('viagem_compartilhado', 'pessoal_privado'));

@@ -25,7 +25,7 @@ const FEATURES = [
     icon: ScanLine,
     title: "Recibos com IA",
     description:
-      "Fotografe a nota fiscal: o Gemini lê título, valor e data e lança a despesa nas Finanças Duo.",
+      "Fotografe a nota fiscal: o Gemini lê título, valor e data e lança a despesa no DuoFinance.",
   },
   {
     icon: Brain,

@@ -180,7 +180,7 @@ function CardAcao({
             {status === "confirmada" ? (
               <>
                 <CheckCircle2 className="h-3.5 w-3.5" />
-                Registrado nas Finanças Duo
+                Registrado no DuoFinance
               </>
             ) : (
               "Descartado: nada foi registrado."
@@ -584,8 +584,8 @@ export function NoraDrawer() {
                     fechar();
                     router.push("/dashboard/financas");
                   }}
-                  title="Importar fatura ou extrato (abre Finanças Duo)"
-                  aria-label="Importar fatura ou extrato (abre Finanças Duo)"
+                  title="Importar fatura ou extrato (abre o DuoFinance)"
+                  aria-label="Importar fatura ou extrato (abre o DuoFinance)"
                   className="inline-flex h-8 w-8 items-center justify-center rounded-full text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 hover:text-[var(--color-heading)] transition-colors"
                 >
                   <Plus className="h-4 w-4" />

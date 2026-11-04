@@ -15,7 +15,7 @@ export function PublicNav() {
             Como funciona
           </a>
           <a href="#financas" className="text-sm text-muted transition-colors hover:text-heading">
-            Finanças Duo
+            DuoFinance
           </a>
         </nav>
         <div className="flex items-center gap-2">

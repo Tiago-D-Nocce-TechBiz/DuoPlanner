@@ -39,9 +39,9 @@ const ATALHOS_PAINEL: {
   },
   {
     icone: Wallet,
-    titulo: "Finanças Duo",
+    titulo: "DuoFinance",
     descricao:
-      "Importe uma fatura ou lance gastos, separe o que é pessoal e divida apenas as despesas da viagem.",
+      "Importe a fatura do cartão: o DuoFinance separa à vista e parcelado, categoriza tudo e divide só o que é da viagem.",
     href: "/dashboard/financas",
     acao: "Gerenciar finanças da dupla →",
   },

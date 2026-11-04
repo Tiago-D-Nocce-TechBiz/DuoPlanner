@@ -1,42 +1,39 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Users,
-  ScanLine,
-  PenLine,
   Plus,
-  CheckCircle2,
   ShieldCheck,
+  Layers,
   X,
 } from "@/components/ui/icons";
 import {
   useDespesas,
   setDespesas as salvarDespesas,
-  classificarItemAutomaticamente,
   idAleatorio,
   rotuloCategoria,
   type Categoria,
   type Escopo,
   type ItemDespesa,
 } from "@/lib/finance/store";
+import { parseValorMonetario } from "@/lib/finance/importar";
+import { SmartInvoiceImporter } from "@/components/finance/smart-invoice-importer";
 import {
-  importarExtrato,
-  parseValorMonetario,
-  type FormatoExtrato,
-  type LinhaIgnorada,
-} from "@/lib/finance/importar";
-import { isoToBR, todayInSaoPaulo } from "@/lib/dates";
+  listarDespesasPersistidas,
+  type DespesaPersistida,
+} from "@/app/dashboard/financas/invoice-actions";
 
 /**
- * Finanças Duo — controle de gastos da viagem com triagem de privacidade.
+ * DuoFinance — módulo financeiro do casal com motor avançado de importação de
+ * faturas de cartão de crédito.
  *
- * Importa uma fatura de cartão ou extrato de conta (CSV/TXT) ou texto colado
- * (`@/lib/finance/importar`), classifica os itens por categoria e separa o
- * que é da viagem (compartilhado) do que é pessoal (privado, nunca entra na
- * divisão da dupla). A lista fica no store compartilhado
- * (`@/lib/finance/store`), então a Nora (agente de IA) e esta página
- * enxergam os mesmos dados.
+ * A importação roda no `SmartInvoiceImporter` (motor híbrido em
+ * `@/lib/finance/invoice-analyzer` + enriquecimento por IA/dicionário): separa
+ * compras à vista e parceladas, limpa o nome das lojas, categoriza e sugere a
+ * privacidade. Esta página também permite o lançamento manual e lista os
+ * gastos salvos. A lista fica no store compartilhado (`@/lib/finance/store`),
+ * então a Nora (agente de IA) e esta página enxergam os mesmos dados.
  */
 
 // Labels sem emoji: os <option> de um <select> nativo não renderizam ícones
@@ -49,31 +46,10 @@ const CATEGORIAS: { value: Categoria; label: string }[] = [
   { value: "Gasto Pessoal (Fora da Viagem)", label: "Gasto Pessoal (Privado)" },
 ];
 
-const DESCRICAO_FORMATO: Record<FormatoExtrato, string> = {
-  cartao: "Fatura de cartão: compras entram; pagamentos e estornos ficam de fora.",
-  conta: "Extrato de conta: as saídas (valores negativos) entram como gastos; entradas ficam de fora.",
-  texto: "Texto colado: um lançamento por linha, com o valor no fim.",
-};
-
-const TAMANHO_MAXIMO_ARQUIVO = 2 * 1024 * 1024;
-
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
 function outroEscopo(escopo: Escopo): Escopo {
   return escopo === "viagem_compartilhado" ? "pessoal_privado" : "viagem_compartilhado";
-}
-
-/** Lê o arquivo como UTF-8 e, se vier com caracteres inválidos, como Windows-1252
- * (muitos bancos exportam CSV nessa codificação). */
-async function lerArquivoComoTexto(file: File): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const utf8 = new TextDecoder("utf-8").decode(bytes);
-  if (!utf8.includes("\uFFFD")) return utf8;
-  try {
-    return new TextDecoder("windows-1252").decode(bytes);
-  } catch {
-    return utf8;
-  }
 }
 
 function BotaoEscopo({ item, onClick }: { item: ItemDespesa; onClick: () => void }) {
@@ -113,66 +89,34 @@ export default function FinancasPage() {
   // Lista vem do store compartilhado (reativo): a Nora e esta página
   // escrevem/leem o mesmo localStorage e todas as telas se atualizam.
   const despesas = useDespesas();
-  const [itensTriagem, setItensTriagem] = useState<ItemDespesa[]>([]);
-  const [ignoradas, setIgnoradas] = useState<LinhaIgnorada[]>([]);
-  const [formato, setFormato] = useState<FormatoExtrato | null>(null);
-  const [avisoImportacao, setAvisoImportacao] = useState<string | null>(null);
-  const [textoColado, setTextoColado] = useState("");
   const [aba, setAba] = useState<"compartilhado" | "privado">("compartilhado");
   const [removido, setRemovido] = useState<{ item: ItemDespesa; indice: number } | null>(null);
+
+  // Gastos persistidos no Supabase (importações de fatura do DuoFinance).
+  // Carregados após a montagem (setState em .then passa no react-hooks) e
+  // recarregados quando o importador salva algo novo.
+  const [persistidas, setPersistidas] = useState<DespesaPersistida[] | null>(null);
+  const [recarregar, setRecarregar] = useState(0);
+
+  useEffect(() => {
+    let ativo = true;
+    listarDespesasPersistidas()
+      .then((res) => {
+        if (ativo && res.ok) setPersistidas(res.itens);
+      })
+      .catch(() => {
+        /* degrada em silêncio: a lista local continua visível */
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [recarregar]);
 
   const [tituloManual, setTituloManual] = useState("");
   const [valorManual, setValorManual] = useState("");
   const [erroManual, setErroManual] = useState<string | null>(null);
   const [categoriaManual, setCategoriaManual] = useState<Categoria>("Alimentação & Gastronomia");
   const [escopoManual, setEscopoManual] = useState<Escopo>("viagem_compartilhado");
-
-  const handleUploadFatura = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    e.target.value = "";
-    if (!file) return;
-    if (file.size > TAMANHO_MAXIMO_ARQUIVO) {
-      setAvisoImportacao("Arquivo grande demais (máximo de 2 MB). Exporte só o período da viagem.");
-      return;
-    }
-    extrairDoTexto(await lerArquivoComoTexto(file));
-  };
-
-  // Lê CSV de cartão/conta ou texto livre (um lançamento por linha).
-  const extrairDoTexto = (texto: string) => {
-    const resultado = importarExtrato(texto, todayInSaoPaulo());
-    const itens = resultado.itens.map((l) =>
-      classificarItemAutomaticamente(l.titulo, l.valor, isoToBR(l.dataIso), "Importado", l.categoriaBanco)
-    );
-    setItensTriagem(itens);
-    setIgnoradas(resultado.ignoradas);
-    setFormato(resultado.formato);
-    setAvisoImportacao(
-      itens.length === 0 && resultado.ignoradas.length === 0
-        ? "Nenhum lançamento encontrado. Use uma linha por gasto, com o valor no fim (ex.: Jantar R$ 120,00)."
-        : null
-    );
-    if (itens.length > 0) setTextoColado("");
-  };
-
-  const limparTriagem = () => {
-    setItensTriagem([]);
-    setIgnoradas([]);
-    setFormato(null);
-  };
-
-  const alternarEscopoTriagem = (id: string) =>
-    setItensTriagem((prev) =>
-      prev.map((item) => (item.id === id ? { ...item, escopo: outroEscopo(item.escopo) } : item))
-    );
-
-  const removerDaTriagem = (id: string) =>
-    setItensTriagem((prev) => prev.filter((item) => item.id !== id));
-
-  const confirmarTriagem = () => {
-    salvarDespesas([...itensTriagem, ...despesas]);
-    limparTriagem();
-  };
 
   const alternarEscopoSalvo = (id: string) =>
     salvarDespesas(
@@ -225,16 +169,15 @@ export default function FinancasPage() {
   const totalCompartilhado = compartilhados.reduce((a, i) => a + i.valor, 0);
   const totalPrivado = privados.reduce((a, i) => a + i.valor, 0);
   const lista = aba === "compartilhado" ? compartilhados : privados;
-  const triagemAberta = itensTriagem.length > 0 || ignoradas.length > 0;
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[var(--color-heading)]">
-          Finanças Duo
+          DuoFinance
         </h1>
         <p className="mt-2 text-sm text-[var(--color-muted)] max-w-2xl">
-          Controle os gastos da viagem a dois. Importe uma fatura ou lance manualmente — apenas os gastos marcados como da viagem são compartilhados; os pessoais ficam privados.
+          O módulo financeiro do casal. Importe a fatura do cartão para ver tudo separado — à vista, parcelado e por categoria — ou lance manualmente. Só os gastos compartilhados entram na divisão da dupla; os pessoais ficam privados.
         </p>
       </div>
 
@@ -264,52 +207,11 @@ export default function FinancasPage() {
         </div>
       </div>
 
-      {/* Importar + Lançar manual */}
+      {/* Motor avançado de importação de faturas */}
+      <SmartInvoiceImporter onSalvo={() => setRecarregar((n) => n + 1)} />
+
+      {/* Lançar manual */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="glass-panel rounded-2xl p-6 flex flex-col justify-between">
-          <div>
-            <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Importar fatura ou extrato</h2>
-            <p className="mt-1.5 text-xs sm:text-sm text-[var(--color-muted)] leading-relaxed">
-              Envie o CSV/TXT da fatura do cartão ou do extrato da conta, ou cole o texto. Você revisa a triagem antes de confirmar.
-            </p>
-          </div>
-
-          <div className="mt-5">
-            <label className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer hover:opacity-90 transition-opacity">
-              <ScanLine className="h-4 w-4" />
-              Selecionar arquivo (CSV / TXT)
-              <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleUploadFatura} className="hidden" />
-            </label>
-          </div>
-
-          <div className="mt-4">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-1.5">
-              Ou cole o texto da fatura
-            </label>
-            <textarea
-              value={textoColado}
-              onChange={(e) => setTextoColado(e.target.value)}
-              rows={3}
-              placeholder={"Um lançamento por linha. Ex.:\n05/10 Restaurante na orla  R$ 120,00"}
-              className="glass-input resize-none font-mono text-xs"
-            />
-            <button
-              type="button"
-              onClick={() => extrairDoTexto(textoColado)}
-              disabled={!textoColado.trim()}
-              className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-50"
-            >
-              <PenLine className="h-4 w-4" />
-              Ler texto colado
-            </button>
-            {avisoImportacao && (
-              <p role="status" className="mt-2 text-xs text-[var(--color-muted)]">
-                {avisoImportacao}
-              </p>
-            )}
-          </div>
-        </div>
-
         <form onSubmit={adicionarDespesaManual} className="glass-panel rounded-2xl p-6 space-y-4">
           <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Adicionar gasto manualmente</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -355,72 +257,70 @@ export default function FinancasPage() {
         </form>
       </div>
 
-      {/* Triagem de privacidade (aparece ao importar) */}
-      {triagemAberta && (
-        <div className="glass-panel rounded-2xl p-6 ring-1 ring-[var(--color-border-strong)]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
+      {/* Gastos salvos na nuvem (importações de fatura, sincronizados na dupla) */}
+      {persistidas && persistidas.length > 0 && (
+        <div className="glass-panel rounded-2xl p-6">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <h3 className="font-serif text-xl font-bold text-[var(--color-heading)]">Revisar antes de salvar</h3>
+              <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">
+                Gastos salvos no DuoFinance
+              </h2>
               <p className="text-xs text-[var(--color-muted)]">
-                {formato ? `${DESCRICAO_FORMATO[formato]} ` : ""}
-                Toque no status para alternar entre compartilhado e pessoal.
+                Sincronizados no espaço da dupla — visíveis para as duas contas (os privados, só para você).
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <button type="button" onClick={limparTriagem} className="px-3.5 py-2 rounded-xl text-xs font-semibold glass-panel cursor-pointer">
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarTriagem}
-                disabled={itensTriagem.length === 0}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <CheckCircle2 className="h-4 w-4" />
-                Confirmar{itensTriagem.length > 0 ? ` (${itensTriagem.length})` : ""}
-              </button>
-            </div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-black/5 px-3 py-1 text-xs font-semibold text-[var(--color-muted)] dark:bg-white/10">
+              {persistidas.length} {persistidas.length === 1 ? "gasto" : "gastos"}
+            </span>
           </div>
-
-          {itensTriagem.length === 0 ? (
-            <p className="text-sm text-[var(--color-muted)]">Nenhum gasto reconhecido neste arquivo.</p>
-          ) : (
-            <div className="space-y-2.5">
-              {itensTriagem.map((item) => (
-                <div key={item.id} className="rounded-xl border border-[var(--color-border)] px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-[var(--color-heading)] break-words">{item.estabelecimento}</p>
-                    <p className="text-xs text-[var(--color-muted)]">{item.data} • {rotuloCategoria(item)}</p>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3">
-                    <span className="font-serif font-bold text-sm text-[var(--color-heading)]">{brl(item.valor)}</span>
-                    <BotaoEscopo item={item} onClick={() => alternarEscopoTriagem(item.id)} />
-                    <BotaoRemover rotulo={`Não importar ${item.estabelecimento}`} onClick={() => removerDaTriagem(item.id)} />
-                  </div>
+          <div className="space-y-2.5">
+            {persistidas.map((d) => (
+              <div
+                key={d.id}
+                className="flex flex-col gap-2 rounded-xl border border-[var(--color-border)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-[var(--color-heading)]">
+                    {d.estabelecimento}
+                    {d.oQueFoiGasto ? (
+                      <span className="font-normal text-[var(--color-muted)]"> — {d.oQueFoiGasto}</span>
+                    ) : null}
+                  </p>
+                  <p className="flex flex-wrap items-center gap-x-2 text-xs text-[var(--color-muted)]">
+                    <span>{d.data ? d.data.split("-").reverse().join("/") : "sem data"}</span>
+                    <span>• {d.categoria}</span>
+                    {d.ehParcelado && d.parcelaAtual && d.totalParcelas ? (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[var(--color-accent)] px-2 py-0.5 font-semibold text-[var(--color-accent-foreground)]">
+                        <Layers className="h-3 w-3" />
+                        {String(d.parcelaAtual).padStart(2, "0")}/{String(d.totalParcelas).padStart(2, "0")}
+                      </span>
+                    ) : null}
+                  </p>
                 </div>
-              ))}
-            </div>
-          )}
-
-          {ignoradas.length > 0 && (
-            <details className="mt-5 rounded-xl border border-[var(--color-border)] px-4 py-3">
-              <summary className="cursor-pointer text-xs font-semibold text-[var(--color-muted)]">
-                {ignoradas.length === 1 ? "1 linha não importada" : `${ignoradas.length} linhas não importadas`}
-              </summary>
-              <ul className="mt-3 space-y-1.5">
-                {ignoradas.map((l) => (
-                  <li key={l.linha} className="text-xs text-[var(--color-muted)]">
-                    <span className="font-semibold text-[var(--color-heading)]">Linha {l.linha}:</span>{" "}
-                    {l.motivo} — <span className="font-mono break-all">{l.texto}</span>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          )}
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <span className="font-serif text-sm font-bold text-[var(--color-heading)]">{brl(d.valor)}</span>
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                      d.escopo === "viagem_compartilhado"
+                        ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]"
+                        : "bg-black/5 text-[var(--color-muted)] dark:bg-white/10"
+                    }`}
+                  >
+                    {d.escopo === "viagem_compartilhado" ? (
+                      <Users className="h-3.5 w-3.5" />
+                    ) : (
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                    )}
+                    {d.escopo === "viagem_compartilhado" ? "Compartilhado" : "Privado"}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* Lista de despesas */}
+      {/* Lista de despesas (lançamentos manuais e da Nora, neste dispositivo) */}
       <div className="glass-panel rounded-2xl p-6">
         <div className="flex items-center gap-3 mb-6">
           <button
