@@ -79,6 +79,9 @@ export function InviteButton({
                 placeholder="parceiro@email.com.br"
                 className="glass-input"
               />
+              <p className="mt-1 text-[11px] text-[var(--color-muted)]">
+                Com e-mail, enviamos o convite para essa pessoa e ele só pode ser aceito por ela.
+              </p>
             </div>
 
             <div className="mt-3">
@@ -88,7 +91,7 @@ export function InviteButton({
                 disabled={pendente}
                 className="px-4 py-2 rounded-xl text-xs font-semibold bg-[var(--color-accent)] text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60"
               >
-                {pendente ? "Gerando convite…" : "Gerar link de convite"}
+                {pendente ? "Gerando convite…" : email.trim() ? "Enviar convite" : "Gerar link de convite"}
               </button>
             </div>
 

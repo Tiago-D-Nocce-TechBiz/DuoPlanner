@@ -193,7 +193,7 @@ export default function AlertasPage() {
             const link = a.ultimoLink ?? linkDoAlerta(a);
             const atingiu = a.precoAlvo !== null && a.ultimoPreco !== null && a.ultimoPreco <= a.precoAlvo;
             return (
-              <article key={a.id} className="glass-panel rounded-2xl p-5">
+              <article key={a.id} id={`alerta-${a.id}`} className="glass-panel rounded-2xl p-5 scroll-mt-24 target:ring-2 target:ring-[var(--color-border-strong)]">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--color-subtle)]">

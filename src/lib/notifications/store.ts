@@ -108,8 +108,12 @@ function getSnapshot(): Notificacao[] {
   return cacheLista;
 }
 
+// Mesma referência sempre: um [] novo a cada chamada faz o React avisar
+// ("getServerSnapshot should be cached") e renderizar de novo na hidratação.
+const SEM_NOTIFICACOES: Notificacao[] = [];
+
 function getServerSnapshot(): Notificacao[] {
-  return [];
+  return SEM_NOTIFICACOES;
 }
 
 export function useNotificacoes(): Notificacao[] {

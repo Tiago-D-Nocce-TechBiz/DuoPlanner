@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { QualCartaoUsar } from "@/components/cambio/qual-cartao-usar";
 import { Shuffle } from "@/components/ui/icons";
 import { parseValorMonetario } from "@/lib/finance/importar";
 
@@ -11,7 +12,8 @@ import { parseValorMonetario } from "@/lib/finance/importar";
  * hydration mismatch) e, depois de montar, busca a cotação do dia em
  * `/api/cotacoes` (AwesomeAPI, cache de 1 hora). Sem rede, continua com as
  * referências. O usuário pode ajustar qualquer taxa; o que ele editou não é
- * sobrescrito pela cotação. 100% em PT-BR.
+ * sobrescrito pela cotação. Embaixo, "Qual cartão usar?" compara o custo real
+ * (VET) de cartão, conta global e espécie com as mesmas taxas. 100% em PT-BR.
  */
 
 // 1 unidade da moeda = X reais. Ponto de partida até a cotação chegar.
@@ -198,6 +200,8 @@ export default function ConversorPage() {
           ))}
         </div>
       </div>
+
+      <QualCartaoUsar taxas={taxas} moedas={MOEDAS.filter((m) => m.codigo !== "BRL")} />
     </div>
   );
 }

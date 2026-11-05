@@ -1,16 +1,20 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { obterSessao } from "@/lib/auth/sessao";
 import { getWorkspaceAtual } from "@/lib/supabase/workspace";
 import { SITE_URL } from "@/lib/auth/seguranca";
+import { emailConvite } from "@/lib/email/templates";
+import { enviarEmail } from "@/lib/mail";
 import { consumirCota } from "@/lib/seguranca/cotas";
 
 /**
  * Ações de compartilhamento de conta (workspace) usadas pelo painel.
  *
  * - `gerarConvite`: cria um convite real no banco para o workspace do usuário
- *   logado e devolve o código + o link pronto. Limite: cota "convite"
- *   (10 por dia), porque cada convite pode disparar um e-mail.
+ *   logado e devolve o código + o link pronto. Com e-mail informado, o
+ *   convite só vale para aquele endereço e segue por e-mail (Resend). Limite:
+ *   cota "convite" (10 por dia), porque cada convite pode disparar um e-mail.
  * - `estadoCompartilhamento`: informa se há sessão, o código do workspace e
  *   quantas pessoas já estão no espaço — para a UI mostrar dados reais.
  *
@@ -21,10 +25,13 @@ export interface ConviteResult {
   ok: boolean;
   codigo?: string;
   link?: string;
+  /** Com e-mail informado: o convite saiu por e-mail? */
+  emailEnviado?: boolean;
   mensagem: string;
 }
 
 const EMAIL = /^[^\s@]{1,64}@[^\s@]{1,255}\.[^\s@]{2,}$/;
+const VALIDADE_DIAS = 7;
 
 /** Gera um link de convite (convite real, salvo na tabela `convites`). */
 export async function gerarConvite(emailConvidado?: string): Promise<ConviteResult> {
@@ -35,6 +42,9 @@ export async function gerarConvite(emailConvidado?: string): Promise<ConviteResu
   const email = typeof emailConvidado === "string" ? emailConvidado.trim().toLowerCase() : "";
   if (email && (email.length > 254 || !EMAIL.test(email))) {
     return { ok: false, mensagem: "Confira o e-mail da pessoa convidada (ou deixe em branco)." };
+  }
+  if (email && auth.sessao.email && email === auth.sessao.email.toLowerCase()) {
+    return { ok: false, mensagem: "Informe o e-mail da outra pessoa (este é o seu)." };
   }
 
   const ws = await getWorkspaceAtual();
@@ -61,12 +71,64 @@ export async function gerarConvite(emailConvidado?: string): Promise<ConviteResu
   }
 
   const codigo = String(data.codigo);
+  const link = `${SITE_URL}/convite?code=${encodeURIComponent(codigo)}`;
+  if (!email) {
+    return {
+      ok: true,
+      codigo,
+      link,
+      mensagem: `Convite criado! Compartilhe o link com seu parceiro(a). Ele vale por ${VALIDADE_DIAS} dias.`,
+    };
+  }
+
+  const emailEnviado = await enviarConvitePorEmail({
+    supabase,
+    userId,
+    emailProprio: auth.sessao.email,
+    para: email,
+    nomeEspaco: ws.nome,
+    codigo,
+    link,
+  });
   return {
     ok: true,
     codigo,
-    link: `${SITE_URL}/convite?code=${encodeURIComponent(codigo)}`,
-    mensagem: "Convite criado! Compartilhe o link com seu parceiro(a). Ele vale por 7 dias.",
+    link,
+    emailEnviado,
+    mensagem: emailEnviado
+      ? `Convite enviado para ${email}. Ele vale por ${VALIDADE_DIAS} dias e só pode ser aceito com este e-mail; se preferir, copie o link abaixo.`
+      : `Convite criado, mas o e-mail não pôde ser enviado agora. Copie o link abaixo e mande para ${email}: ele vale por ${VALIDADE_DIAS} dias e só pode ser aceito com este e-mail.`,
   };
+}
+
+async function enviarConvitePorEmail(p: {
+  supabase: SupabaseClient;
+  userId: string;
+  emailProprio: string | null;
+  para: string;
+  nomeEspaco: string;
+  codigo: string;
+  link: string;
+}): Promise<boolean> {
+  try {
+    // Nome de quem convida: o do perfil (o par vê o mesmo nome no painel).
+    const { data: perfil } = await p.supabase.from("perfis").select("nome").eq("user_id", p.userId).maybeSingle();
+    const nome =
+      (typeof perfil?.nome === "string" && perfil.nome.trim()) || (p.emailProprio ? p.emailProprio.split("@")[0] : "");
+    const montado = emailConvite({ nomeConvidante: nome, nomeEspaco: p.nomeEspaco, link: p.link, validadeDias: VALIDADE_DIAS });
+    const envio = await enviarEmail({
+      para: p.para,
+      assunto: montado.assunto,
+      html: montado.html,
+      texto: montado.texto,
+      idempotencia: `convite-${p.codigo}`,
+      categoria: "convite",
+    });
+    return envio.ok;
+  } catch (erro) {
+    console.error("[convites] falha ao enviar o e-mail do convite:", erro instanceof Error ? erro.message : erro);
+    return false;
+  }
 }
 
 export interface EstadoCompartilhamento {

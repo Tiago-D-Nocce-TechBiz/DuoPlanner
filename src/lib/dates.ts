@@ -1,13 +1,21 @@
 /** Datas no calendário do Brasil (o app é usado a partir de São Paulo). */
 
+const DIA_EM_SAO_PAULO = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 /** "Hoje" no fuso de São Paulo, em AAAA-MM-DD. */
 export function todayInSaoPaulo(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "America/Sao_Paulo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  return DIA_EM_SAO_PAULO.format(new Date());
+}
+
+/** Dia (AAAA-MM-DD) de um instante no fuso de São Paulo; "" se inválido. */
+export function dateInSaoPaulo(instante: string | Date): string {
+  const data = typeof instante === "string" ? new Date(instante) : instante;
+  return Number.isNaN(data.getTime()) ? "" : DIA_EM_SAO_PAULO.format(data);
 }
 
 /** Diferença em dias entre duas datas ISO (b - a). */

@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { escolherWorkspace } from "@/lib/supabase/escolher-workspace";
 import {
   createSupabaseServerClient,
   getCurrentUserId,
@@ -21,12 +22,6 @@ export interface Workspace {
   nome: string;
   codigo: string;
   papel: "dono" | "parceiro";
-}
-
-/** Prefere o espaço em que a pessoa entrou por convite; senão, o primeiro. */
-function escolherWorkspace<T extends { papel: string; workspaces: unknown }>(lista: T[]): T | undefined {
-  const validos = lista.filter((m) => m.workspaces);
-  return validos.find((m) => m.papel === "parceiro") ?? validos[0];
 }
 
 /**
