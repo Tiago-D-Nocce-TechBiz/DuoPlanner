@@ -16,6 +16,7 @@ import {
   TrendingUp,
   ScanLine,
   Sparkles,
+  AlertTriangle,
 } from "@/components/ui/icons";
 import { CategoryIcon, COR_CATEGORIA } from "@/components/finance/category-icon";
 import { todayInSaoPaulo } from "@/lib/dates";
@@ -35,7 +36,8 @@ import {
   enriquecerTransacoes,
   type TransacaoParaEnriquecer,
 } from "@/app/dashboard/financas/analyze-invoice";
-import { criarDespesa } from "@/lib/finance/store";
+import { criarDespesa, useDespesas } from "@/lib/finance/store";
+import { encontrarJaLancados } from "@/lib/finance/duplicados";
 import type { LinhaIgnorada } from "@/lib/finance/importar";
 import { useContextoSync } from "@/lib/sync/motor";
 
@@ -69,6 +71,7 @@ const PASSOS_ANALISE = [
 
 export function SmartInvoiceImporter() {
   const ctx = useContextoSync();
+  const despesas = useDespesas();
   const [etapa, setEtapa] = useState<Etapa>("importar");
   const [passoAnalise, setPassoAnalise] = useState(0);
   const [transacoes, setTransacoes] = useState<TransacaoAnalisada[]>([]);
@@ -81,8 +84,12 @@ export function SmartInvoiceImporter() {
   const [aba, setAba] = useState<Aba>("todos");
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaDuoFinance | null>(null);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
-  /** Quantos gastos entraram na fila e em qual espaço (null = sem casal ainda). */
-  const [salvo, setSalvo] = useState<{ quantidade: number; espaco: string | null } | null>(null);
+  /** Linhas que já parecem lançadas no DuoFinance (id → descrição do gasto existente). */
+  const [jaLancados, setJaLancados] = useState<Map<string, string>>(() => new Map());
+  /** Linhas que não serão salvas: começa com as já lançadas; o usuário decide. */
+  const [pular, setPular] = useState<Set<string>>(() => new Set());
+  /** Quantos gastos entraram na fila, em qual espaço (null = sem casal ainda) e quantos já existiam. */
+  const [salvo, setSalvo] = useState<{ quantidade: number; espaco: string | null; pulados: number } | null>(null);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
 
   const raioX = useMemo(() => calcularRaioX(transacoes), [transacoes]);
@@ -105,6 +112,11 @@ export function SmartInvoiceImporter() {
     setTransacoes(base.transacoes);
     setIgnoradas(base.ignoradas);
     setFaturaReferencia(base.faturaReferencia);
+    // Compras já lançadas (à mão, pela Nora, por recibo ou numa importação
+    // anterior) não são salvas de novo, a menos que o usuário peça.
+    const achados = encontrarJaLancados(base.transacoes, despesas);
+    setJaLancados(achados);
+    setPular(new Set(achados.keys()));
 
     // Feedback por etapas enquanto a IA/dicionário classifica.
     const t1 = setTimeout(() => setPassoAnalise(1), 450);
@@ -158,8 +170,19 @@ export function SmartInvoiceImporter() {
     setAba("todos");
     setFiltroCategoria(null);
     setSelecionados(new Set());
+    setJaLancados(new Map());
+    setPular(new Set());
     setSalvo(null);
     setErroSalvar(null);
+  }
+
+  function alternarPulo(id: string) {
+    setPular((prev) => {
+      const prox = new Set(prev);
+      if (prox.has(id)) prox.delete(id);
+      else prox.add(id);
+      return prox;
+    });
   }
 
   /* ---- Edição em linha ---- */
@@ -199,7 +222,8 @@ export function SmartInvoiceImporter() {
   // offline), RLS por espaço e escopo, Realtime para o par e entrada no
   // acerto. O servidor valida cada linha e tira user_id/workspace_id da sessão.
   function confirmar() {
-    const aSalvar = transacoes.filter((t) => !t.ignorarNoCalculo);
+    const validas = transacoes.filter((t) => !t.ignorarNoCalculo);
+    const aSalvar = validas.filter((t) => !pular.has(t.id));
     if (aSalvar.length === 0) return;
     if (!ctx) {
       setErroSalvar("O painel ainda está carregando. Tente de novo em instantes.");
@@ -228,7 +252,7 @@ export function SmartInvoiceImporter() {
       if (criado) quantidade++;
     }
     setErroSalvar(null);
-    setSalvo({ quantidade, espaco: ctx.workspace?.nome ?? null });
+    setSalvo({ quantidade, espaco: ctx.workspace?.nome ?? null, pulados: validas.length - aSalvar.length });
   }
 
   /* ---- Render ---- */
@@ -253,6 +277,13 @@ export function SmartInvoiceImporter() {
             ? `Salvos no espaço “${salvo.espaco}”. Os compartilhados aparecem para as duas contas e entram no acerto; os privados ficam só com você.`
             : "Salvos como gastos pessoais. Convide sua dupla para dividir os gastos da viagem."}
         </p>
+        {salvo.pulados > 0 && (
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            {salvo.pulados === 1
+              ? "1 compra já estava no DuoFinance e não foi salva de novo."
+              : `${salvo.pulados} compras já estavam no DuoFinance e não foram salvas de novo.`}
+          </p>
+        )}
         <button
           type="button"
           onClick={reiniciar}
@@ -355,6 +386,8 @@ export function SmartInvoiceImporter() {
 
   /* --------------------------- Etapa: revisar --------------------------- */
 
+  const qtdASalvar = transacoes.filter((t) => !t.ignorarNoCalculo && !pular.has(t.id)).length;
+
   return (
     <div className="space-y-6">
       {/* Cabeçalho da análise */}
@@ -383,11 +416,11 @@ export function SmartInvoiceImporter() {
           <button
             type="button"
             onClick={confirmar}
-            disabled={!ctx}
+            disabled={!ctx || qtdASalvar === 0}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="h-4 w-4" />
-            Salvar no DuoFinance
+            {qtdASalvar === 0 ? "Nada novo para salvar" : `Salvar ${qtdASalvar} no DuoFinance`}
           </button>
         </div>
       </div>
@@ -401,6 +434,17 @@ export function SmartInvoiceImporter() {
       {aviso && (
         <p role="status" className="rounded-xl border border-[var(--color-border)] px-4 py-2.5 text-xs text-[var(--color-muted)]">
           {aviso}
+        </p>
+      )}
+
+      {jaLancados.size > 0 && (
+        <p role="status" className="flex items-start gap-2 rounded-xl border border-[var(--color-border-strong)] px-4 py-2.5 text-xs text-[var(--color-heading)]">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span>
+            {jaLancados.size === 1
+              ? "1 compra desta fatura já parece estar no DuoFinance (mesma data e valor). Ela não será salva de novo, a menos que você toque em “Salvar mesmo assim”."
+              : `${jaLancados.size} compras desta fatura já parecem estar no DuoFinance (mesma data e valor). Elas não serão salvas de novo, a menos que você toque em “Salvar mesmo assim”.`}
+          </span>
         </p>
       )}
 
@@ -538,6 +582,9 @@ export function SmartInvoiceImporter() {
                 onSelecionar={() => alternarSelecionado(t.id)}
                 onCategoria={(c) => trocarCategoria(t.id, c)}
                 onEscopo={(e) => trocarEscopo(t.id, e)}
+                jaLancadoComo={jaLancados.get(t.id)}
+                pulado={pular.has(t.id)}
+                onAlternarPulo={() => alternarPulo(t.id)}
               />
             ))}
           </div>
@@ -622,12 +669,19 @@ function LinhaTransacao({
   onSelecionar,
   onCategoria,
   onEscopo,
+  jaLancadoComo,
+  pulado,
+  onAlternarPulo,
 }: {
   t: TransacaoAnalisada;
   selecionado: boolean;
   onSelecionar: () => void;
   onCategoria: (c: CategoriaDuoFinance) => void;
   onEscopo: (e: EscopoSugerido) => void;
+  /** Descrição do gasto já lançado com a mesma data e valor (se houver). */
+  jaLancadoComo?: string;
+  pulado: boolean;
+  onAlternarPulo: () => void;
 }) {
   const compartilhado = t.suggestedScope === "compartilhado";
   const parcela = t.installmentInfo;
@@ -636,7 +690,24 @@ function LinhaTransacao({
     : 0;
 
   return (
-    <div className="rounded-xl border border-[var(--color-border)] px-4 py-3">
+    <div className={`rounded-xl border px-4 py-3 ${pulado ? "border-dashed border-[var(--color-border-strong)]" : "border-[var(--color-border)]"}`}>
+      {jaLancadoComo !== undefined && (
+        <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+          <span className="inline-flex items-start gap-1.5 text-[var(--color-muted)]">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {pulado
+              ? `Já lançado como “${jaLancadoComo}”: esta compra não será salva de novo.`
+              : `Será salva mesmo assim (já existe “${jaLancadoComo}” com a mesma data e valor).`}
+          </span>
+          <button
+            type="button"
+            onClick={onAlternarPulo}
+            className="rounded-full px-3 py-1 font-semibold glass-panel cursor-pointer"
+          >
+            {pulado ? "Salvar mesmo assim" : "Não salvar"}
+          </button>
+        </div>
+      )}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-start gap-3">
           <input
