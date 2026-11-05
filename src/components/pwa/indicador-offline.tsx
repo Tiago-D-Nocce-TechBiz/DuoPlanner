@@ -6,7 +6,7 @@ import { useStatusSync } from "@/lib/sync/motor";
 /**
  * Indicador de conectividade + sincronização (canto inferior, acima da área
  * segura do iPhone). Aparece só quando importa:
- *  - sem internet: "Modo Offline — sincronizando quando a conexão voltar";
+ *  - sem internet: "Modo Offline — Sincronizando quando a conexão voltar";
  *  - internet de volta e fila sendo enviada: "Sincronizando N alterações…";
  *  - rede ok, mas o servidor não responde: alterações aguardando.
  */
@@ -36,7 +36,7 @@ export function IndicadorOffline() {
 
   let texto: string | null = null;
   if (!online) {
-    texto = `Modo Offline — sincronizando quando a conexão voltar${status.pendentes ? ` · ${plural(status.pendentes)} guardada(s) aqui` : ""}`;
+    texto = `Modo Offline — Sincronizando quando a conexão voltar${status.pendentes ? ` · ${plural(status.pendentes)} guardada(s) aqui` : ""}`;
   } else if (status.pendentes > 0 && status.enviando) {
     texto = `Sincronizando ${plural(status.pendentes)}…`;
   } else if (status.pendentes > 0 && status.ultimoErro?.startsWith("Sem conexão")) {
