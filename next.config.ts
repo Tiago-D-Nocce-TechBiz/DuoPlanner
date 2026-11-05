@@ -49,6 +49,16 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      // Service Worker: nunca em cache (atualização imediata) e com CSP
+      // própria, restrita à mesma origem.
+      {
+        source: "/sw.js",
+        headers: [
+          { key: "Content-Type", value: "application/javascript; charset=utf-8" },
+          { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },
+          { key: "Content-Security-Policy", value: "default-src 'self'; script-src 'self'" },
+        ],
+      },
     ];
   },
 };

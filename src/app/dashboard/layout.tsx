@@ -13,6 +13,9 @@ import { NoraTrigger } from "@/components/ai/nora-trigger";
 import { NoraDrawer } from "@/components/ai/nora-drawer";
 import { SincronizacaoProvider } from "@/components/sync/sincronizacao-provider";
 import { AvisoSincronizacao } from "@/components/sync/aviso-sincronizacao";
+import { IndicadorOffline } from "@/components/pwa/indicador-offline";
+import { InstallPwaPrompt } from "@/components/pwa/InstallPwaPrompt";
+import { AquecerCacheOffline } from "@/components/pwa/registrar-sw";
 import { useStatusSync } from "@/lib/sync/motor";
 import {
   LayoutDashboard,
@@ -186,6 +189,11 @@ export default function DashboardLayout({
 
       {/* Painel lateral da Nora — acessível de qualquer rota do dashboard */}
       <NoraDrawer />
+
+      {/* PWA: estado offline/sincronização, convite de instalação e cache offline */}
+      <IndicadorOffline />
+      <InstallPwaPrompt />
+      <AquecerCacheOffline />
     </div>
     </NoraProvider>
   );

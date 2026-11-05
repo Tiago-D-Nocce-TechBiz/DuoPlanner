@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#090D16" />
+  <title>Sem conexão — DuoPlanner</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; display: grid; place-items: center;
+      padding: max(24px, env(safe-area-inset-top)) 20px max(24px, env(safe-area-inset-bottom));
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: #EAE7E0; color: #1C1917;
+    }
+    @media (prefers-color-scheme: dark) { body { background: #090D16; color: #E4E4E7; } .card { background: #1A2234 !important; border-color: rgba(255,255,255,.14) !important; } a.botao { background: #F5F2EB !important; color: #090D16 !important; } }
+    .card { max-width: 420px; width: 100%; background: #FBF9F4; border: 1px solid rgba(214,203,186,.85); border-radius: 24px; padding: 28px; text-align: center; }
+    img { width: 56px; height: 56px; border-radius: 14px; }
+    h1 { font-family: Georgia, "Times New Roman", serif; font-size: 24px; margin: 16px 0 8px; }
+    p { font-size: 14px; line-height: 1.55; margin: 0 0 16px; opacity: .85; }
+    nav { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 8px 0 20px; }
+    nav a { font-size: 13px; padding: 8px 12px; border-radius: 12px; border: 1px solid currentColor; color: inherit; text-decoration: none; opacity: .9; }
+    a.botao, button { display: inline-block; font: inherit; font-size: 13px; font-weight: 600; padding: 10px 16px; border-radius: 12px; border: 0; cursor: pointer; background: #181512; color: #FAF8F5; text-decoration: none; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <img src="/brand/logo-96.webp?v=3" alt="DuoPlanner" width="56" height="56" />
+    <h1>Modo offline</h1>
+    <p>Esta página ainda não foi guardada neste aparelho. As que você já abriu funcionam sem internet, com a última cópia. O que você alterar é sincronizado quando a conexão voltar.</p>
+    <nav aria-label="Páginas disponíveis offline">
+      <a href="/dashboard/roteiro">Roteiro</a>
+      <a href="/dashboard/checklist">Checklist</a>
+      <a href="/dashboard/conversor">Conversor</a>
+      <a href="/dashboard/financas">Finanças</a>
+    </nav>
+    <button type="button" onclick="location.reload()">Tentar de novo</button>
+  </main>
+</body>
+</html>

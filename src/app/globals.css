@@ -78,6 +78,16 @@
     scroll-behavior: smooth;
   }
 
+  /* App instalado (viewport-fit=cover): conteúdo fora do notch e da barra
+     de gestos do iPhone. */
+  body {
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -156,6 +166,19 @@
   outline: none;
   border-color: var(--color-border-strong);
   box-shadow: 0 0 0 3px rgba(200, 125, 85, 0.15);
+}
+
+/* O iOS dá zoom ao focar campos com fonte < 16 px. Em telas pequenas os
+   campos têm 16 px — em vez de travar o zoom de pinça (maximum-scale=1),
+   que prejudica quem precisa ampliar a tela (WCAG 1.4.4). Fora de @layer de
+   propósito: precisa vencer o .glass-input e os utilitários text-sm/text-xs. */
+@media (max-width: 640px) {
+  .glass-input,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  select,
+  textarea {
+    font-size: 16px;
+  }
 }
 
 /**
