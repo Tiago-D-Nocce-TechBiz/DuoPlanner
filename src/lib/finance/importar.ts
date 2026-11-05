@@ -1,6 +1,6 @@
 /**
  * Importação de fatura de cartão ou extrato de conta (CSV, TXT ou texto
- * colado) para as Finanças Duo.
+ * colado) para o DuoFinance.
  *
  * Puro e determinístico: "hoje" chega por parâmetro, então os testes não
  * dependem do relógio. Nada aqui grava dados; a página mostra o resultado

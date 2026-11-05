@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { CATEGORIAS, ESCOPOS } from "@/lib/finance/classificar";
+import { CATEGORIAS_DUOFINANCE } from "@/lib/finance/categorias-duofinance";
 import { ORIGENS_DESPESA, RECURSOS, type Recurso } from "./modelos";
 
 /**
@@ -35,6 +36,13 @@ const despesaCampos = z.object({
   escopo: z.enum(ESCOPOS),
   pagoPor: uuid.nullable(),
   proporcaoDivisao: z.number().min(0).max(100).nullable(),
+  // Metadados da fatura importada (DuoFinance). Opcionais: operações antigas
+  // da fila e os demais gastos não os enviam.
+  oQueFoiGasto: z.string().trim().max(120).nullable().optional(),
+  categoriaDetalhada: z.enum(CATEGORIAS_DUOFINANCE).nullable().optional(),
+  parcelaAtual: z.number().int().min(1).max(72).nullable().optional(),
+  totalParcelas: z.number().int().min(2).max(72).nullable().optional(),
+  faturaReferencia: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).nullable().optional(),
 });
 
 export const despesaCriar = despesaCampos
@@ -49,6 +57,11 @@ export const despesaCriar = despesaCampos
     }
     if (d.tipo === "acerto" && (d.escopo !== "viagem_compartilhado" || d.proporcaoDivisao !== 0)) {
       ctx.addIssue({ code: "custom", path: ["tipo"], message: "Acerto inválido." });
+    }
+    const atual = d.parcelaAtual ?? null;
+    const total = d.totalParcelas ?? null;
+    if ((atual === null) !== (total === null) || (atual !== null && total !== null && atual > total)) {
+      ctx.addIssue({ code: "custom", path: ["parcelaAtual"], message: "Parcela inválida." });
     }
   });
 
@@ -162,6 +175,11 @@ const COLUNA_DO_CAMPO: Record<Recurso, Record<string, string>> = {
     proporcaoDivisao: "proporcao_divisao",
     tipo: "tipo",
     origem: "origem",
+    oQueFoiGasto: "o_que_foi_gasto",
+    categoriaDetalhada: "categoria_detalhada",
+    parcelaAtual: "parcela_atual",
+    totalParcelas: "total_parcelas",
+    faturaReferencia: "fatura_referencia",
   },
   roteiro_dias: { id: "id", data: "data", ordem: "ordem" },
   roteiro_itens: { id: "id", diaId: "dia_id", horario: "horario", titulo: "titulo", nota: "descricao", ordem: "ordem" },

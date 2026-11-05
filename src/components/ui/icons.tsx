@@ -538,5 +538,136 @@ export function Wand(p: IconProps) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* DuoFinance — categorias e controles da importação de fatura         */
+/* ------------------------------------------------------------------ */
+
+/** Talheres (Alimentação). */
+export function Utensils(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M4 3v7a2 2 0 0 0 2 2h0a2 2 0 0 0 2-2V3" />
+      <path d="M6 12v9" />
+      <path d="M17 3c-1.7 0-3 1.8-3 4s1.3 4 3 4" />
+      <path d="M17 3v18" />
+    </Icon>
+  );
+}
+
+/** Carro (Transporte). */
+export function Car(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11" />
+      <path d="M3 16v-2.5A2.5 2.5 0 0 1 5.5 11h13A2.5 2.5 0 0 1 21 13.5V16a1 1 0 0 1-1 1h-1" />
+      <path d="M5 17H4a1 1 0 0 1-1-1" />
+      <circle cx="7.5" cy="16.5" r="1.5" />
+      <circle cx="16.5" cy="16.5" r="1.5" />
+    </Icon>
+  );
+}
+
+/** Sacola de compras (Compras). */
+export function ShoppingBag(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M6 7h12l-1 13H7L6 7z" />
+      <path d="M9 7V5.5a3 3 0 0 1 6 0V7" />
+    </Icon>
+  );
+}
+
+/** Ingresso (Lazer & Passeios). */
+export function Ticket(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M4 8a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2 2 2 0 0 0 0 4 2 2 0 0 1-2 2H6a2 2 0 0 1-2-2 2 2 0 0 0 0-4z" />
+      <path d="M13 6v2M13 11v2M13 16v2" />
+    </Icon>
+  );
+}
+
+/** Setas em ciclo (Assinaturas / recorrência). */
+export function Repeat(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M17 3l3 3-3 3" />
+      <path d="M20 6H8a4 4 0 0 0-4 4v1" />
+      <path d="M7 21l-3-3 3-3" />
+      <path d="M4 18h12a4 4 0 0 0 4-4v-1" />
+    </Icon>
+  );
+}
+
+/** Cápsula (Saúde & Farmácia). */
+export function Pill(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="3" y="8" width="18" height="8" rx="4" transform="rotate(45 12 12)" />
+      <path d="M8.5 8.5l7 7" />
+    </Icon>
+  );
+}
+
+/** Prédio institucional (Taxas & Impostos). */
+export function Landmark(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M12 3l8 5H4l8-5z" />
+      <path d="M6 10v7M10 10v7M14 10v7M18 10v7" />
+      <path d="M4 20h16" />
+    </Icon>
+  );
+}
+
+/** Camadas (visão de parcelas). */
+export function Layers(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M12 3l9 5-9 5-9-5 9-5z" />
+      <path d="M3 13l9 5 9-5" />
+    </Icon>
+  );
+}
+
+/** Funil (filtro). */
+export function Filter(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M3 5h18l-7 8v6l-4-2v-4L3 5z" />
+    </Icon>
+  );
+}
+
+/** Seta para baixo (dropdown). */
+export function ChevronDown(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M6 9l6 6 6-6" />
+    </Icon>
+  );
+}
+
+/** Upload (arrastar e soltar arquivo). */
+export function Upload(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M12 16V4" />
+      <path d="M8 8l4-4 4 4" />
+      <path d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    </Icon>
+  );
+}
+
+/** Cadeado (gasto privado). */
+export function Lock(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="5" y="11" width="14" height="9" rx="2" />
+      <path d="M8 11V8a4 4 0 0 1 8 0v3" />
+    </Icon>
+  );
+}
+
 /** Tipo compatível com o antigo `LucideIcon` (um componente de ícone). */
 export type AppIcon = (props: IconProps) => React.ReactElement;

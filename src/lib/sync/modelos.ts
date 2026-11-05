@@ -1,4 +1,5 @@
 import { CATEGORIAS, ESCOPOS, type Categoria, type Escopo } from "@/lib/finance/classificar";
+import { CATEGORIAS_DUOFINANCE, type CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
 
 /**
  * Modelos sincronizados entre o casal (puro: usado no navegador e no servidor).
@@ -26,7 +27,7 @@ export const RECURSO_POR_TABELA: Record<string, Recurso> = Object.fromEntries(
 
 export const COLUNAS: Record<Recurso, string> = {
   despesas:
-    "id, user_id, workspace_id, pago_por, tipo, descricao, valor, moeda, cotacao_brl, data, categoria, escopo, proporcao_divisao, origem, criado_em, atualizado_em, atualizado_por",
+    "id, user_id, workspace_id, pago_por, tipo, descricao, valor, moeda, cotacao_brl, data, categoria, escopo, proporcao_divisao, origem, o_que_foi_gasto, categoria_detalhada, parcela_atual, total_parcelas, fatura_referencia, criado_em, atualizado_em, atualizado_por",
   roteiro_dias: "id, workspace_id, user_id, data, ordem, atualizado_em, atualizado_por",
   roteiro_itens: "id, workspace_id, dia_id, horario, titulo, descricao, ordem, atualizado_em, atualizado_por",
   checklist: "id, workspace_id, user_id, texto, categoria, feito, ordem, atualizado_em, atualizado_por",
@@ -54,6 +55,16 @@ export interface Despesa {
   /** % que cabe a quem pagou; null = regra do casal. */
   proporcaoDivisao: number | null;
   origem: OrigemDespesa;
+  /* Metadados da fatura importada (DuoFinance); ausentes nos demais gastos. */
+  /** O que foi gasto, curto (ex.: "Corrida de aplicativo"). */
+  oQueFoiGasto?: string | null;
+  /** Categoria detalhada da fatura (ex.: "Assinaturas"). */
+  categoriaDetalhada?: CategoriaDuoFinance | null;
+  /** Parcela cobrada nesta fatura (ex.: 3 de 10); null = à vista. */
+  parcelaAtual?: number | null;
+  totalParcelas?: number | null;
+  /** Mês da fatura, AAAA-MM. */
+  faturaReferencia?: string | null;
   criadoEm: string;
   atualizadoEm: string;
   atualizadoPor: string | null;
@@ -160,6 +171,15 @@ export function despesaDaLinha(l: Linha): Despesa {
     escopo: umDe(l.escopo, ESCOPOS, "pessoal_privado"),
     proporcaoDivisao: numOuNull(l.proporcao_divisao),
     origem: umDe(l.origem, ORIGENS_DESPESA, "manual"),
+    oQueFoiGasto: txtOuNull(l.o_que_foi_gasto),
+    categoriaDetalhada:
+      typeof l.categoria_detalhada === "string" &&
+      (CATEGORIAS_DUOFINANCE as readonly string[]).includes(l.categoria_detalhada)
+        ? (l.categoria_detalhada as CategoriaDuoFinance)
+        : null,
+    parcelaAtual: numOuNull(l.parcela_atual),
+    totalParcelas: numOuNull(l.total_parcelas),
+    faturaReferencia: txtOuNull(l.fatura_referencia),
     criadoEm: txt(l.criado_em),
     atualizadoEm: txt(l.atualizado_em),
     atualizadoPor: txtOuNull(l.atualizado_por),

@@ -208,8 +208,28 @@ create table if not exists public.despesas_viagem (
   atualizado_por    uuid references auth.users (id) on delete set null
 );
 
+-- Metadados da fatura importada no DuoFinance (nulos nos demais gastos).
+alter table public.despesas_viagem add column if not exists o_que_foi_gasto     text;
+alter table public.despesas_viagem add column if not exists categoria_detalhada text;
+alter table public.despesas_viagem add column if not exists parcela_atual       integer;
+alter table public.despesas_viagem add column if not exists total_parcelas      integer;
+alter table public.despesas_viagem add column if not exists fatura_referencia   text;
+
 do $$
 begin
+  if not exists (select 1 from pg_constraint where conname = 'despesas_viagem_fatura_check') then
+    alter table public.despesas_viagem add constraint despesas_viagem_fatura_check check (
+      (o_que_foi_gasto is null or char_length(o_que_foi_gasto) <= 120)
+      and (categoria_detalhada is null or categoria_detalhada in (
+            'Alimentação', 'Transporte', 'Hospedagem', 'Passagens', 'Compras', 'Lazer & Passeios',
+            'Assinaturas', 'Saúde & Farmácia', 'Taxas & Impostos', 'Outros'))
+      -- "is not null" explícito: numa CHECK, comparação com nulo passa.
+      and ((parcela_atual is null and total_parcelas is null)
+           or (parcela_atual is not null and total_parcelas is not null
+               and total_parcelas between 2 and 72 and parcela_atual between 1 and total_parcelas))
+      and (fatura_referencia is null or fatura_referencia ~ '^\d{4}-(0[1-9]|1[0-2])$')
+    );
+  end if;
   if not exists (select 1 from pg_constraint where conname = 'despesas_viagem_campos_check') then
     alter table public.despesas_viagem add constraint despesas_viagem_campos_check check (
       tipo in ('gasto', 'acerto')
@@ -223,7 +243,7 @@ begin
       and (escopo = 'pessoal_privado' or workspace_id is not null)
       and (proporcao_divisao is null or proporcao_divisao between 0 and 100)
       and origem in ('manual', 'importacao', 'recibo', 'nora', 'legado')
-      and (tipo = 'gasto' or (escopo = 'viagem_compartilhado' and proporcao_divisao = 0))
+      and (tipo = 'gasto' or (escopo = 'viagem_compartilhado' and proporcao_divisao is not distinct from 0))
     );
   end if;
 end $$;
@@ -265,10 +285,22 @@ create trigger trg_despesas_viagem_auditoria
   before insert or update on public.despesas_viagem
   for each row execute function public.antes_gravar_despesa_viagem();
 
--- Cópia da tabela legada (OCR antigo). Moeda estrangeira sem cotação fica de
--- fora (a tabela antiga não guardava a cotação usada).
+-- Cópia da tabela legada: recibos do OCR antigo e faturas importadas pelo
+-- DuoFinance antes desta versão (origem 'fatura', com parcelas e categoria
+-- detalhada). Moeda estrangeira sem cotação fica de fora (a tabela antiga não
+-- guardava a cotação usada). Idempotente: rode de novo logo após o deploy para
+-- trazer o que a versão anterior ainda gravou em `despesas` nesse intervalo.
+-- As colunas da fatura são garantidas aqui para a cópia não depender da ordem
+-- em que o esquema base foi reaplicado.
+alter table public.despesas add column if not exists o_que_foi_gasto   text;
+alter table public.despesas add column if not exists eh_parcelado      boolean not null default false;
+alter table public.despesas add column if not exists parcela_atual     integer;
+alter table public.despesas add column if not exists total_parcelas    integer;
+alter table public.despesas add column if not exists fatura_referencia text;
+
 insert into public.despesas_viagem
-  (id, user_id, workspace_id, pago_por, descricao, valor, moeda, data, categoria, escopo, origem, criado_em)
+  (id, user_id, workspace_id, pago_por, descricao, valor, moeda, data, categoria, escopo, origem,
+   o_que_foi_gasto, categoria_detalhada, parcela_atual, total_parcelas, fatura_referencia, criado_em)
 select d.id,
        d.user_id,
        d.workspace_id,
@@ -279,10 +311,29 @@ select d.id,
        coalesce(d.data, d.created_at::date),
        case when d.categoria_destino in ('Passagens & Transporte', 'Hospedagem', 'Alimentação & Gastronomia',
                                          'Passeios & Lazer', 'Gasto Pessoal (Fora da Viagem)')
-            then d.categoria_destino else 'Gasto Pessoal (Fora da Viagem)' end,
+              then d.categoria_destino
+            -- Categoria detalhada da fatura → categoria da viagem (mesma regra do app).
+            when d.categoria = 'Alimentação' then 'Alimentação & Gastronomia'
+            when d.categoria in ('Transporte', 'Passagens') then 'Passagens & Transporte'
+            when d.categoria = 'Hospedagem' then 'Hospedagem'
+            when d.categoria = 'Lazer & Passeios' then 'Passeios & Lazer'
+            else 'Gasto Pessoal (Fora da Viagem)' end,
        case when d.escopo = 'viagem_compartilhado' and d.workspace_id is not null
             then 'viagem_compartilhado' else 'pessoal_privado' end,
-       case when d.origem = 'ocr' then 'recibo' else 'legado' end,
+       case when d.origem = 'ocr' then 'recibo'
+            when d.origem = 'fatura' then 'importacao'
+            else 'legado' end,
+       case when d.origem = 'fatura' then left(nullif(trim(d.o_que_foi_gasto), ''), 120) end,
+       case when d.origem = 'fatura'
+             and d.categoria in ('Alimentação', 'Transporte', 'Hospedagem', 'Passagens', 'Compras',
+                                 'Lazer & Passeios', 'Assinaturas', 'Saúde & Farmácia',
+                                 'Taxas & Impostos', 'Outros')
+            then d.categoria end,
+       case when d.eh_parcelado and d.total_parcelas between 2 and 72
+             and d.parcela_atual between 1 and d.total_parcelas then d.parcela_atual end,
+       case when d.eh_parcelado and d.total_parcelas between 2 and 72
+             and d.parcela_atual between 1 and d.total_parcelas then d.total_parcelas end,
+       case when d.fatura_referencia ~ '^\d{4}-(0[1-9]|1[0-2])$' then d.fatura_referencia end,
        d.created_at
   from public.despesas d
  where d.user_id is not null

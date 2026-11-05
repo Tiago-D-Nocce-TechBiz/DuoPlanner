@@ -219,7 +219,7 @@ function responderLancamento(frase: string, ctx: NoraContexto): NoraResposta {
     texto: `Confere antes de eu lançar: ${brl(item.valor)} em "${item.estabelecimento}" como ${tipo}. Toque em Confirmar para registrar; se preferir, troque o tipo no cartão.`,
     acoes: [
       { tipo: "proposta_despesa", item, status: "pendente" },
-      { tipo: "atalho", rotulo: "Abrir Finanças Duo", href: "/dashboard/financas" },
+      { tipo: "atalho", rotulo: "Abrir o DuoFinance", href: "/dashboard/financas" },
     ],
   };
 }
@@ -229,7 +229,7 @@ function responderResumoFinanceiro(): NoraResposta {
   if (r.qtdCompartilhado === 0 && r.qtdPrivado === 0) {
     return {
       texto: "Ainda não há gastos lançados. Você pode me pedir, por exemplo: \"Lance R$ 150 de almoço como gasto compartilhado\".",
-      acoes: [{ tipo: "atalho", rotulo: "Abrir Finanças Duo", href: "/dashboard/financas" }],
+      acoes: [{ tipo: "atalho", rotulo: "Abrir o DuoFinance", href: "/dashboard/financas" }],
     };
   }
   return {
@@ -242,7 +242,7 @@ function responderResumoFinanceiro(): NoraResposta {
         totalPrivado: r.totalPrivado,
         porCategoria: r.porCategoria.map((c) => ({ categoria: c.categoria, total: c.total })),
       },
-      { tipo: "atalho", rotulo: "Abrir Finanças Duo", href: "/dashboard/financas" },
+      { tipo: "atalho", rotulo: "Abrir o DuoFinance", href: "/dashboard/financas" },
     ],
   };
 }
@@ -389,7 +389,7 @@ const AJUDA: TopicoAjuda[] = [
     gatilhos: /(nubank|fatura|privacidade|pessoal.*aparec|aparec.*pessoal|triagem|csv|lgpd|prote[cç][ãa]o|meus dados)/i,
     texto:
       "Seus gastos pessoais ficam protegidos: ao importar a fatura do cartão ou o extrato da conta (CSV/TXT) ou colar o texto, cada item passa por uma triagem antes de ser salvo. Só o que você marca como \"da viagem\" entra na divisão da dupla; o que é pessoal fica privado. Por segurança, o que não é reconhecido entra como pessoal por padrão. Isso segue os princípios da LGPD (minimização e consentimento).",
-    atalho: { tipo: "atalho", rotulo: "Abrir Finanças Duo", acaoId: "triagem" },
+    atalho: { tipo: "atalho", rotulo: "Abrir o DuoFinance", acaoId: "triagem" },
   },
   {
     gatilhos: /(roteiro|passeio|itinerari|itinerári|dia a dia|programa[cç][ãa]o)/i,

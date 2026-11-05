@@ -130,7 +130,7 @@ function AcertoDoCasal({
       <section className="glass-panel rounded-2xl p-6 text-center" aria-live="polite">
         {r.totalGastos === 0 && acertos.length === 0 ? (
           <p className="text-sm text-[var(--color-muted)]">
-            Nenhum gasto da viagem ainda. Lance em <Link href="/dashboard/financas" className="underline">Finanças Duo</Link>.
+            Nenhum gasto da viagem ainda. Lance no <Link href="/dashboard/financas" className="underline">DuoFinance</Link>.
           </p>
         ) : !devedor || !credor ? (
           <p className="inline-flex items-center justify-center gap-2 font-serif text-xl font-bold text-[var(--color-heading)]">

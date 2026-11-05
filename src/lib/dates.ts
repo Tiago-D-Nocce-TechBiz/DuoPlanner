@@ -38,7 +38,7 @@ export function isoFromParts(year: number, month: number, day: number): string |
   return date.toISOString().slice(0, 10);
 }
 
-/** "2026-10-05" → "05/10/2026" (formato salvo nas Finanças Duo). */
+/** "2026-10-05" → "05/10/2026" (formato exibido no DuoFinance). */
 export function isoToBR(iso: string): string {
   const [ano, mes, dia] = iso.slice(0, 10).split("-");
   return `${dia}/${mes}/${ano}`;

@@ -16,7 +16,7 @@ import { parseValorMonetario } from "@/lib/finance/importar";
 import { escopoSugeridoParaRecibo, type PropostaRecibo } from "@/lib/finance/recibo";
 
 /**
- * Leitura de recibos e comprovantes Pix com IA (Finanças Duo).
+ * Leitura de recibos e comprovantes Pix com IA (DuoFinance).
  *
  * Fluxo: foto/arquivo → reduzido no navegador → Server Action
  * `processReceiptImage` (Gemini) → PROPOSTA editável → o usuário confirma.
@@ -252,7 +252,7 @@ export function ReceiptScanner({
         )}
         {confirmado && !rascunho && (
           <p role="status" className="mt-4 flex items-center gap-2 text-xs text-[var(--color-heading)]">
-            <CheckCircle2 className="h-4 w-4" />“{confirmado}” foi salvo nas Finanças Duo.
+            <CheckCircle2 className="h-4 w-4" />“{confirmado}” foi salvo no DuoFinance.
           </p>
         )}
       </div>

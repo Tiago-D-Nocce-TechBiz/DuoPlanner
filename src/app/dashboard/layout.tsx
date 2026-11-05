@@ -55,7 +55,7 @@ const GRUPOS_MENU: { secao: string; itens: { href: string; label: string; icone:
   {
     secao: "Finanças",
     itens: [
-      { href: "/dashboard/financas", label: "Finanças Duo", icone: Wallet },
+      { href: "/dashboard/financas", label: "DuoFinance", icone: Wallet },
       { href: "/dashboard/acerto", label: "Acerto de Contas", icone: Handshake },
       { href: "/dashboard/conversor", label: "Conversor de Moedas", icone: Coins },
     ],

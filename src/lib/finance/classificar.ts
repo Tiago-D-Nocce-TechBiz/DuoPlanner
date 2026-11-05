@@ -1,5 +1,5 @@
 /**
- * Classificador de despesas das Finanças Duo (puro, sem React nem storage).
+ * Classificador de despesas do DuoFinance (puro, sem React nem storage).
  *
  * Regras:
  * - Compara PALAVRAS INTEIRAS ou frases, nunca trechos: "util" não casa com

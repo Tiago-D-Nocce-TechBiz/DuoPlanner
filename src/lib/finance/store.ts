@@ -1,18 +1,20 @@
 "use client";
 
 /**
- * Finanças Duo no navegador — agora sobre o motor de sincronização do casal.
+ * DuoFinance no navegador — agora sobre o motor de sincronização do casal.
  *
  * Antes, a lista vivia só no localStorage (o par nunca via os gastos). Agora
  * cada gasto é uma linha de `despesas_viagem` no Postgres (RLS por espaço e
- * escopo), com fila offline e Realtime. A API usada pela Nora e pela página
- * de Finanças continua a mesma:
- *  - `ItemDespesa`: RASCUNHO (triagem da fatura, proposta da Nora, recibo);
- *  - `adicionarDespesa(rascunho)` / `criarDespesa(...)`: grava (fila);
+ * escopo), com fila offline e Realtime. A API usada pela Nora, pela página
+ * do DuoFinance e pelo importador de faturas:
+ *  - `ItemDespesa`: RASCUNHO (proposta da Nora);
+ *  - `adicionarDespesa(rascunho)` / `criarDespesa(...)`: grava (fila); a
+ *    fatura importada passa `fatura` com parcelas e categoria detalhada;
  *  - `useDespesas()` / `resumirDespesas()`: leitura reativa e resumo.
  */
 
 import { calcularAcerto, descreverRegra, valorEmReais, type LancamentoAcerto } from "@/lib/finance/acerto";
+import type { CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
 import { classificarDespesa, type Categoria, type Escopo } from "@/lib/finance/classificar";
 import { todayInSaoPaulo } from "@/lib/dates";
 import { regraDoAcordo, type ContextoSincronizacao } from "@/lib/sync/contexto";
@@ -29,7 +31,7 @@ import {
 export type { Categoria, Escopo } from "@/lib/finance/classificar";
 export type { Despesa } from "@/lib/sync/modelos";
 
-/** Rascunho de gasto (ainda não salvo): triagem, Nora e recibos. */
+/** Rascunho de gasto (ainda não salvo), como a proposta da Nora. */
 export interface ItemDespesa {
   id: string;
   data: string; // "dd/mm/aaaa" (locale pt-BR)
@@ -90,6 +92,15 @@ export interface NovaDespesa {
   proporcaoDivisao?: number | null;
   tipo?: "gasto" | "acerto";
   origem: OrigemDespesa;
+  /** Metadados da fatura importada (DuoFinance). */
+  fatura?: {
+    oQueFoiGasto: string;
+    categoriaDetalhada: CategoriaDuoFinance;
+    /** null = compra à vista. */
+    parcela: { atual: number; total: number } | null;
+    /** AAAA-MM; "" quando não deu para inferir. */
+    referencia: string;
+  };
 }
 
 const centavos = (v: number) => Math.round(v * 100) / 100;
@@ -116,6 +127,13 @@ export function criarDespesa(nova: NovaDespesa): Despesa | null {
     escopo: ctx.workspace ? nova.escopo : "pessoal_privado",
     proporcaoDivisao: nova.proporcaoDivisao ?? null,
     origem: nova.origem,
+    ...(nova.fatura && {
+      oQueFoiGasto: nova.fatura.oQueFoiGasto.trim().slice(0, 120) || null,
+      categoriaDetalhada: nova.fatura.categoriaDetalhada,
+      parcelaAtual: nova.fatura.parcela?.atual ?? null,
+      totalParcelas: nova.fatura.parcela?.total ?? null,
+      faturaReferencia: /^\d{4}-(0[1-9]|1[0-2])$/.test(nova.fatura.referencia) ? nova.fatura.referencia : null,
+    }),
     criadoEm: agora,
     atualizadoEm: agora,
     atualizadoPor: ctx.userId,
@@ -135,7 +153,7 @@ const ORIGEM_DO_RASCUNHO: Record<string, OrigemDespesa> = {
   Recibo: "recibo",
 };
 
-/** Grava um rascunho (proposta confirmada da Nora, item da triagem). */
+/** Grava um rascunho (proposta confirmada da Nora). */
 export function adicionarDespesa(item: ItemDespesa): Despesa | null {
   return criarDespesa({
     descricao: item.estabelecimento,

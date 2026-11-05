@@ -30,8 +30,8 @@ export default function manifest(): MetadataRoute.Manifest {
     ],
     shortcuts: [
       {
-        name: "Finanças Duo",
-        short_name: "Finanças",
+        name: "DuoFinance",
+        short_name: "DuoFinance",
         url: "/dashboard/financas",
         icons: [{ src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
       },

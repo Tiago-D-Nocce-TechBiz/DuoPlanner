@@ -9,7 +9,7 @@ import { todayInSaoPaulo } from "@/lib/dates";
 import { consumirCota } from "@/lib/seguranca/cotas";
 
 /**
- * Finanças Duo — leitura de recibos e comprovantes Pix com IA (Gemini Vision).
+ * DuoFinance — leitura de recibos e comprovantes Pix com IA (Gemini Vision).
  *
  * Fluxo: sessão (getClaims) → valida o arquivo → cota "ia" do usuário →
  * agente LangGraph extrai { titulo, estabelecimento, valor, data, moeda,
