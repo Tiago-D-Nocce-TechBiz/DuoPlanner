@@ -33,7 +33,7 @@ export function TermsContent() {
           Termos de Uso &amp; Política de Privacidade (LGPD)
         </h1>
         <p className="mt-2 text-sm text-muted">
-          Última atualização: 30 de outubro de 2026.
+          Última atualização: 5 de novembro de 2026.
         </p>
       </header>
 
@@ -113,8 +113,25 @@ export function TermsContent() {
             número de passageiros/hóspedes, quartos e classe de viagem.
           </li>
           <li>
-            <strong>Despesas:</strong> títulos, valores e datas informados por
-            você ou importados de faturas e extratos (CSV/TXT).
+            <strong>Despesas:</strong> descrição, valor, moeda, data, categoria,
+            quem pagou e como dividir, informados por você, lidos de recibos ou
+            importados de faturas e extratos (CSV/TXT), incluindo parcelas.
+          </li>
+          <li>
+            <strong>Planejamento da viagem:</strong> roteiro, checklist e
+            alertas de preço (rota, datas, viajantes e preço-alvo).
+          </li>
+          <li>
+            <strong>Documentos de viagem:</strong> tipo, titular, validade,
+            observações e o número do documento, guardado cifrado.
+          </li>
+          <li>
+            <strong>Dados do acerto de contas:</strong> chave Pix e nome de quem
+            recebe, que o seu par vê para pagar o acerto.
+          </li>
+          <li>
+            <strong>Recibos e comprovantes:</strong> a imagem enviada para
+            leitura por IA, que não fica guardada.
           </li>
           <li>
             <strong>Preferências e memória da IA:</strong> cidade base,
@@ -122,7 +139,8 @@ export function TermsContent() {
             o histórico das mensagens enviadas à IA para memorizá-los.
           </li>
           <li>
-            <strong>Dados de conta:</strong> nome e e-mail de cadastro.
+            <strong>Dados de conta:</strong> nome, e-mail de cadastro e as
+            preferências de e-mail.
           </li>
         </ul>
 
@@ -162,32 +180,61 @@ export function TermsContent() {
         </ul>
 
         <h3 className="pt-2 font-semibold text-heading">
-          5.4. Armazenamento em nuvem
+          5.4. Armazenamento e o que o seu par vê
         </h3>
         <p>
-          Os dados são armazenados em infraestrutura de nuvem do{" "}
-          <strong>Supabase</strong>, com medidas técnicas e administrativas de
-          segurança, incluindo controle de acesso por linha (Row Level
-          Security). A transmissão ocorre por conexões criptografadas (HTTPS).
+          Os dados ficam no banco de dados em nuvem do <strong>Supabase</strong>{" "}
+          (PostgreSQL), com controle de acesso por linha (Row Level Security) e
+          transmissão por conexões criptografadas (HTTPS).
         </p>
         <p>
-          Nesta fase, finanças, roteiro, checklist, documentos e alertas ficam
-          salvos apenas no navegador do seu dispositivo (armazenamento local)
-          e não são enviados aos nossos servidores. Limpar os dados do
-          navegador apaga essas informações.
+          Os gastos que você marca como da viagem, o roteiro, o checklist e os
+          alertas de preço ficam no espaço do casal: as duas contas veem e
+          editam. Gastos pessoais e documentos privados são vistos só por você.
+          O número dos documentos é cifrado (AES-256-GCM) antes de chegar ao
+          banco, com uma chave guardada fora dele.
+        </p>
+        <p>
+          Para funcionar sem internet, o aplicativo guarda neste aparelho uma
+          cópia dos seus dados e das alterações ainda não enviadas. Essa cópia
+          é apagada quando você sai da conta.
         </p>
 
         <h3 className="pt-2 font-semibold text-heading">
-          5.5. Compartilhamento com provedores
+          5.5. Compartilhamento com provedores e e-mails
         </h3>
         <p>
           Para executar as funcionalidades pedidas por você, compartilhamos o
-          mínimo necessário com operadores: <strong>Google (Gemini API)</strong>{" "}
-          recebe os textos enviados à memória de preferências e às sugestões
-          de experiências;{" "}
-          <strong>Kiwi.com</strong> e <strong>Booking.com/RapidAPI</strong>{" "}
-          recebem os parâmetros das buscas (destinos, datas e número de
-          viajantes). Nenhum desses dados é vendido ou usado para publicidade.
+          mínimo necessário com operadores:
+        </p>
+        <ul className="list-disc space-y-1 pl-5">
+          <li>
+            <strong>Google (Gemini API)</strong> recebe os textos enviados à
+            memória de preferências e às sugestões de experiências, as imagens
+            de recibos para leitura e a descrição e o valor das linhas de uma
+            fatura importada, para categorizá-las (sem nome nem e-mail).
+          </li>
+          <li>
+            <strong>Kiwi.com</strong> e <strong>Booking.com/RapidAPI</strong>{" "}
+            recebem os parâmetros das buscas e dos alertas de preço (destinos,
+            datas e número de viajantes), inclusive na verificação diária
+            automática dos alertas.
+          </li>
+          <li>
+            <strong>Resend</strong> recebe o endereço, o nome e o conteúdo dos
+            e-mails que enviamos: alertas de queda de preço, resumo semanal do
+            orçamento e convites.
+          </li>
+          <li>
+            <strong>Vercel</strong> (hospedagem) e <strong>Supabase</strong>{" "}
+            (contas e banco de dados) operam a infraestrutura.
+          </li>
+        </ul>
+        <p>
+          Os alertas por e-mail e o resumo semanal podem ser desligados em
+          Configurações. O convite por e-mail só vai para o endereço que quem
+          convida digitar. Nenhum desses dados é vendido ou usado para
+          publicidade.
         </p>
 
         <h3 className="pt-2 font-semibold text-heading">

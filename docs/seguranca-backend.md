@@ -1,103 +1,115 @@
-# DuoPlanner — Análise de Segurança do Back-end (LGPD + Proteção de Dados)
+# DuoPlanner — Segurança do Back-end (LGPD + Proteção de Dados)
 
-Documento de auditoria e plano de ação. Atualizado após a finalização do front
-e o início do foco em back-end/segurança.
+Estado dos controles e do que ainda falta para produção. Atualizado em
+05/11/2026, com a branch `feat/producao-saas` (Épicos 1 a 4).
 
-## Resumo executivo
+## Resumo
 
-O app usa Supabase (Postgres + Auth + RLS) com a chave **anon/publishable** no
-cliente e no servidor (nenhuma `service_role` exposta — isso está correto). A
-proteção de dados depende quase inteiramente das **políticas RLS**. A auditoria
-encontrou riscos **altos** nessas políticas (herdados do modo de desenvolvimento
-sem login) e pontos de endurecimento no fluxo de convite e senha.
+- O navegador e as Server Actions usam só a chave **publishable** do
+  Supabase; a proteção dos dados é a **RLS** do Postgres. A chave **secreta**
+  existe só no servidor e só nas tarefas agendadas (`/api/cron/*`).
+- Os riscos altos da auditoria anterior (RLS "fail-open" com
+  `user_id is null` e convites com `using (true)`) estão corrigidos em
+  `supabase/migrations/20261104120000_endurecimento_seguranca.sql`.
+  **Enquanto esse SQL não for aplicado em produção, eles continuam valendo.**
+- Finanças, roteiro, checklist, alertas e documentos saíram do
+  `localStorage` para o Postgres com RLS
+  (`20261104120100_sincronizacao_casal.sql`). No aparelho fica só uma cópia
+  para uso offline, apagada no logout.
 
-As correções de **código** já foram aplicadas nesta entrega. As correções de
-**banco (RLS/RPC)** estão prontas em `supabase/security-hardening.sql` para rodar
-no Supabase quando o login real estiver ativo.
+## Controles em vigor
 
----
+### Sessão e autorização (código)
 
-## Achados por severidade
+- Toda Server Action e toda rota privada chama `obterSessao()`
+  (`src/lib/auth/sessao.ts`), que valida o JWT com `getClaims()`. O proxy
+  (`src/proxy.ts`) é só a primeira camada: Server Actions aceitam POST em
+  qualquer rota. Em produção, sem as variáveis do Supabase, o painel fica
+  bloqueado (fail-closed).
+- `user_id` e `workspace_id` vêm sempre da sessão, nunca do cliente; cada
+  operação da fila offline é validada por zod (`src/lib/sync/esquemas.ts`).
+- Login e cadastro validados por zod; o cadastro responde igual para e-mail
+  novo e já cadastrado (sem enumeração de contas); senha de 8+ caracteres com
+  letra e número; `?redirect` só para `/dashboard/...` (sem open redirect).
+- Convite: abrir o link não aceita mais nada; a tela mostra quem convidou e o
+  aceite é um POST. A RPC `aceitar_convite` exige convite pendente e dentro
+  da validade (7 dias), no máximo 2 pessoas por espaço e, quando o convite foi
+  criado para um e-mail, aquele e-mail.
+- Logout apaga os dados `pd-*` do navegador e os caches do Service Worker
+  com dados do usuário.
 
-### 🔴 ALTO
+### Banco (RLS)
 
-1. **RLS "fail-open" com `user_id is null`** (`supabase/schema.sql`, seção 5)
-   Todas as políticas de dados do usuário permitem `user_id is null`. Isso é uma
-   conveniência da Fase Front (sem login), mas em produção qualquer requisição
-   anônima lê/grava linhas de `user_id` nulo. Se existirem linhas legadas nulas
-   ou algum insert omitir `user_id`, há vazamento entre usuários.
-   **Correção:** `security-hardening.sql` passos 1–4 exigem `auth.uid() = user_id`.
-   Rodar após sanear linhas órfãs.
+- Sem "fail-open": cada linha exige dono (`auth.uid() = user_id`) ou o espaço
+  do casal (`meus_workspaces()`). `anon` não tem privilégio nas tabelas do app;
+  `authenticated` não tem `TRUNCATE` (que ignoraria a RLS).
+- Gastos e documentos **privados** só são vistos pelo dono. Os
+  **compartilhados** são vistos pelo par; documentos compartilhados são só
+  leitura para o par. Triggers impedem trocar o dono, o espaço e a data de
+  criação de uma linha, e o par não consegue tornar privado um gasto do outro.
+- CHECKs no banco espelham a validação do servidor (valores, moedas, datas,
+  parcelas, links https, número de documento sempre cifrado).
 
-2. **Política de `convites` totalmente aberta** (`using (true) with check (true)`)
-   Qualquer um podia ler/alterar **todos** os convites (códigos e e-mails),
-   permitindo enumeração de códigos e entrada indevida em workspaces.
-   **Correção:** `security-hardening.sql` passo 5 restringe leitura/criação/
-   atualização a quem convidou ou a membros do workspace, e passo 6 cria a RPC
-   `aceitar_convite(p_codigo)` (`security definer`) para aceitar sem expor a
-   tabela. O cliente passa a chamar `supabase.rpc('aceitar_convite', ...)`.
+### Dados sensíveis
 
-3. **Aceite de convite sem checar estado** (código — JÁ CORRIGIDO)
-   `aceitarConvitePorCodigo` só barrava `revogado`. Agora exige status
-   `pendente` (recusa aceitos/expirados). Fica redundante e seguro com a RPC do
-   banco.
+- Números de documentos: AES-256-GCM na aplicação, com contexto
+  (`documento:dono`) autenticado; a chave `DOCUMENTOS_CHAVE_CRIPTO` fica na
+  Vercel, fora do banco. Sem a chave, só os 4 últimos dígitos são gravados.
+  Documentos ficam fora do Realtime e da fila offline.
+- Recibos: a imagem vai ao Gemini só para leitura; nada é gravado sem a
+  confirmação do usuário. Fatura: só descrição e valor de cada linha vão à IA.
 
-### 🟠 MÉDIO
+### Custos e abuso
 
-4. **Política de senha fraca** (código — JÁ CORRIGIDO)
-   Era mínimo de 6 caracteres. Agora: mínimo de 8 **e** exige letra + número.
-   Recomenda-se ativar no Supabase Auth: proteção contra senhas vazadas
-   (HaveIBeenPwned), confirmação de e-mail obrigatória e rate limit de login.
+- Cotas por usuário no Postgres (RPC `consumir_cota`, janela fixa): voos e
+  hospedagem 30/hora, IA 20/hora (cada lote de 40 linhas da fatura conta
+  um), convites 10/dia, documentos 30/hora. Se o banco falhar, a cota nega
+  (fail-closed); se a RPC ainda não existir, vale um limite em memória.
 
-5. **Dados sensíveis em `localStorage` sem criptografia**
-   Documentos, finanças, roteiro e preferências ficam em `localStorage` em
-   texto puro (a própria tela de Documentos já avisa). Para LGPD, dados de
-   documentos (passaporte, etc.) não devem persistir assim em produção.
-   **Plano:** migrar a persistência para o Supabase (com RLS) e, para campos
-   sensíveis, avaliar criptografia em repouso / não armazenar número completo.
+### Tarefas agendadas e e-mail (Épico 4)
 
-6. **`roteiro_itens` com `workspace_id is null` permitido** — mesmo problema do
-   item 1. Corrigido no passo 7 do script.
+- `/api/cron/*` exige `Authorization: Bearer ${CRON_SECRET}`, comparado em
+  tempo constante; sem segredo ou com menos de 16 caracteres, a tarefa é
+  recusada (503). A rota é pública e dispara buscas pagas e e-mails.
+- A chave secreta ignora a RLS, então as regras de visibilidade das tarefas
+  ficam no código e têm teste: o resumo semanal soma só os gastos
+  compartilhados do espaço e os privados do próprio destinatário
+  (`montarResumoSemanal`).
+- E-mails (Resend, API HTTP): valores escapados no HTML, nomes digitados
+  limpos e encurtados, só links https; chave de idempotência por e-mail (sem
+  duplicar ao repetir); logs com o destinatário mascarado. Sem
+  `RESEND_API_KEY`, nada sai.
+- O e-mail de convite vai para um endereço digitado por outro usuário. O
+  conteúdo é fixo (só nome de quem convida e nome do espaço, limpos), limitado
+  pela cota de 10 convites por dia.
 
-### 🟡 BAIXO / BOAS PRÁTICAS
+### Cabeçalhos HTTP
 
-7. **Cabeçalhos de segurança HTTP** — adicionar CSP, `X-Content-Type-Options`,
-   `Referrer-Policy`, `X-Frame-Options` via `next.config.ts headers()`.
-8. **Confirmação de e-mail** — garantir que está ativa no Supabase (o código já
-   trata o caso `!data.session`).
-9. **Entradas da IA** — a Nora e o parser são determinísticos e client-side;
-   nenhum `eval`/HTML injetado. As URLs de deep link são escapadas via
-   `URLSearchParams`/`encodeURIComponent` (verificado nos testes).
-10. **Segredos** — `.env.local` está no `.gitignore`; nenhuma chave no repo.
-    Chaves de API externas (Kiwi/RapidAPI/Gemini) só são lidas no servidor.
+`next.config.ts` aplica `X-Content-Type-Options`, `X-Frame-Options`,
+`Referrer-Policy`, `Strict-Transport-Security` e `Permissions-Policy`. O
+`sw.js` tem CSP própria (mesma origem) e nunca fica em cache.
 
----
+## Pendências para produção
 
-## O que já está correto
+1. Aplicar no SQL Editor, em ordem: `20261104120000_endurecimento_seguranca.sql`
+   (antes, conferir linhas sem dono com as consultas do topo do arquivo) e
+   `20261104120100_sincronizacao_casal.sql`.
+2. Cadastrar na Vercel: `SUPABASE_SECRET_KEY`, `CRON_SECRET`,
+   `RESEND_API_KEY`, `EMAIL_REMETENTE` (domínio verificado na Resend, com SPF
+   e DKIM) e `DOCUMENTOS_CHAVE_CRIPTO`.
+3. Supabase → Authentication: confirmação de e-mail ligada, Redirect URL
+   `https://duoplanner-vert.vercel.app/auth/callback` e proteção contra
+   senhas vazadas.
+4. Depois do deploy, rodar de novo a migration de sincronização (copia o que a
+   versão anterior gravou na tabela antiga `despesas`).
 
-- Sem `service_role` no cliente/servidor; só a chave anon + RLS.
-- `getCurrentUserId` valida o JWT com `getClaims()` (não confia em `getSession`).
-- Proxy (`src/proxy.ts`) protege `/dashboard/*`, fail-closed em produção.
-- Deep links escapados; sem injeção de URL.
-- Mensagens de erro de auth genéricas (não revelam se o e-mail existe além do
-  necessário).
+## Riscos que continuam
 
----
-
-## Plano de ação (ordem recomendada)
-
-1. ~~Ligar o Supabase Auth de verdade~~ (feito: e-mail/senha + confirmação).
-2. Sanear linhas com `user_id`/`workspace_id` nulos (em 30/10/2026 não havia
-   nenhuma visível).
-3. ~~Trocar `aceitarConvitePorCodigo` para usar a RPC~~ (feito: usa
-   `aceitar_convite` e só cai no caminho antigo enquanto a RPC não existe).
-4. Rodar `supabase/security-hardening.sql` (pode ser a qualquer momento depois
-   do deploy do item 3). A versão atual também impede que um membro tome posse
-   ou apague o workspace e que alguém se insira em qualquer workspace.
-5. No Supabase → Authentication → URL Configuration: Site URL
-   `https://duoplanner-vert.vercel.app` e, em Redirect URLs,
-   `https://duoplanner-vert.vercel.app/auth/callback`.
-6. Migrar persistência de documentos/finanças/roteiro do `localStorage` para o
-   Supabase com RLS.
-7. ~~Adicionar cabeçalhos de segurança no `next.config.ts`~~ (feito).
-8. Ativar proteção contra senha vazada e rate limit no painel do Supabase.
+- **CSP estrita ausente** no app (só no `sw.js`): scripts inline do Next,
+  fontes e o WebGL do 3D exigiriam nonce. Mitigação atual: sem HTML de
+  usuário renderizado e entradas validadas.
+- **Tabela antiga `despesas`**: fica até uma migration de remoção (expandir
+  antes de contrair). Depois de confirmar a cópia, revogar o acesso e apagar.
+- **Rate limit de login**: depende do Supabase Auth (configurável no painel).
+- **Chave secreta**: quem tiver acesso às variáveis da Vercel lê todos os
+  dados. Restringir o acesso ao projeto e trocar a chave se houver suspeita.
