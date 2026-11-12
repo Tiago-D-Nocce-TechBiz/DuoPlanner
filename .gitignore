@@ -12,11 +12,15 @@ node_modules/
 
 # testing
 /coverage
-# ambientes temporários de testes (e2e, validação de SQL): nunca versionar
+# ambientes temporários de testes (e2e, validação de SQL): nunca versionar.
+# `.tmp-e2e/` já entrou por engano no commit 37ddd07 (com node_modules).
 .tmp-e2e/
 .tmp-*/
+# relatórios e caches do Playwright (tests/e2e)
 /playwright-report/
+/blob-report/
 /test-results/
+/playwright/.cache/
 
 # next.js
 /.next/
