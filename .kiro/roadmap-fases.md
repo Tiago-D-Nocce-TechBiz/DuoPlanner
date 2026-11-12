@@ -85,5 +85,31 @@ Código pronto na `feat/producao-saas`; falta aplicar
       `RESEND_API_KEY`, `EMAIL_REMETENTE`, `DOCUMENTOS_CHAVE_CRIPTO`) e domínio
       verificado na Resend — aguardando o Tiago
 
+## Fase 6 — Fluidez e confiabilidade (rodada de 12/11/2026)
+Código pronto na `feat/producao-saas`; falta aplicar
+`20261105120000_fingerprint_fatura.sql` e publicar.
+- [x] 6.1 Ambiente validado com zod (`src/lib/env/`): valor malformado
+      interrompe o build (`next.config.ts`) e o boot (`instrumentation.ts`);
+      variável ausente deixa a integração em modo degradado
+- [x] 6.2 Dinheiro em centavos inteiros (`src/lib/finance/money.ts`):
+      `splitAmount` pelo maior resto (R$ 10,01 ÷ 2 = 5,01 + 5,00) em acerto,
+      resumo, VET, alertas e importador
+- [x] 6.3 `transaction_fingerprint` por pessoa: reimportar a fatura marca
+      "Já importado anteriormente (Ignorado)"; índice único e gatilho de
+      imutabilidade no banco
+- [x] 6.4 `withAuthAction` em todas as Server Actions (`getClaims`, zod,
+      `{ success, data, error, code }`, sem stack trace) e error boundaries
+- [x] 6.5 Importador em duas fases: tabela local abaixo de 100 ms (React de
+      produção, até 200 compras medidas), linhas longas montadas em levas, IA
+      em lotes só para o que o catálogo não reconheceu
+- [x] 6.6 "Desfazer" de 5 s (checklist, roteiro e gastos), `useOptimistic`
+      em Documentos e na regra do Acerto, `SyncStatusBadge` no cabeçalho
+- [x] 6.7 Bundle: Nora sob demanda, DuoFinance em ilhas, Supabase e zod fora
+      do pacote inicial do navegador (rotas do painel 35% a 40% menores, gzip)
+- [x] 6.8 Testes: migrations num Postgres em WASM (`tests/sql`) e fluxos de
+      tela com Playwright (`npm run test:e2e`)
+- [ ] 6.9 SQL `20261105120000_fingerprint_fatura.sql` aplicado no SQL Editor
+      (depois da 3.x) — aguardando o Tiago
+
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.

@@ -17,7 +17,8 @@ em `main` vai direto para produção; não há ambiente de homologação).
   memória de preferências)
 - Resend (e-mails transacionais) e Vercel Cron (tarefas agendadas)
 - PWA: manifesto, Service Worker próprio (`public/sw.js`) e fila offline
-- Vitest (regras de negócio puras)
+- Vitest (regras de negócio e as migrations num Postgres em WASM, PGlite) e
+  Playwright (fluxos de tela no Microsoft Edge instalado)
 
 Tipografia: Playfair Display nos títulos e Manrope no corpo. Temas Claro e
 Escuro com tokens CSS em `src/app/globals.css`.
@@ -28,15 +29,22 @@ Escuro com tokens CSS em `src/app/globals.css`.
   (`src/lib/deep-links.ts`) e, com as chaves configuradas, preços pela Kiwi.com
   (voos) e pela Booking.com via RapidAPI (hospedagem), com cota por usuário.
 - **DuoFinance**: importação de fatura de cartão (CSV, TXT ou texto colado)
-  que separa à vista e parcelado, limpa o nome das lojas, categoriza (Gemini ou
-  catálogo local) e sugere o que é da viagem; compras já lançadas não são
-  salvas de novo. Também lê recibos e comprovantes Pix com IA (sempre com
-  confirmação) e aceita lançamento manual em qualquer moeda.
+  em duas fases. Na hora, no navegador: separa à vista e parcelado, limpa o
+  nome das lojas, categoriza pelo catálogo local e monta o Raio-X. Em segundo
+  plano: só as compras que o catálogo não reconheceu vão ao Gemini, sem travar
+  a revisão. Reimportar a mesma fatura não duplica nada: cada compra tem um
+  `transaction_fingerprint`, e a já importada aparece como "Já importado
+  anteriormente (Ignorado)". Valores em centavos inteiros: R$ 10,01 dividido
+  por dois vira R$ 5,01 + R$ 5,00. Também lê recibos e comprovantes Pix com
+  IA (sempre com confirmação) e aceita lançamento manual em qualquer moeda.
 - **Acerto de Contas**: 50/50, proporcional à renda (ex.: 60/40) ou valor
   fixo, com Pix Copia e Cola (BR Code EMV).
 - **Roteiro, Checklist, Alertas de Preço e Documentos**: sincronizados entre
   o casal (Realtime), com o que é pessoal visível só para quem lançou.
-  Números de documentos são cifrados (AES-256-GCM).
+  Números de documentos são cifrados (AES-256-GCM). Remover um gasto ou um
+  item do roteiro ou do checklist dá 5 s para "Desfazer"; o selo do cabeçalho
+  mostra "Sincronizado na nuvem", "Salvando alterações..." ou "Offline (Salvo
+  neste aparelho)".
 - **Conversor de Moedas**: cotação do dia (AwesomeAPI, cache de 1 h) e o
   comparador **"Qual cartão usar?"** (VET de cartão de crédito, conta global e
   espécie, com IOF de 3,5% e spreads editáveis).
@@ -64,16 +72,22 @@ src/
                             alertas, documentos, conversor, configuracoes...
     manifest.ts             manifesto do PWA
   components/               UI por área (finance, financas, cambio, pwa, sync...)
+  instrumentation.ts        valida o ambiente em cada instância do servidor
   lib/
+    env/                    ambiente validado (zod): fail-fast e modo degradado
+    acoes/                  withAuthAction: sessão, zod e resultado padronizado
     auth/                   sessão verificada (getClaims) e validação (zod)
     sync/                   motor de sincronização, fila offline e modelos
-    finance/                importação, analisador de fatura, acerto, resumo
+    finance/                dinheiro em centavos (money.ts), fingerprint,
+                            importação, analisador de fatura, acerto, resumo
     cambio/                 cotações e VET
     email/ mail.ts          modelos de e-mail e envio pela Resend
     cron/ alertas/          tarefas agendadas e regra de aviso dos alertas
     seguranca/              cotas por usuário e cifra de documentos
     supabase/               clientes (navegador, servidor, admin só p/ cron)
 supabase/migrations/        SQL versionado (aplicar no SQL Editor, em ordem)
+tests/sql/                  migrations e RLS num Postgres em WASM (Vitest)
+tests/e2e/                  fluxos de tela (Playwright)
 public/sw.js                Service Worker
 vercel.json                 agenda das tarefas (cron)
 ```
@@ -82,6 +96,18 @@ vercel.json                 agenda das tarefas (cron)
 
 Copie `.env.example` para `.env.local` (ignorado pelo Git). Na Vercel,
 cadastre as mesmas variáveis em Settings → Environment Variables.
+
+O ambiente é validado com zod (`src/lib/env/`) no `next.config.ts` (build,
+`next dev` e `next start`) e no `instrumentation.ts` (cada instância do
+servidor):
+
+- **Valor malformado interrompe o build** (fail-fast): chave secreta numa
+  variável `NEXT_PUBLIC_` (iria para o navegador), URL inválida,
+  `CRON_SECRET` curto, `DOCUMENTOS_CHAVE_CRIPTO` sem 32 bytes, URL do Supabase
+  sem a chave pública. O deploy quebrado não vai ao ar.
+- **Variável ausente não quebra nada**: a integração fica em modo degradado.
+  O log do build lista cada integração como `[ativa]` ou `[degradada]` e o
+  que o app faz sem ela.
 
 | Variável | Obrigatória | Para quê |
 | --- | --- | --- |
@@ -121,6 +147,13 @@ nome. Todos são idempotentes (podem rodar de novo).
    documentos), RLS, Realtime e cópia da tabela antiga `despesas`.
 4. `20261104_duofinance_fatura.sql`: colunas da fatura na tabela antiga
    `despesas` (usada pela versão anterior do importador). Opcional depois do 3.
+5. `20261105120000_fingerprint_fatura.sql`: coluna `transaction_fingerprint`
+   em `despesas_viagem`, índice único por pessoa e gatilho que a torna
+   imutável. **Obrigatória para esta versão**: sem ela, o app detecta a coluna
+   ausente e fica em "modo local" (nada se perde, a fila espera no aparelho).
+
+`npm test` aplica todas as migrations, em ordem, num Postgres em WASM
+(`tests/sql/`) e confere a RLS, os CHECKs e os gatilhos.
 
 No Supabase → Authentication: confirmação de e-mail ligada, Site URL e
 Redirect URL `https://<seu-domínio>/auth/callback`, e proteção contra senhas
@@ -128,8 +161,8 @@ vazadas.
 
 ## Publicar (ordem segura)
 
-1. Aplicar as migrations 2 e 3 (são aditivas: a versão em produção continua
-   funcionando com elas).
+1. Aplicar as migrations 2, 3 e 5, nessa ordem (são aditivas: a versão em
+   produção continua funcionando com elas).
 2. Cadastrar as variáveis novas na Vercel (produção).
 3. Fazer o merge em `main` (deploy).
 4. Logo depois do deploy, rodar de novo a migration 3: ela copia para
@@ -170,7 +203,14 @@ desenvolvimento sem login e sem sincronização.
 ## Verificação
 
 ```bash
-npm test        # Vitest (regras de negócio)
-npm run lint    # ESLint
-npm run build   # compila e valida os tipos
+npm test          # Vitest: regras de negócio e migrations (PGlite)
+npm run lint      # ESLint
+npm run build     # valida o ambiente, compila e confere os tipos
+npm run test:e2e  # Playwright: fluxos de tela (~1 min)
 ```
+
+`npm run test:e2e` usa o Microsoft Edge instalado (não baixa navegadores) e
+sobe `next dev` na porta 3200 sem Supabase, com as Server Actions cortadas
+(modo local/offline). Cobre o importador de fatura, o "Desfazer" e o selo de
+sincronização. O limite de 100 ms da fase 1 do importador é medido com o React
+de produção, num pacote só do importador (`importador-producao.spec.ts`).

@@ -1,7 +1,8 @@
 # DuoPlanner — Segurança do Back-end (LGPD + Proteção de Dados)
 
 Estado dos controles e do que ainda falta para produção. Atualizado em
-05/11/2026, com a branch `feat/producao-saas` (Épicos 1 a 4).
+12/11/2026, com a branch `feat/producao-saas` (Épicos 1 a 4 e a rodada
+"Fluidez e Confiabilidade").
 
 ## Resumo
 
@@ -21,11 +22,18 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 
 ### Sessão e autorização (código)
 
-- Toda Server Action e toda rota privada chama `obterSessao()`
-  (`src/lib/auth/sessao.ts`), que valida o JWT com `getClaims()`. O proxy
+- Toda Server Action passa por `withAuthAction` (`src/lib/acoes/com-sessao.ts`):
+  sessão obrigatória via `obterSessao()` (`src/lib/auth/sessao.ts`, que valida
+  o JWT com `getClaims()`), entrada validada por zod e resposta padronizada
+  `{ success, data, error, code }`. Erro inesperado vira `ERRO_INTERNO` com
+  mensagem genérica e uma referência curta; o detalhe fica só no log do
+  servidor, com a mesma referência, e nenhum stack trace chega ao navegador.
+  Os sinais internos do Next (redirect, notFound) passam intactos. As rotas privadas chamam `obterSessao()` direto. O proxy
   (`src/proxy.ts`) é só a primeira camada: Server Actions aceitam POST em
   qualquer rota. Em produção, sem as variáveis do Supabase, o painel fica
   bloqueado (fail-closed).
+- Telas de erro (`error.tsx`, `global-error.tsx`): em produção mostram só o
+  código do incidente (digest), nunca a mensagem técnica.
 - `user_id` e `workspace_id` vêm sempre da sessão, nunca do cliente; cada
   operação da fila offline é validada por zod (`src/lib/sync/esquemas.ts`).
 - Login e cadastro validados por zod; o cadastro responde igual para e-mail
@@ -49,6 +57,22 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
   criação de uma linha, e o par não consegue tornar privado um gasto do outro.
 - CHECKs no banco espelham a validação do servidor (valores, moedas, datas,
   parcelas, links https, número de documento sempre cifrado).
+- Fatura reimportada não duplica: índice único `(user_id,
+  transaction_fingerprint)` e gatilho que impede mudar o fingerprint depois
+  de gravado (`20261105120000_fingerprint_fatura.sql`).
+- As migrations rodam em ordem num Postgres em WASM a cada `npm test`
+  (`tests/sql/`), com testes da RLS do casal, dos CHECKs e dos gatilhos.
+
+### Ambiente (fail-fast)
+
+- `src/lib/env/` valida as variáveis com zod no build (`next.config.ts`) e em
+  cada instância do servidor (`instrumentation.ts`). Chave secreta numa
+  variável `NEXT_PUBLIC_` (iria para o navegador e ignoraria a RLS), chave
+  pública no lugar da secreta, URL inválida, `CRON_SECRET` curto ou chave de
+  cifra sem 32 bytes interrompem o build: a configuração quebrada não vai ao
+  ar. Variável ausente deixa só aquela integração em modo degradado.
+- O navegador lê só `NEXT_PUBLIC_*` por nome literal (`src/lib/env/publico.ts`)
+  e recusa usar uma chave com cara de secreta mesmo se alguém a expuser.
 
 ### Dados sensíveis
 
@@ -92,8 +116,9 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 ## Pendências para produção
 
 1. Aplicar no SQL Editor, em ordem: `20261104120000_endurecimento_seguranca.sql`
-   (antes, conferir linhas sem dono com as consultas do topo do arquivo) e
-   `20261104120100_sincronizacao_casal.sql`.
+   (antes, conferir linhas sem dono com as consultas do topo do arquivo),
+   `20261104120100_sincronizacao_casal.sql` e
+   `20261105120000_fingerprint_fatura.sql`.
 2. Cadastrar na Vercel: `SUPABASE_SECRET_KEY`, `CRON_SECRET`,
    `RESEND_API_KEY`, `EMAIL_REMETENTE` (domínio verificado na Resend, com SPF
    e DKIM) e `DOCUMENTOS_CHAVE_CRIPTO`.
