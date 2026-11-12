@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { ToastDesfazer } from "@/components/ui/toast-desfazer";
 import type { ItemChecklist } from "@/lib/sync/modelos";
 import {
   atualizarRegistro,
@@ -10,6 +11,7 @@ import {
   useRegistros,
   useStatusSync,
 } from "@/lib/sync/motor";
+import { DURACAO_DESFAZER_MS, useRemocaoAdiada } from "@/lib/ui/use-remocao-adiada";
 
 /**
  * Checklist de Viagem / Bagagem do casal, sincronizado.
@@ -18,6 +20,7 @@ import {
  * Offline, a última cópia fica no aparelho e as marcações sobem depois.
  * As sugestões iniciais só entram quando alguém pede (antes eram criadas
  * sozinhas em cada navegador, o que duplicaria tudo com dois aparelhos).
+ * Remover tem "Desfazer" por 5 s (a remoção só sincroniza depois do prazo).
  */
 
 const CATEGORIAS = [
@@ -43,12 +46,17 @@ const SUGESTOES: { categoria: string; texto: string }[] = [
 ];
 
 export default function ChecklistPage() {
-  const itens = useRegistros("checklist");
+  const todos = useRegistros("checklist");
   const ctx = useContextoSync();
   const status = useStatusSync();
   const ws = ctx?.workspace?.id ?? null;
   const [novoTexto, setNovoTexto] = useState("");
   const [novaCategoria, setNovaCategoria] = useState<string>(CATEGORIAS[0]);
+
+  const efetivarRemocao = useCallback((item: ItemChecklist) => removerRegistro("checklist", item.id), []);
+  const remocao = useRemocaoAdiada("checklist", efetivarRemocao);
+  const oculto = remocao.pendente?.id ?? null;
+  const itens = useMemo(() => (oculto ? todos.filter((i) => i.id !== oculto) : todos), [todos, oculto]);
 
   const ordenados = useMemo(() => [...itens].sort((a, b) => a.ordem - b.ordem), [itens]);
   const categorias = useMemo(() => {
@@ -71,7 +79,8 @@ export default function ChecklistPage() {
     };
   }
 
-  const proximaOrdem = () => itens.reduce((max, i) => Math.max(max, i.ordem), -1) + 1;
+  // Inclui o item oculto: a ordem dele continua reservada caso a pessoa desfaça.
+  const proximaOrdem = () => todos.reduce((max, i) => Math.max(max, i.ordem), -1) + 1;
 
   const adicionar = (e: React.FormEvent) => {
     e.preventDefault();
@@ -187,7 +196,7 @@ export default function ChecklistPage() {
                     </label>
                     <button
                       type="button"
-                      onClick={() => removerRegistro("checklist", item.id)}
+                      onClick={() => remocao.remover(item)}
                       aria-label={`Remover ${item.texto}`}
                       className="text-xs text-[var(--color-muted)] hover:text-[var(--color-danger)] cursor-pointer"
                     >
@@ -200,6 +209,16 @@ export default function ChecklistPage() {
           );
         })}
       </div>
+
+      {remocao.pendente && (
+        <ToastDesfazer
+          key={remocao.pendente.id}
+          mensagem={`“${remocao.pendente.texto}” saiu do checklist.`}
+          duracaoMs={DURACAO_DESFAZER_MS}
+          onDesfazer={remocao.desfazer}
+          onFechar={remocao.confirmar}
+        />
+      )}
     </div>
   );
 }

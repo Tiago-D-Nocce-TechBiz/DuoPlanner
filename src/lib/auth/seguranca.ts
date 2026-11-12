@@ -2,8 +2,10 @@
  * Regras puras de segurança do fluxo de login e convite (testáveis, sem I/O).
  */
 
+import { ambientePublico } from "@/lib/env/publico";
+
 /** URL pública do app (links de convite e retorno da confirmação de e-mail). */
-export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL ?? "https://duoplanner-vert.vercel.app").replace(/\/$/, "");
+export const SITE_URL = ambientePublico.siteUrl;
 
 const DESTINO_PADRAO = "/dashboard";
 
@@ -43,6 +45,20 @@ export function destinoPosConfirmacao(next: string | null | undefined): string {
 export function funcaoRpcAusente(erro: { code?: string; message?: string } | null | undefined): boolean {
   if (!erro) return false;
   return erro.code === "PGRST202" || /could not find the function/i.test(erro.message ?? "");
+}
+
+/**
+ * O erro indica coluna inexistente (app publicado antes da migration que a
+ * cria): PGRST204 ao gravar uma coluna que o cache do PostgREST não conhece;
+ * 42703 do Postgres ao ler. Mesmo tratamento da tabela ausente: "modo local".
+ */
+export function colunaAusente(erro: { code?: string; message?: string } | null | undefined): boolean {
+  if (!erro) return false;
+  return (
+    erro.code === "PGRST204" ||
+    erro.code === "42703" ||
+    /could not find the '.+' column|column .+ does not exist/i.test(erro.message ?? "")
+  );
 }
 
 /**

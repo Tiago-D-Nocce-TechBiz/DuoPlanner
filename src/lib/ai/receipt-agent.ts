@@ -9,12 +9,10 @@ import {
 } from "@langchain/langgraph";
 import { z } from "zod";
 import { CATEGORIAS } from "@/lib/finance/classificar";
-import {
-  TIPOS_COMPROVANTE,
-  propostaReciboSchema,
-  type PropostaRecibo,
-} from "@/lib/finance/recibo";
+import { roundMoney } from "@/lib/finance/money";
+import { TIPOS_COMPROVANTE, type PropostaRecibo } from "@/lib/finance/recibo";
 import { AI_TIMEOUT_MS, createGeminiModel } from "./model";
+import { propostaReciboSchema } from "./recibo-esquema";
 
 export type { PropostaRecibo };
 
@@ -138,10 +136,10 @@ function buildReceiptGraph() {
       };
     }
 
-    const valor = Math.round(x.valor * 100) / 100;
-    if (valor > 1_000_000) {
+    if (x.valor > 1_000_000) {
       return { erro: "O valor lido parece incorreto. Confira a imagem e tente de novo." };
     }
+    const valor = roundMoney(x.valor);
 
     const avisos: string[] = [];
     const estabelecimento = limparTexto(x.estabelecimento, 80);

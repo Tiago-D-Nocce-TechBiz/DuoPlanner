@@ -62,5 +62,6 @@ export function decifrarNumero(cifrado: string, chave: Buffer, contexto: Context
 }
 
 // A máscara (4 finais) é pura e também roda no navegador: fica em
-// `@/lib/documentos/modelo`, sem dependência de `node:crypto`.
-export { finalDoNumero, mascararNumero } from "@/lib/documentos/modelo";
+// `@/lib/documentos/modelo`, sem dependência de `node:crypto`. Import
+// relativo: este módulo é carregado pelo next.config.ts (via @/lib/env/esquema).
+export { finalDoNumero, mascararNumero } from "../documentos/modelo";

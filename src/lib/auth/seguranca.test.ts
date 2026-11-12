@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   codigoConviteValido,
+  colunaAusente,
   destinoPosConfirmacao,
   destinoSeguro,
   funcaoRpcAusente,
@@ -75,5 +76,22 @@ describe("tabelaAusente (migration ainda não aplicada)", () => {
   it("erro de permissão ou de rede não é tabela ausente", () => {
     expect(tabelaAusente({ code: "42501", message: "permission denied for table x" })).toBe(false);
     expect(tabelaAusente(null)).toBe(false);
+  });
+});
+describe("colunaAusente (app publicado antes da migration da coluna)", () => {
+  it("reconhece PGRST204 (gravação), 42703 (leitura) e as mensagens", () => {
+    expect(colunaAusente({ code: "PGRST204", message: "x" })).toBe(true);
+    expect(colunaAusente({ code: "42703", message: "column despesas_viagem.transaction_fingerprint does not exist" })).toBe(
+      true
+    );
+    expect(
+      colunaAusente({ message: "Could not find the 'transaction_fingerprint' column of 'despesas_viagem' in the schema cache" })
+    ).toBe(true);
+  });
+  it("tabela ausente, permissão e duplicidade não são coluna ausente", () => {
+    expect(colunaAusente({ code: "42P01", message: 'relation "public.x" does not exist' })).toBe(false);
+    expect(colunaAusente({ code: "42501", message: "permission denied" })).toBe(false);
+    expect(colunaAusente({ code: "23505", message: "duplicate key value violates unique constraint" })).toBe(false);
+    expect(colunaAusente(undefined)).toBe(false);
   });
 });

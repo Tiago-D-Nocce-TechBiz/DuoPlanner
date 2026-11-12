@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { BrandLogo } from "@/components/brand/logo";
-import { loginAction, cadastroAction, type AuthState } from "@/app/(auth)/actions";
+import { loginAction, cadastroAction } from "@/app/(auth)/actions";
 
 /**
  * Tela de acesso real (Supabase Auth), reutilizada por /login e /cadastro
@@ -33,20 +33,15 @@ export function AuthScreen({
     emailConfirmado ? "login" : conviteUrl ? "cadastro" : modoInicial
   );
 
-  const [estadoLogin, submitLogin, loginPendente] = useActionState<AuthState, FormData>(
-    loginAction,
-    undefined
-  );
-  const [estadoCadastro, submitCadastro, cadastroPendente] = useActionState<
-    AuthState,
-    FormData
-  >(cadastroAction, undefined);
+  // Sucesso redireciona; o estado só guarda a falha (ou o aviso do cadastro).
+  const [estadoLogin, submitLogin, loginPendente] = useActionState(loginAction, null);
+  const [estadoCadastro, submitCadastro, cadastroPendente] = useActionState(cadastroAction, null);
 
   const carregando = loginPendente || cadastroPendente;
   const estado = modo === "login" ? estadoLogin : estadoCadastro;
-  const mensagem = estado?.erro;
+  const mensagem = estado && !estado.success ? estado.error : undefined;
   // Aviso neutro (ex.: "confirme o e-mail"): não é erro, não vai em vermelho.
-  const aviso = estado?.aviso;
+  const aviso = modo === "cadastro" && estadoCadastro?.success ? estadoCadastro.data.aviso : undefined;
 
   return (
     <div className="min-h-screen flex flex-col justify-between p-4 sm:p-6">

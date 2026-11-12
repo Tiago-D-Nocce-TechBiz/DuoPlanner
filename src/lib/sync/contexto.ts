@@ -52,6 +52,12 @@ export interface ContextoSincronizacao {
   servidorPronto: boolean;
   /** DOCUMENTOS_CHAVE_CRIPTO configurada (número completo pode ser guardado). */
   criptografiaDocumentos: boolean;
+  /**
+   * IA (Gemini) ligada no servidor. Sem ela, o importador de fatura nem
+   * tenta a etapa 2. Opcional: contextos guardados por versões anteriores
+   * não têm o campo (vale "talvez", e a tentativa responde sem gastar cota).
+   */
+  iaAtiva?: boolean;
 }
 
 export const ACORDO_PADRAO: AcordoDivisao = {

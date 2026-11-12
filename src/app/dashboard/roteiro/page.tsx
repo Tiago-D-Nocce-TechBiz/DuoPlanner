@@ -2,14 +2,17 @@
 
 import { useMemo } from "react";
 import { Map as IconeMapa } from "@/components/ui/icons";
+import { ToastDesfazer } from "@/components/ui/toast-desfazer";
 import type { RoteiroDia, RoteiroItem } from "@/lib/sync/modelos";
 import {
   atualizarRegistro,
   criarRegistro,
+  getRegistros,
   removerRegistro,
   useContextoSync,
   useRegistros,
 } from "@/lib/sync/motor";
+import { DURACAO_DESFAZER_MS, useRemocaoAdiada } from "@/lib/ui/use-remocao-adiada";
 
 /**
  * Roteiro do casal — dias e atividades sincronizados (Postgres + Realtime).
@@ -17,7 +20,25 @@ import {
  * O que um muda aparece para o outro na hora; offline, a última cópia fica no
  * aparelho e as alterações sobem quando a conexão voltar. Cada tecla vira uma
  * única atualização na fila (as edições ainda não enviadas se combinam).
+ * Remover um dia ou uma atividade tem "Desfazer" por 5 s.
  */
+
+/** O que está aguardando o prazo do "Desfazer". */
+type Remocao = { id: string; tipo: "dia" | "atividade"; mensagem: string };
+
+/** Remove o dia e as atividades dele (lidas na hora: inclui as que o par acabou de criar). */
+function removerDiaComAtividades(diaId: string) {
+  // Itens antes do dia: atividades ainda não enviadas desse dia nem saem.
+  for (const item of getRegistros("roteiro_itens")) {
+    if (item.diaId === diaId) removerRegistro("roteiro_itens", item.id);
+  }
+  removerRegistro("roteiro_dias", diaId);
+}
+
+function efetivarRemocao(r: Remocao) {
+  if (r.tipo === "dia") removerDiaComAtividades(r.id);
+  else removerRegistro("roteiro_itens", r.id);
+}
 
 function formatarData(iso: string | null): string {
   if (!iso) return "Dia sem data";
@@ -33,19 +54,25 @@ export default function RoteiroPage() {
   const ctx = useContextoSync();
   const ws = ctx?.workspace?.id ?? null;
 
+  const remocao = useRemocaoAdiada<Remocao>("roteiro", efetivarRemocao);
+  const oculto = remocao.pendente?.id ?? null;
+
   const diasOrdenados = useMemo(
-    () => [...dias].sort((a, b) => a.ordem - b.ordem || (a.data ?? "").localeCompare(b.data ?? "")),
-    [dias]
+    () =>
+      dias
+        .filter((d) => d.id !== oculto)
+        .sort((a, b) => a.ordem - b.ordem || (a.data ?? "").localeCompare(b.data ?? "")),
+    [dias, oculto]
   );
   const itensPorDia = useMemo(() => {
     const mapa = new Map<string, RoteiroItem[]>();
     for (const item of itens) {
-      if (!item.diaId) continue;
+      if (!item.diaId || item.id === oculto) continue;
       mapa.set(item.diaId, [...(mapa.get(item.diaId) ?? []), item]);
     }
     for (const lista of mapa.values()) lista.sort((a, b) => a.ordem - b.ordem);
     return mapa;
-  }, [itens]);
+  }, [itens, oculto]);
 
   const agora = () => new Date().toISOString();
 
@@ -63,11 +90,17 @@ export default function RoteiroPage() {
     criarRegistro("roteiro_dias", dia);
   };
 
-  const removerDia = (id: string) => {
-    // Itens antes do dia: atividades ainda não enviadas desse dia nem saem.
-    for (const item of itensPorDia.get(id) ?? []) removerRegistro("roteiro_itens", item.id);
-    removerRegistro("roteiro_dias", id);
+  const removerDia = (id: string, numero: number) => {
+    const atividades = itensPorDia.get(id)?.length ?? 0;
+    remocao.remover({
+      id,
+      tipo: "dia",
+      mensagem: `Dia ${numero} removido${atividades ? ` com ${atividades === 1 ? "1 atividade" : `${atividades} atividades`}` : ""}.`,
+    });
   };
+
+  const removerAtividade = (item: RoteiroItem) =>
+    remocao.remover({ id: item.id, tipo: "atividade", mensagem: `Atividade “${item.titulo || "sem título"}” removida.` });
 
   const adicionarItem = (diaId: string) => {
     if (!ctx || !ws) return;
@@ -144,7 +177,7 @@ export default function RoteiroPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => removerDia(dia.id)}
+                  onClick={() => removerDia(dia.id, idx + 1)}
                   className="self-start px-3 py-1.5 rounded-lg text-xs font-medium text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
                 >
                   Remover dia
@@ -181,7 +214,7 @@ export default function RoteiroPage() {
                     />
                     <button
                       type="button"
-                      onClick={() => removerRegistro("roteiro_itens", item.id)}
+                      onClick={() => removerAtividade(item)}
                       aria-label="Remover atividade"
                       className="justify-self-end px-2.5 py-2 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer"
                     >
@@ -201,6 +234,16 @@ export default function RoteiroPage() {
             </section>
           ))}
         </div>
+      )}
+
+      {remocao.pendente && (
+        <ToastDesfazer
+          key={remocao.pendente.id}
+          mensagem={remocao.pendente.mensagem}
+          duracaoMs={DURACAO_DESFAZER_MS}
+          onDesfazer={remocao.desfazer}
+          onFechar={remocao.confirmar}
+        />
       )}
     </div>
   );

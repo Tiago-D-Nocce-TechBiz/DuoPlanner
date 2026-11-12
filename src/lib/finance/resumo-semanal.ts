@@ -2,6 +2,7 @@ import { addDays, dateInSaoPaulo } from "@/lib/dates";
 import { regraDoAcordo, type AcordoDivisao } from "@/lib/sync/contexto";
 import type { Despesa } from "@/lib/sync/modelos";
 import { calcularAcerto, descreverRegra, valorEmReais, type LancamentoAcerto, type Papel } from "./acerto";
+import { fromCents, toCents } from "./money";
 
 /**
  * Resumo Semanal do Orçamento (puro, testável).
@@ -70,8 +71,8 @@ export interface ResumoSemanal {
   vazio: boolean;
 }
 
-const centavos = (v: number) => Math.round(v * 100);
-const reais = (c: number) => c / 100;
+const centavos = toCents;
+const reais = fromCents;
 const CATEGORIA_PESSOAL = "Gasto Pessoal (Fora da Viagem)";
 
 export function montarResumoSemanal(e: EntradaResumo): ResumoSemanal {

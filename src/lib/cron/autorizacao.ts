@@ -1,5 +1,6 @@
 import "server-only";
 import { NextResponse } from "next/server";
+import { ambiente } from "@/lib/env";
 import { TAMANHO_MINIMO_SEGREDO, verificarSegredoCron } from "./segredo";
 
 /**
@@ -7,7 +8,7 @@ import { TAMANHO_MINIMO_SEGREDO, verificarSegredoCron } from "./segredo";
  * (401 ou 503) ou null quando a chamada está autorizada.
  */
 export function recusarSeNaoForCron(request: Request): NextResponse | null {
-  const resultado = verificarSegredoCron(request.headers.get("authorization"), process.env.CRON_SECRET);
+  const resultado = verificarSegredoCron(request.headers.get("authorization"), ambiente().cronSecret ?? undefined);
   if (resultado === "ok") return null;
   if (resultado === "sem_segredo") {
     console.error(

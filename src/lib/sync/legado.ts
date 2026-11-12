@@ -168,3 +168,8 @@ export function totalLegado(dados: DadosLegados): number {
 export function removerLegado(storage: Pick<Storage, "removeItem">, areas: AreaLegada[]): void {
   for (const area of areas) storage.removeItem(CHAVES_LEGADAS[area]);
 }
+
+/** Apaga todos os dados antigos deste navegador sem importar (não são desta conta). */
+export function descartarDadosLegados(storage: Pick<Storage, "removeItem">): void {
+  removerLegado(storage, Object.keys(CHAVES_LEGADAS) as AreaLegada[]);
+}

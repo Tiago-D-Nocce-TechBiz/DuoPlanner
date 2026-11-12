@@ -17,6 +17,8 @@
  * Valores comparados em centavos inteiros.
  */
 
+import { toCents } from "@/lib/finance/money";
+
 export const DIAS_ENTRE_AVISOS = 3;
 export const QUEDA_RELEVANTE = 0.05;
 
@@ -42,7 +44,7 @@ export type DecisaoAviso =
       rearmar: boolean;
     };
 
-const centavos = (v: number) => Math.round(v * 100);
+const centavos = toCents;
 const DIA_MS = 86_400_000;
 
 export function decidirAviso(precoAtual: number, estado: EstadoAvisos, agoraMs: number): DecisaoAviso {

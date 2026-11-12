@@ -2,22 +2,18 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { BedDouble, Brain, Loader2, Search, SlidersHorizontal } from "@/components/ui/icons";
-import {
-  sugerirExperienciasLocais,
-  type LocalGemsResult,
-} from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { buildStayLinks, type ProviderLink } from "@/lib/deep-links";
 import type { ConciergeParse } from "@/lib/concierge";
-import { saveSearch } from "@/lib/supabase/searches";
+import { registrarBusca } from "@/lib/supabase/registrar-busca";
 import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 import type { HotelSearchResponse, SearchErrorBody } from "@/lib/travel/types";
 import { cn } from "@/lib/utils";
 import { HotelCard } from "./hotel-card";
-import { LocalGems } from "./local-gems";
+import { LocalGems, pedirExperiencias, type PedidoExperiencias } from "./local-gems";
 import { ProviderLinks } from "./provider-links";
 
 /**
@@ -102,7 +98,7 @@ export function StaySearch() {
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
-  const [gems, setGems] = useState<Promise<LocalGemsResult> | null>(null);
+  const [gems, setGems] = useState<PedidoExperiencias | null>(null);
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -143,9 +139,9 @@ export function StaySearch() {
       startTransition(() => {
         setOutcome(result);
         setLinks(providerLinks);
-        setGems(sugerirExperienciasLocais(destination, form.checkin));
+        setGems(pedirExperiencias(destination, form.checkin));
       });
-      void saveSearch("hospedagem", {
+      registrarBusca("hospedagem", {
         city: destination,
         checkin: form.checkin,
         checkout: form.checkout,
@@ -299,7 +295,7 @@ export function StaySearch() {
         </section>
       )}
 
-      {gems && !pending && <LocalGems promise={gems} />}
+      {gems && !pending && <LocalGems pedido={gems} />}
     </div>
   );
 }

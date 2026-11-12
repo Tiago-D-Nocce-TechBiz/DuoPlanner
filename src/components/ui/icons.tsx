@@ -669,5 +669,59 @@ export function Lock(p: IconProps) {
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Sincronização                                                       */
+/* ------------------------------------------------------------------ */
+
+/** Contorno de nuvem compartilhado pelos estados de sincronização. */
+const NUVEM = "M7 19h10a4 4 0 0 0 .8-7.92A6 6 0 0 0 6.2 10.1 4.5 4.5 0 0 0 7 19z";
+
+/** Nuvem com visto: tudo salvo na nuvem. */
+export function CloudCheck(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d={NUVEM} />
+      <path d="M9.2 14.6l2 2 3.8-3.9" />
+    </Icon>
+  );
+}
+/** Nuvem com seta: enviando alterações. */
+export function CloudUp(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d={NUVEM} />
+      <path d="M12 17v-4.8" />
+      <path d="M9.7 14.4l2.3-2.3 2.3 2.3" />
+    </Icon>
+  );
+}
+/** Nuvem riscada: sem conexão. */
+export function CloudOff(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d={NUVEM} />
+      <path d="M4 4l16 16" />
+    </Icon>
+  );
+}
+/** Aparelho: salvo só neste dispositivo. */
+export function Smartphone(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="7" y="3" width="10" height="18" rx="2.2" />
+      <path d="M11 17.5h2" />
+    </Icon>
+  );
+}
+/** Desfazer (seta que volta). */
+export function Undo(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M9 13.5L4.5 9 9 4.5" />
+      <path d="M4.5 9H14a5.5 5.5 0 0 1 0 11h-3" />
+    </Icon>
+  );
+}
+
 /** Tipo compatível com o antigo `LucideIcon` (um componente de ícone). */
 export type AppIcon = (props: IconProps) => React.ReactElement;

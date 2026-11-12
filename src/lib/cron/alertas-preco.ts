@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decidirAviso } from "@/lib/alertas/avaliar";
+import { toCents } from "@/lib/finance/money";
 import { SITE_URL, tabelaAusente } from "@/lib/auth/seguranca";
 import { dateInSaoPaulo, daysBetween, todayInSaoPaulo } from "@/lib/dates";
 import { buildFlightLinks, buildStayLinks } from "@/lib/deep-links";
@@ -8,8 +9,9 @@ import { emailAlertaPreco, linkSeguro } from "@/lib/email/templates";
 import { enviarEmail } from "@/lib/mail";
 import { criarLeitorDeEmails } from "@/lib/supabase/admin";
 import { alertaDaLinha, COLUNAS, type AlertaPreco } from "@/lib/sync/modelos";
-import { hotelSearchSchema, isBookingConfigured, searchHotels } from "@/lib/travel/booking";
-import { flightSearchSchema, isKiwiConfigured, searchFlights } from "@/lib/travel/kiwi";
+import { integracaoAtiva } from "@/lib/env";
+import { hotelSearchSchema, searchHotels } from "@/lib/travel/booking";
+import { flightSearchSchema, searchFlights } from "@/lib/travel/kiwi";
 import type { FlightOffer, HotelOffer } from "@/lib/travel/types";
 
 /**
@@ -95,7 +97,7 @@ function linkReserva(a: AlertaPreco): string | null {
 }
 
 async function precoDoVoo(a: AlertaPreco): Promise<ResultadoBusca> {
-  if (!isKiwiConfigured()) return { ok: false, motivo: "sem_motor" };
+  if (!integracaoAtiva("voos")) return { ok: false, motivo: "sem_motor" };
   if (!a.origemIata || !a.destinoIata) return { ok: false, motivo: "incompleto" };
   const noites = a.volta ? daysBetween(a.ida, a.volta) : null;
   const consulta = flightSearchSchema.safeParse({
@@ -118,7 +120,7 @@ async function precoDoVoo(a: AlertaPreco): Promise<ResultadoBusca> {
 }
 
 async function precoDaHospedagem(a: AlertaPreco): Promise<ResultadoBusca> {
-  if (!isBookingConfigured()) return { ok: false, motivo: "sem_motor" };
+  if (!integracaoAtiva("hospedagem")) return { ok: false, motivo: "sem_motor" };
   if (!a.volta) return { ok: false, motivo: "incompleto" };
   // Com o alvo como orçamento, a busca devolve primeiro o que cabe nele; se
   // nada cabe, devolve as mais baratas. Nos dois casos o menor preço aparece.
@@ -273,7 +275,7 @@ export async function monitorarAlertas(
             assunto: montado.assunto,
             html: montado.html,
             texto: montado.texto,
-            idempotencia: `alerta-${alerta.id}-${hoje}-${Math.round(preco.valor * 100)}`,
+            idempotencia: `alerta-${alerta.id}-${hoje}-${toCents(preco.valor)}`,
             categoria: "alerta_preco",
           });
           if (envio.ok) {

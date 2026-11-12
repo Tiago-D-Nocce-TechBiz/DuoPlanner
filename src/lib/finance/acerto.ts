@@ -1,7 +1,9 @@
+import { convertCents, fromCents, splitAmount, toCents } from "./money";
+
 /**
- * Motor do Acerto de Contas (puro, testável). Tudo em CENTAVOS inteiros para
- * nunca perder 1 centavo em arredondamento: a parte de um é calculada e a do
- * outro é o restante, então a soma sempre fecha.
+ * Motor do Acerto de Contas (puro, testável). Tudo em CENTAVOS inteiros
+ * (`./money`) para nunca perder 1 centavo em arredondamento: a parte de um é
+ * calculada e a do outro é o restante, então a soma sempre fecha.
  *
  * Papéis: "dono" = quem criou o espaço; "parceiro" = quem entrou por convite.
  *
@@ -47,14 +49,18 @@ export interface ResultadoAcerto {
   ignorados: number;
 }
 
-const centavos = (reais: number) => Math.round(reais * 100);
-const reais = (c: number) => c / 100;
+const centavos = toCents;
+const reais = fromCents;
 const outro = (p: Papel): Papel => (p === "dono" ? "parceiro" : "dono");
 
-/** Parte de `totalCentavos` que cabe a quem tem `percentual` (0–100). */
+/**
+ * Parte de `totalCentavos` que cabe a quem tem `percentual` (0–100). O outro
+ * fica com o restante, então a soma fecha; o centavo ímpar vai para quem tem
+ * a fração maior (no empate, para esta parte).
+ */
 function fatiar(totalCentavos: number, percentual: number): number {
   const p = Math.min(100, Math.max(0, percentual));
-  return Math.round((totalCentavos * p) / 100);
+  return splitAmount(totalCentavos, [p, 100 - p])[0];
 }
 
 export function calcularAcerto(
@@ -69,6 +75,7 @@ export function calcularAcerto(
   let ignorados = 0;
 
   for (const l of lancamentos) {
+    if (!Number.isFinite(l.valorBrl)) continue;
     const valor = centavos(l.valorBrl);
     if (!(valor > 0)) continue;
     const quem: Papel | null =
@@ -98,7 +105,8 @@ export function calcularAcerto(
   if (regra.regra === "proporcional") {
     doDono = fatiar(pelaRegra, regra.percentualDono);
   } else if (regra.regra === "fixo") {
-    const fixo = Math.min(Math.max(0, centavos(regra.valorFixo)), pelaRegra);
+    const valorFixo = Number.isFinite(regra.valorFixo) ? centavos(regra.valorFixo) : 0;
+    const fixo = Math.min(Math.max(0, valorFixo), pelaRegra);
     doDono = regra.quemCobre === "dono" ? fixo : pelaRegra - fixo;
   } else {
     doDono = fatiar(pelaRegra, 50);
@@ -126,9 +134,11 @@ export function calcularAcerto(
 
 /** Valor em reais de um gasto (moeda estrangeira × cotação usada). */
 export function valorEmReais(d: { valor: number; moeda: string; cotacaoBrl: number | null }): number | null {
+  // Linha corrompida (valor ausente no cache local, por exemplo) não entra na conta.
+  if (!Number.isFinite(d.valor)) return null;
   if (d.moeda === "BRL") return d.valor;
-  if (!d.cotacaoBrl || !(d.cotacaoBrl > 0)) return null;
-  return Math.round(d.valor * d.cotacaoBrl * 100) / 100;
+  if (!d.cotacaoBrl || !Number.isFinite(d.cotacaoBrl) || !(d.cotacaoBrl > 0)) return null;
+  return fromCents(convertCents(toCents(d.valor), d.cotacaoBrl));
 }
 
 /** Percentual do dono na regra (para exibir "60/40"). Fixo não tem percentual. */

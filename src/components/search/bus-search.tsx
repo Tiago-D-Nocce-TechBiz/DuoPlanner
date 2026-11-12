@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { buildBusLinks, type ProviderLink } from "@/lib/deep-links";
-import { saveSearch } from "@/lib/supabase/searches";
+import { registrarBusca } from "@/lib/supabase/registrar-busca";
 import { ProviderLinks } from "./provider-links";
 
 /**
@@ -42,7 +42,7 @@ export function BusSearch() {
       returnDate: form.returnDate || undefined,
     };
     setLinks(buildBusLinks(q));
-    void saveSearch("voo", { modal: "onibus", ...q });
+    registrarBusca("voo", { modal: "onibus", ...q });
   }
 
   return (

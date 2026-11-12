@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { ShieldCheck, Users, AlertTriangle } from "@/components/ui/icons";
 import {
   listarDocumentos,
@@ -8,7 +8,13 @@ import {
   revelarNumeroDocumento,
   salvarDocumento,
 } from "@/app/dashboard/documentos/actions";
-import { alertaValidade, mascararNumero, TIPOS_DOCUMENTO, type DocumentoVisivel } from "@/lib/documentos/modelo";
+import {
+  alertaValidade,
+  finalDoNumero,
+  mascararNumero,
+  TIPOS_DOCUMENTO,
+  type DocumentoVisivel,
+} from "@/lib/documentos/modelo";
 import { isoToBR } from "@/lib/dates";
 import { useHoje } from "@/lib/local-store";
 import { useContextoSync } from "@/lib/sync/motor";
@@ -20,10 +26,16 @@ import { useContextoSync } from "@/lib/sync/motor";
  * só recebe os 4 últimos caracteres. "Revelar" decifra sob demanda, por 30 s.
  * Offline, mostra a última lista — também mascarada — guardada no aparelho
  * (apagada no logout). Nada de número completo no localStorage.
+ *
+ * Gravação direta no servidor (sem a fila offline, de propósito), com
+ * `useOptimistic`: guardar, remover e compartilhar aparecem na hora; se o
+ * servidor recusar, a lista volta sozinha ao estado real e o motivo aparece.
  */
 
+type TipoDocumento = (typeof TIPOS_DOCUMENTO)[number];
+
 const FORM_VAZIO = {
-  tipo: TIPOS_DOCUMENTO[0] as string,
+  tipo: TIPOS_DOCUMENTO[0] as TipoDocumento,
   titular: "",
   numero: "",
   validade: "",
@@ -31,60 +43,97 @@ const FORM_VAZIO = {
   escopo: "pessoal_privado" as DocumentoVisivel["escopo"],
 };
 
+/** Documento ainda não confirmado pelo servidor. */
+type DocumentoNaTela = DocumentoVisivel & { pendente?: boolean };
+
+type AcaoOtimista =
+  | { tipo: "adicionar"; documento: DocumentoNaTela }
+  | { tipo: "remover"; id: string }
+  | { tipo: "escopo"; id: string; escopo: DocumentoVisivel["escopo"] };
+
+function aplicarOtimista(lista: DocumentoNaTela[], acao: AcaoOtimista): DocumentoNaTela[] {
+  if (acao.tipo === "adicionar") return [acao.documento, ...lista];
+  if (acao.tipo === "remover") return lista.filter((d) => d.id !== acao.id);
+  return lista.map((d) => (d.id === acao.id ? { ...d, escopo: acao.escopo, pendente: true } : d));
+}
+
+const tipoValido = (t: string): TipoDocumento =>
+  (TIPOS_DOCUMENTO as readonly string[]).includes(t) ? (t as TipoDocumento) : "Outro";
+
 const chaveCache = (userId: string) => `pd-docs:${userId}`;
+
+/** Cópia offline da lista (já mascarada; apagada no logout como todo `pd-*`). */
+function guardarCache(userId: string, lista: DocumentoVisivel[]) {
+  try {
+    window.localStorage.setItem(chaveCache(userId), JSON.stringify(lista));
+  } catch {
+    // sem cache offline
+  }
+}
+
+const SEM_CONEXAO = "Sem conexão: documentos só são guardados online (o número não fica no aparelho).";
 
 export default function DocumentosPage() {
   const ctx = useContextoSync();
   const userId = ctx?.userId ?? null;
   const [docs, setDocs] = useState<DocumentoVisivel[]>([]);
+  const [docsNaTela, mostrarOtimista] = useOptimistic<DocumentoNaTela[], AcaoOtimista>(docs, aplicarOtimista);
   const [estado, setEstado] = useState<"carregando" | "pronto" | "offline" | "indisponivel">("carregando");
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [form, setForm] = useState(FORM_VAZIO);
   const [revelados, setRevelados] = useState<Record<string, string>>({});
   const [salvando, startSalvar] = useTransition();
+  const [, startAlteracao] = useTransition();
+  const [revelando, startRevelar] = useTransition();
   const hoje = useHoje();
 
   useEffect(() => {
     if (!userId) return;
     let ativo = true;
+    const usarCopiaLocal = () => {
+      try {
+        const bruto = window.localStorage.getItem(chaveCache(userId));
+        if (bruto) setDocs(JSON.parse(bruto) as DocumentoVisivel[]);
+      } catch {
+        // ignora
+      }
+    };
     listarDocumentos()
       .then((r) => {
         if (!ativo) return;
-        if (r.ok) {
-          setDocs(r.documentos);
+        if (r.success) {
+          setDocs(r.data);
           setEstado("pronto");
-          try {
-            window.localStorage.setItem(chaveCache(userId), JSON.stringify(r.documentos));
-          } catch {
-            // sem cache offline
-          }
+        } else if (r.code === "NAO_CONFIGURADO") {
+          setEstado("indisponivel");
+          setMensagem(r.error);
         } else {
-          setEstado(r.indisponivel ? "indisponivel" : "offline");
-          setMensagem(r.mensagem);
+          setEstado("offline");
+          setMensagem(r.error);
+          usarCopiaLocal();
         }
       })
       .catch(() => {
         if (!ativo) return;
         setEstado("offline");
-        try {
-          const bruto = window.localStorage.getItem(chaveCache(userId));
-          if (bruto) setDocs(JSON.parse(bruto) as DocumentoVisivel[]);
-        } catch {
-          // ignora
-        }
+        usarCopiaLocal();
       });
     return () => {
       ativo = false;
     };
   }, [userId]);
 
-  function guardarCache(lista: DocumentoVisivel[]) {
-    if (!userId) return;
-    try {
-      window.localStorage.setItem(chaveCache(userId), JSON.stringify(lista));
-    } catch {
-      // ignora
-    }
+  // A cópia offline acompanha a lista confirmada pelo servidor.
+  useEffect(() => {
+    if (userId && estado === "pronto") guardarCache(userId, docs);
+  }, [userId, estado, docs]);
+
+  /**
+   * Atualiza a lista confirmada a partir da mais recente (duas remoções
+   * seguidas não se sobrescrevem).
+   */
+  function confirmar(transformar: (atual: DocumentoVisivel[]) => DocumentoVisivel[]) {
+    setDocs(transformar);
   }
 
   const adicionar = (e: React.FormEvent) => {
@@ -93,29 +142,44 @@ export default function DocumentosPage() {
       setMensagem("Informe o titular ou o número do documento.");
       return;
     }
+    const enviado = form;
     startSalvar(async () => {
+      mostrarOtimista({
+        tipo: "adicionar",
+        documento: {
+          id: `pendente-${crypto.randomUUID()}`,
+          userId: userId ?? "",
+          tipo: enviado.tipo,
+          titular: enviado.titular.trim(),
+          numeroFinal: enviado.numero.trim() ? finalDoNumero(enviado.numero.trim()) : null,
+          temNumeroCompleto: false,
+          validade: enviado.validade || null,
+          observacao: enviado.observacao.trim(),
+          escopo: enviado.escopo,
+          atualizadoEm: new Date().toISOString(),
+          pendente: true,
+        },
+      });
       try {
-        const r = await salvarDocumento(form);
-        if (!r.ok) return setMensagem(r.mensagem);
-        const lista = [r.documento, ...docs];
-        setDocs(lista);
-        guardarCache(lista);
+        const r = await salvarDocumento(enviado);
+        if (!r.success) return setMensagem(r.error);
+        confirmar((atual) => [r.data.documento, ...atual]);
+        // O formulário só limpa depois de confirmado: na falha, nada se perde.
         setForm(FORM_VAZIO);
-        setMensagem(r.aviso ?? "Documento guardado no cofre.");
+        setMensagem(r.data.aviso ?? "Documento guardado no cofre.");
       } catch {
-        setMensagem("Sem conexão: documentos só são guardados online (o número não fica no aparelho).");
+        setMensagem(SEM_CONEXAO);
       }
     });
   };
 
   const remover = (id: string) => {
-    startSalvar(async () => {
+    startAlteracao(async () => {
+      mostrarOtimista({ tipo: "remover", id });
       try {
         const r = await removerDocumento(id);
-        if (!r.ok) return setMensagem(r.mensagem ?? "Não foi possível remover.");
-        const lista = docs.filter((d) => d.id !== id);
-        setDocs(lista);
-        guardarCache(lista);
+        if (!r.success) return setMensagem(r.error);
+        confirmar((atual) => atual.filter((d) => d.id !== id));
       } catch {
         setMensagem("Sem conexão: tente remover quando a internet voltar.");
       }
@@ -123,21 +187,21 @@ export default function DocumentosPage() {
   };
 
   const alternarCompartilhamento = (d: DocumentoVisivel) => {
-    startSalvar(async () => {
+    const escopo = d.escopo === "viagem_compartilhado" ? "pessoal_privado" : "viagem_compartilhado";
+    startAlteracao(async () => {
+      mostrarOtimista({ tipo: "escopo", id: d.id, escopo });
       try {
         const r = await salvarDocumento({
           id: d.id,
-          tipo: (TIPOS_DOCUMENTO as readonly string[]).includes(d.tipo) ? d.tipo : "Outro",
+          tipo: tipoValido(d.tipo),
           titular: d.titular,
           numero: "",
           validade: d.validade ?? "",
           observacao: d.observacao,
-          escopo: d.escopo === "viagem_compartilhado" ? "pessoal_privado" : "viagem_compartilhado",
+          escopo,
         });
-        if (!r.ok) return setMensagem(r.mensagem);
-        const lista = docs.map((x) => (x.id === d.id ? r.documento : x));
-        setDocs(lista);
-        guardarCache(lista);
+        if (!r.success) return setMensagem(r.error);
+        confirmar((atual) => atual.map((x) => (x.id === d.id ? r.data.documento : x)));
       } catch {
         setMensagem("Sem conexão: tente de novo quando a internet voltar.");
       }
@@ -145,11 +209,12 @@ export default function DocumentosPage() {
   };
 
   const revelar = (id: string) => {
-    startSalvar(async () => {
+    startRevelar(async () => {
       try {
         const r = await revelarNumeroDocumento(id);
-        if (!r.ok) return setMensagem(r.mensagem);
-        setRevelados((atual) => ({ ...atual, [id]: r.numero }));
+        if (!r.success) return setMensagem(r.error);
+        const { numero } = r.data;
+        setRevelados((atual) => ({ ...atual, [id]: numero }));
         // Some sozinho depois de 30 s (tela de celular emprestado, print...).
         setTimeout(() => {
           setRevelados((atual) => {
@@ -194,7 +259,7 @@ export default function DocumentosPage() {
       <form onSubmit={adicionar} className="glass-panel rounded-2xl p-6 space-y-4">
         <h2 className="font-serif text-xl font-bold text-[var(--color-heading)]">Adicionar documento</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <select aria-label="Tipo de documento" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: e.target.value })} className="glass-input">
+          <select aria-label="Tipo de documento" value={form.tipo} onChange={(e) => setForm({ ...form, tipo: tipoValido(e.target.value) })} className="glass-input">
             {TIPOS_DOCUMENTO.map((t) => (
               <option key={t} value={t}>{t}</option>
             ))}
@@ -229,25 +294,26 @@ export default function DocumentosPage() {
 
       {estado === "carregando" ? (
         <div className="glass-panel rounded-2xl p-10 text-center text-sm text-[var(--color-muted)]">Carregando o cofre…</div>
-      ) : docs.length === 0 ? (
+      ) : docsNaTela.length === 0 ? (
         <div className="glass-panel rounded-2xl p-10 text-center text-sm text-[var(--color-muted)]">Nenhum documento guardado ainda.</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {docs.map((d) => {
+          {docsNaTela.map((d) => {
             const meu = d.userId === userId;
             const validade = hoje ? alertaValidade(d.validade, hoje) : null;
             return (
-              <article key={d.id} className="glass-panel rounded-2xl p-5">
+              <article key={d.id} aria-busy={d.pendente || undefined} className={`glass-panel rounded-2xl p-5 transition-opacity ${d.pendente ? "opacity-60" : ""}`}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <span className="inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wider text-[var(--color-subtle)]">
                       {d.escopo === "viagem_compartilhado" ? <Users className="h-3 w-3" /> : <ShieldCheck className="h-3 w-3" />}
                       {d.tipo}
                       {!meu && " · do seu par"}
+                      {d.pendente && " · salvando…"}
                     </span>
                     <p className="mt-1 font-serif text-lg font-bold text-[var(--color-heading)]">{d.titular || "—"}</p>
                   </div>
-                  {meu && (
+                  {meu && !d.pendente && (
                     <button type="button" onClick={() => remover(d.id)} aria-label={`Remover ${d.tipo}`} className="text-xs text-[var(--color-muted)] hover:text-[var(--color-danger)] cursor-pointer">✕</button>
                   )}
                 </div>
@@ -264,12 +330,12 @@ export default function DocumentosPage() {
                 {d.observacao && <p className="mt-1 text-xs text-[var(--color-muted)]">{d.observacao}</p>}
                 <div className="mt-3 flex flex-wrap gap-2">
                   {d.temNumeroCompleto && !revelados[d.id] && (
-                    <button type="button" onClick={() => revelar(d.id)} disabled={salvando} className="px-3 py-1.5 rounded-lg text-xs font-semibold glass-panel cursor-pointer disabled:opacity-60">
+                    <button type="button" onClick={() => revelar(d.id)} disabled={revelando} className="px-3 py-1.5 rounded-lg text-xs font-semibold glass-panel cursor-pointer disabled:opacity-60">
                       Revelar número
                     </button>
                   )}
-                  {meu && temPar && (
-                    <button type="button" onClick={() => alternarCompartilhamento(d)} disabled={salvando} className="px-3 py-1.5 rounded-lg text-xs font-semibold glass-panel cursor-pointer disabled:opacity-60">
+                  {meu && temPar && !d.pendente && (
+                    <button type="button" onClick={() => alternarCompartilhamento(d)} className="px-3 py-1.5 rounded-lg text-xs font-semibold glass-panel cursor-pointer disabled:opacity-60">
                       {d.escopo === "viagem_compartilhado" ? "Tornar privado" : "Compartilhar com meu par"}
                     </button>
                   )}

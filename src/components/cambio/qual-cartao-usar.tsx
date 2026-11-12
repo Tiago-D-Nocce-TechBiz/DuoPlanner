@@ -82,7 +82,7 @@ export function QualCartaoUsar({
       </div>
 
       {comparacao.resultados.length === 0 ? (
-        <p className="mt-4 text-sm text-[var(--color-muted)]">Informe um valor e uma cotação maiores que zero.</p>
+        <p className="mt-4 text-sm text-[var(--color-muted)]">Informe um valor (até 1 bilhão) e uma cotação maiores que zero.</p>
       ) : (
         <>
           <ul className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">

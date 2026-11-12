@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { obterContextoSincronizacao, sincronizarOperacoes } from "@/app/dashboard/sincronizacao-actions";
+import { falhaTransitoria } from "@/lib/acoes/resultado";
 import type { ContextoSincronizacao } from "@/lib/sync/contexto";
 import { encerrarSincronizacao, iniciarSincronizacao, type EnviadorLote } from "@/lib/sync/motor";
 import { BannerImportacao } from "./banner-importacao";
@@ -27,24 +28,31 @@ function lerContextoGuardado(): ContextoSincronizacao | null {
   }
 }
 
+function abrirComCopiaGuardada() {
+  const guardado = lerContextoGuardado();
+  if (guardado) iniciarSincronizacao(guardado, { enviar });
+}
+
 async function carregarContexto(): Promise<void> {
+  let resposta: Awaited<ReturnType<typeof obterContextoSincronizacao>>;
   try {
-    const resposta = await obterContextoSincronizacao();
-    if (resposta.ok) {
-      try {
-        window.localStorage.setItem(CHAVE_CONTEXTO, JSON.stringify(resposta.contexto));
-      } catch {
-        // storage indisponível: segue só em memória
-      }
-      iniciarSincronizacao(resposta.contexto, { enviar });
-      return;
-    }
-    // Sem sessão ou sem Supabase: nada a sincronizar (o proxy cuida do login).
+    resposta = await obterContextoSincronizacao();
   } catch {
     // Sem rede: abre com a última cópia deste aparelho, se houver.
-    const guardado = lerContextoGuardado();
-    if (guardado) iniciarSincronizacao(guardado, { enviar });
+    return abrirComCopiaGuardada();
   }
+  if (resposta.success) {
+    try {
+      window.localStorage.setItem(CHAVE_CONTEXTO, JSON.stringify(resposta.data));
+    } catch {
+      // storage indisponível: segue só em memória
+    }
+    iniciarSincronizacao(resposta.data, { enviar });
+    return;
+  }
+  // Servidor instável é como estar offline; sem sessão ou sem Supabase não há
+  // nada a sincronizar (o proxy cuida do login).
+  if (falhaTransitoria(resposta)) abrirComCopiaGuardada();
 }
 
 export function SincronizacaoProvider({ children }: { children: React.ReactNode }) {

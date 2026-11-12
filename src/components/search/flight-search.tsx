@@ -2,10 +2,6 @@
 
 import { useState, useTransition } from "react";
 import { Brain, Loader2, Plane, Search, SlidersHorizontal } from "@/components/ui/icons";
-import {
-  sugerirExperienciasLocais,
-  type LocalGemsResult,
-} from "@/app/dashboard/actions";
 import { iataDaCidade, type ConciergeParse } from "@/lib/concierge";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +9,7 @@ import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { addDays } from "@/lib/dates";
 import { buildFlightLinks, type ProviderLink } from "@/lib/deep-links";
-import { saveSearch } from "@/lib/supabase/searches";
+import { registrarBusca } from "@/lib/supabase/registrar-busca";
 import type {
   CabinClass,
   FlightSearchResponse,
@@ -22,7 +18,7 @@ import type {
 } from "@/lib/travel/types";
 import { cn } from "@/lib/utils";
 import { FlightOfferCard } from "./flight-offer-card";
-import { LocalGems } from "./local-gems";
+import { LocalGems, pedirExperiencias, type PedidoExperiencias } from "./local-gems";
 import { ProviderLinks } from "./provider-links";
 
 /**
@@ -107,7 +103,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
-  const [gems, setGems] = useState<Promise<LocalGemsResult> | null>(null);
+  const [gems, setGems] = useState<PedidoExperiencias | null>(null);
 
   // Preenchimento vindo do Concierge de IA. Em vez de um efeito que chama
   // setState, sincronizamos durante o render comparando a referência anterior
@@ -184,7 +180,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
       });
       setLinks(providerLinks);
       setGems(null);
-      void saveSearch("voo", { originCity, destinationCity, departDate: form.dateFrom, tripType: form.tripType, passengers: form.adults });
+      registrarBusca("voo", { originCity, destinationCity, departDate: form.dateFrom, tripType: form.tripType, passengers: form.adults });
       return;
     }
 
@@ -212,9 +208,9 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
       startTransition(() => {
         setOutcome(result);
         setLinks(providerLinks);
-        setGems(sugerirExperienciasLocais(city ?? destinationCity, form.dateFrom));
+        setGems(pedirExperiencias(city ?? destinationCity, form.dateFrom));
       });
-      void saveSearch("voo", {
+      registrarBusca("voo", {
         originCity,
         destinationCity: city ?? destinationCity,
         originIata: from,
@@ -456,7 +452,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
         </section>
       )}
 
-      {gems && !pending && <LocalGems promise={gems} />}
+      {gems && !pending && <LocalGems pedido={gems} />}
     </div>
   );
 }

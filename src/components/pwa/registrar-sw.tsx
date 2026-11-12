@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { emProducao } from "@/lib/env/modo";
 
 /**
  * Registra o Service Worker (`public/sw.js`) — só em produção: em
@@ -9,7 +10,7 @@ import { useEffect } from "react";
  */
 export function RegistrarServiceWorker() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    if (!emProducao || !("serviceWorker" in navigator)) return;
     navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(() => {
       // Navegador sem suporte ou bloqueado: o app funciona online normalmente.
     });
@@ -27,7 +28,7 @@ const CHAVE_AQUECIDO = "pd-pwa-aquecido";
  */
 export function AquecerCacheOffline() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production" || !("serviceWorker" in navigator)) return;
+    if (!emProducao || !("serviceWorker" in navigator)) return;
     let cancelado = false;
     navigator.serviceWorker.ready
       .then((registro) => {

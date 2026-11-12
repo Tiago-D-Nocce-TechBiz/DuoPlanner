@@ -293,6 +293,22 @@ export function NoraDrawer() {
     };
   }, []);
 
+  // O painel é montado sob demanda já aberto (`nora-sob-demanda`): espera o
+  // navegador pintar o estado fechado antes de abrir, senão a transição de
+  // entrada não acontece. Dois quadros garantem uma pintura no meio.
+  const [pronta, setPronta] = useState(false);
+  useEffect(() => {
+    let segundo = 0;
+    const primeiro = requestAnimationFrame(() => {
+      segundo = requestAnimationFrame(() => setPronta(true));
+    });
+    return () => {
+      cancelAnimationFrame(primeiro);
+      cancelAnimationFrame(segundo);
+    };
+  }, []);
+  const visivel = aberta && pronta;
+
   // Rola para a última mensagem quando a conversa cresce ou a Nora pensa.
   useEffect(() => {
     if (aberta) fimRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -402,7 +418,7 @@ export function NoraDrawer() {
       <div
         className={cn(
           "fixed inset-0 z-[60] bg-black/40 transition-opacity duration-300",
-          aberta ? "opacity-100" : "pointer-events-none opacity-0"
+          visivel ? "opacity-100" : "pointer-events-none opacity-0"
         )}
         onClick={fechar}
         aria-hidden
@@ -415,7 +431,7 @@ export function NoraDrawer() {
         className={cn(
           "nora-surface fixed top-0 right-0 z-[61] h-screen w-full border-l border-[var(--color-border)] flex flex-col transition-[transform,width] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] shadow-2xl",
           expandida ? "sm:w-[600px]" : "sm:w-[420px]",
-          aberta ? "translate-x-0" : "translate-x-full"
+          visivel ? "translate-x-0" : "translate-x-full"
         )}
       >
         {/* Header duplo */}

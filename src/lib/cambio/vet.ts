@@ -14,6 +14,8 @@
  * padrões abaixo são estimativas de mercado, não o preço de um banco.
  */
 
+import { convertCents, fromCents, toCents } from "@/lib/finance/money";
+
 export const IOF_CAMBIO = 0.035;
 
 export type MeioPagamento = "cartao" | "conta_global" | "especie";
@@ -70,7 +72,8 @@ export interface ComparacaoVet {
   economiaMaxima: number;
 }
 
-const centavos = (v: number) => Math.round(v * 100) / 100;
+/** Acima disso o comparador não calcula (valor digitado por engano). */
+export const VALOR_MAXIMO_VET = 1_000_000_000;
 
 export function compararMeios(
   valorMoeda: number,
@@ -78,28 +81,32 @@ export function compararMeios(
   spreads: Partial<Record<MeioPagamento, number>> = {},
   iof: number = IOF_CAMBIO
 ): ComparacaoVet {
-  if (!(valorMoeda > 0) || !(cotacaoComercial > 0) || !Number.isFinite(valorMoeda) || !Number.isFinite(cotacaoComercial)) {
+  const valido = (v: number, maximo: number) => Number.isFinite(v) && v > 0 && v <= maximo;
+  // Limites que mantêm valor × cotação em centavos inteiros seguros.
+  if (!valido(valorMoeda, VALOR_MAXIMO_VET) || !valido(cotacaoComercial, 1_000) || !Number.isFinite(iof) || iof < 0 || iof > 1) {
     return { resultados: [], economiaMaxima: 0 };
   }
-  const comercial = valorMoeda * cotacaoComercial;
+  // Em centavos: o total de cada meio e as diferenças entre eles fecham.
+  const quantia = toCents(valorMoeda);
+  const comercial = convertCents(quantia, cotacaoComercial);
   const resultados = MEIOS_PAGAMENTO.map((meio) => {
     const bruto = spreads[meio.id];
     const spread = Number.isFinite(bruto) ? Math.min(SPREAD_MAXIMO, Math.max(0, bruto as number)) : meio.spreadPadrao;
     const vet = cotacaoComercial * (1 + spread / 100) * (1 + iof);
-    const totalReais = centavos(valorMoeda * vet);
+    const total = convertCents(quantia, vet);
     return {
       id: meio.id,
       nome: meio.nome,
       spread,
       vet,
-      totalReais,
-      custoExtra: centavos(totalReais - comercial),
+      totalReais: fromCents(total),
+      custoExtra: fromCents(total - comercial),
       percentualExtra: Math.round(((vet / cotacaoComercial - 1) * 100) * 10) / 10,
     };
   }).sort((a, b) => a.totalReais - b.totalReais);
 
   return {
     resultados,
-    economiaMaxima: centavos(resultados[resultados.length - 1].totalReais - resultados[0].totalReais),
+    economiaMaxima: fromCents(toCents(resultados[resultados.length - 1].totalReais) - toCents(resultados[0].totalReais)),
   };
 }

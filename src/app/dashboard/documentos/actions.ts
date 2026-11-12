@@ -2,7 +2,7 @@
 
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { obterSessao } from "@/lib/auth/sessao";
+import { ErroAcao, withAuthAction } from "@/lib/acoes/com-sessao";
 import { tabelaAusente } from "@/lib/auth/seguranca";
 import { documentoDaLinha, finalDoNumero, TIPOS_DOCUMENTO, type DocumentoVisivel } from "@/lib/documentos/modelo";
 import { cifrarNumeroDocumento, decifrarNumeroDocumento } from "@/lib/seguranca/cripto-documentos";
@@ -19,21 +19,25 @@ import { getWorkspaceAtual } from "@/lib/supabase/workspace";
  *
  * Documentos não passam pela fila offline do aparelho, de propósito: ela fica
  * no localStorage e o número completo não pode ficar lá.
+ *
+ * Falhas: NAO_CONFIGURADO = banco sem a tabela (o cofre fica desligado);
+ * INDISPONIVEL = falha temporária (a tela mostra a última cópia).
  */
 
 const COLUNAS_VISIVEIS =
   "id, user_id, tipo, titular, numero_final, numero_cifrado, validade, observacao, escopo, atualizado_em";
 
-export type ResultadoLista =
-  | { ok: true; documentos: DocumentoVisivel[] }
-  | { ok: false; indisponivel: boolean; mensagem: string };
+const COFRE_DESLIGADO = "O cofre de documentos será liberado quando o banco for atualizado.";
 
-export async function listarDocumentos(): Promise<ResultadoLista> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, indisponivel: false, mensagem: auth.mensagem };
+function falhaDoBanco(erro: { code?: string; message?: string }, contexto: string, mensagem: string): ErroAcao {
+  if (tabelaAusente(erro)) return new ErroAcao("NAO_CONFIGURADO", COFRE_DESLIGADO);
+  console.error(`[documentos] falha ao ${contexto}:`, erro.message);
+  return new ErroAcao("INDISPONIVEL", mensagem);
+}
+
+export const listarDocumentos = withAuthAction("listarDocumentos", async ({ sessao }): Promise<DocumentoVisivel[]> => {
   const ws = await getWorkspaceAtual();
-  const { userId, supabase } = auth.sessao;
-
+  const { userId, supabase } = sessao;
   const consulta = supabase
     .from("documentos_viagem")
     .select(COLUNAS_VISIVEIS)
@@ -42,132 +46,115 @@ export async function listarDocumentos(): Promise<ResultadoLista> {
   const { data, error } = await (ws
     ? consulta.or(`user_id.eq.${userId},and(workspace_id.eq.${ws.id},escopo.eq.viagem_compartilhado)`)
     : consulta.eq("user_id", userId));
-  if (error) {
-    if (tabelaAusente(error)) {
-      return { ok: false, indisponivel: true, mensagem: "O cofre de documentos será liberado quando o banco for atualizado." };
-    }
-    console.error("[documentos] falha ao listar:", error.message);
-    return { ok: false, indisponivel: false, mensagem: "Não foi possível carregar os documentos agora." };
-  }
+  if (error) throw falhaDoBanco(error, "listar", "Não foi possível carregar os documentos agora.");
   // O texto cifrado não sai do servidor: só a indicação de que existe.
-  return { ok: true, documentos: (data ?? []).map((l) => documentoDaLinha(l as Record<string, unknown>)) };
-}
+  return (data ?? []).map((l) => documentoDaLinha(l as Record<string, unknown>));
+});
 
 const esquemaDocumento = z.object({
   id: z.uuid().optional(),
-  tipo: z.enum(TIPOS_DOCUMENTO),
-  titular: z.string().trim().max(120),
+  tipo: z.enum(TIPOS_DOCUMENTO, { error: "Tipo de documento inválido." }),
+  titular: z.string().trim().max(120, "Titular: até 120 caracteres."),
   /** Vazio = manter o número atual (na edição) ou não guardar número. */
-  numero: z.string().trim().max(64),
+  numero: z.string().trim().max(64, "Número: até 64 caracteres."),
   validade: z
     .string()
     .trim()
     .refine((v) => v === "" || /^\d{4}-\d{2}-\d{2}$/.test(v), "Data de validade inválida."),
-  observacao: z.string().trim().max(300),
+  observacao: z.string().trim().max(300, "Observação: até 300 caracteres."),
   escopo: z.enum(["viagem_compartilhado", "pessoal_privado"]),
 });
 
-export type ResultadoDocumento =
-  | { ok: true; documento: DocumentoVisivel; aviso?: string }
-  | { ok: false; mensagem: string };
+export interface DocumentoSalvo {
+  documento: DocumentoVisivel;
+  aviso?: string;
+}
 
 const AVISO_SEM_CHAVE =
   "Guardamos só os 4 últimos caracteres do número: a criptografia não está configurada no servidor.";
 
-export async function salvarDocumento(entrada: unknown): Promise<ResultadoDocumento> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, mensagem: auth.mensagem };
-  const { supabase, userId } = auth.sessao;
+export const salvarDocumento = withAuthAction(
+  "salvarDocumento",
+  esquemaDocumento,
+  async (d, { sessao }): Promise<DocumentoSalvo> => {
+    const { supabase, userId } = sessao;
+    if (!d.titular && !d.numero && !d.id) throw new ErroAcao("ENTRADA_INVALIDA", "Informe o titular ou o número do documento.");
 
-  const lido = esquemaDocumento.safeParse(entrada);
-  if (!lido.success) return { ok: false, mensagem: lido.error.issues[0]?.message ?? "Dados inválidos." };
-  const d = lido.data;
-  if (!d.titular && !d.numero && !d.id) return { ok: false, mensagem: "Informe o titular ou o número do documento." };
+    const ws = await getWorkspaceAtual();
+    if (d.escopo === "viagem_compartilhado" && !ws) {
+      throw new ErroAcao("CONFLITO", "Convide seu par para compartilhar documentos.");
+    }
 
-  const ws = await getWorkspaceAtual();
-  if (d.escopo === "viagem_compartilhado" && !ws) {
-    return { ok: false, mensagem: "Convide seu par para compartilhar documentos." };
+    const id = d.id ?? randomUUID();
+    let aviso: string | undefined;
+    const campos: Record<string, unknown> = {
+      tipo: d.tipo,
+      titular: d.titular,
+      validade: d.validade || null,
+      observacao: d.observacao,
+      escopo: d.escopo,
+    };
+    if (d.numero) {
+      const cifrado = cifrarNumeroDocumento(d.numero, { documentoId: id, userId });
+      if (!cifrado) aviso = AVISO_SEM_CHAVE;
+      campos.numero_cifrado = cifrado;
+      campos.numero_final = finalDoNumero(d.numero);
+    }
+
+    const resposta = d.id
+      ? await supabase
+          .from("documentos_viagem")
+          .update(campos)
+          .eq("id", d.id)
+          .eq("user_id", userId)
+          .select(COLUNAS_VISIVEIS)
+          .maybeSingle()
+      : await supabase
+          .from("documentos_viagem")
+          .insert({ id, user_id: userId, workspace_id: ws?.id ?? null, ...campos })
+          .select(COLUNAS_VISIVEIS)
+          .single();
+
+    if (resposta.error) throw falhaDoBanco(resposta.error, "salvar", "Não foi possível guardar o documento agora.");
+    if (!resposta.data) throw new ErroAcao("NAO_ENCONTRADO", "Documento não encontrado.");
+    return { documento: documentoDaLinha(resposta.data as Record<string, unknown>), aviso };
   }
+);
 
-  const id = d.id ?? randomUUID();
-  let aviso: string | undefined;
-  const campos: Record<string, unknown> = {
-    tipo: d.tipo,
-    titular: d.titular,
-    validade: d.validade || null,
-    observacao: d.observacao,
-    escopo: d.escopo,
-  };
-  if (d.numero) {
-    const cifrado = cifrarNumeroDocumento(d.numero, { documentoId: id, userId });
-    if (!cifrado) aviso = AVISO_SEM_CHAVE;
-    campos.numero_cifrado = cifrado;
-    campos.numero_final = finalDoNumero(d.numero);
-  }
+const idDocumento = z.uuid({ error: "Documento inválido." });
 
-  const resposta = d.id
-    ? await supabase.from("documentos_viagem").update(campos).eq("id", d.id).eq("user_id", userId).select(COLUNAS_VISIVEIS).maybeSingle()
-    : await supabase
-        .from("documentos_viagem")
-        .insert({ id, user_id: userId, workspace_id: ws?.id ?? null, ...campos })
-        .select(COLUNAS_VISIVEIS)
-        .single();
-
-  if (resposta.error) {
-    if (tabelaAusente(resposta.error)) return { ok: false, mensagem: "O cofre será liberado quando o banco for atualizado." };
-    console.error("[documentos] falha ao salvar:", resposta.error.message);
-    return { ok: false, mensagem: "Não foi possível guardar o documento agora." };
-  }
-  if (!resposta.data) return { ok: false, mensagem: "Documento não encontrado." };
-  return { ok: true, documento: documentoDaLinha(resposta.data as Record<string, unknown>), aviso };
-}
-
-export async function removerDocumento(id: unknown): Promise<{ ok: boolean; mensagem?: string }> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, mensagem: auth.mensagem };
-  const lido = z.uuid().safeParse(id);
-  if (!lido.success) return { ok: false, mensagem: "Documento inválido." };
-  const { error } = await auth.sessao.supabase
-    .from("documentos_viagem")
-    .delete()
-    .eq("id", lido.data)
-    .eq("user_id", auth.sessao.userId);
-  if (error) {
-    console.error("[documentos] falha ao remover:", error.message);
-    return { ok: false, mensagem: "Não foi possível remover agora." };
-  }
-  return { ok: true };
-}
+export const removerDocumento = withAuthAction("removerDocumento", idDocumento, async (id, { sessao }): Promise<null> => {
+  const { error } = await sessao.supabase.from("documentos_viagem").delete().eq("id", id).eq("user_id", sessao.userId);
+  if (error) throw falhaDoBanco(error, "remover", "Não foi possível remover agora.");
+  return null;
+});
 
 /** Decifra o número sob demanda (com cota: 30 consultas por hora). */
-export async function revelarNumeroDocumento(
-  id: unknown
-): Promise<{ ok: true; numero: string } | { ok: false; mensagem: string }> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, mensagem: auth.mensagem };
-  const lido = z.uuid().safeParse(id);
-  if (!lido.success) return { ok: false, mensagem: "Documento inválido." };
+export const revelarNumeroDocumento = withAuthAction(
+  "revelarNumeroDocumento",
+  idDocumento,
+  async (id, { sessao }): Promise<{ numero: string }> => {
+    const cota = await consumirCota(sessao.supabase, sessao.userId, "documento");
+    if (!cota.permitido) throw new ErroAcao("COTA_EXCEDIDA", cota.mensagem);
 
-  const cota = await consumirCota(auth.sessao.supabase, auth.sessao.userId, "documento");
-  if (!cota.permitido) return { ok: false, mensagem: cota.mensagem };
-
-  // A RLS decide quem lê: o dono ou o par, se o documento foi compartilhado.
-  const { data, error } = await auth.sessao.supabase
-    .from("documentos_viagem")
-    .select("id, user_id, numero_cifrado")
-    .eq("id", lido.data)
-    .maybeSingle();
-  if (error || !data) return { ok: false, mensagem: "Documento não encontrado." };
-  if (typeof data.numero_cifrado !== "string" || !data.numero_cifrado) {
-    return { ok: false, mensagem: "Este documento guarda só os 4 últimos caracteres." };
+    // A RLS decide quem lê: o dono ou o par, se o documento foi compartilhado.
+    const { data, error } = await sessao.supabase
+      .from("documentos_viagem")
+      .select("id, user_id, numero_cifrado")
+      .eq("id", id)
+      .maybeSingle();
+    if (error || !data) throw new ErroAcao("NAO_ENCONTRADO", "Documento não encontrado.");
+    if (typeof data.numero_cifrado !== "string" || !data.numero_cifrado) {
+      throw new ErroAcao("NAO_ENCONTRADO", "Este documento guarda só os 4 últimos caracteres.");
+    }
+    const numero = decifrarNumeroDocumento(data.numero_cifrado, { documentoId: String(data.id), userId: String(data.user_id) });
+    if (numero === null) {
+      console.error("[documentos] não foi possível decifrar", data.id);
+      throw new ErroAcao("INDISPONIVEL", "Não foi possível abrir o número agora.");
+    }
+    return { numero };
   }
-  const numero = decifrarNumeroDocumento(data.numero_cifrado, { documentoId: String(data.id), userId: String(data.user_id) });
-  if (numero === null) {
-    console.error("[documentos] não foi possível decifrar", data.id);
-    return { ok: false, mensagem: "Não foi possível abrir o número agora." };
-  }
-  return { ok: true, numero };
-}
+);
 
 const esquemaLegado = z
   .array(
@@ -178,46 +165,40 @@ const esquemaLegado = z
       observacao: z.string().max(300),
     })
   )
-  .max(200);
+  .max(200, "Documentos demais para importar de uma vez.");
 
 /** Importa os documentos antigos do navegador, já cifrando os números. */
-export async function importarDocumentosLegados(
-  entrada: unknown
-): Promise<{ ok: true; importados: number; aviso?: string } | { ok: false; mensagem: string }> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, mensagem: auth.mensagem };
-  const lido = esquemaLegado.safeParse(entrada);
-  if (!lido.success) return { ok: false, mensagem: "Documentos inválidos." };
-  const ws = await getWorkspaceAtual();
-  const { supabase, userId } = auth.sessao;
+export const importarDocumentosLegados = withAuthAction(
+  "importarDocumentosLegados",
+  esquemaLegado,
+  async (documentos, { sessao }): Promise<{ importados: number; aviso?: string }> => {
+    const ws = await getWorkspaceAtual();
+    const { supabase, userId } = sessao;
 
-  let semChave = false;
-  const linhas = lido.data
-    .filter((d) => d.titular.trim() || d.numero.trim())
-    .map((d) => {
-      const id = randomUUID();
-      const numero = d.numero.trim();
-      const cifrado = numero ? cifrarNumeroDocumento(numero, { documentoId: id, userId }) : null;
-      if (numero && !cifrado) semChave = true;
-      return {
-        id,
-        user_id: userId,
-        workspace_id: ws?.id ?? null,
-        tipo: (TIPOS_DOCUMENTO as readonly string[]).includes(d.tipo) ? d.tipo : "Outro",
-        titular: d.titular.trim(),
-        numero_cifrado: cifrado,
-        numero_final: numero ? finalDoNumero(numero) : null,
-        observacao: d.observacao.trim(),
-        escopo: "pessoal_privado",
-      };
-    });
-  if (linhas.length === 0) return { ok: true, importados: 0 };
+    let semChave = false;
+    const linhas = documentos
+      .filter((d) => d.titular.trim() || d.numero.trim())
+      .map((d) => {
+        const id = randomUUID();
+        const numero = d.numero.trim();
+        const cifrado = numero ? cifrarNumeroDocumento(numero, { documentoId: id, userId }) : null;
+        if (numero && !cifrado) semChave = true;
+        return {
+          id,
+          user_id: userId,
+          workspace_id: ws?.id ?? null,
+          tipo: (TIPOS_DOCUMENTO as readonly string[]).includes(d.tipo) ? d.tipo : "Outro",
+          titular: d.titular.trim(),
+          numero_cifrado: cifrado,
+          numero_final: numero ? finalDoNumero(numero) : null,
+          observacao: d.observacao.trim(),
+          escopo: "pessoal_privado",
+        };
+      });
+    if (linhas.length === 0) return { importados: 0 };
 
-  const { error } = await supabase.from("documentos_viagem").insert(linhas);
-  if (error) {
-    if (tabelaAusente(error)) return { ok: false, mensagem: "O cofre será liberado quando o banco for atualizado." };
-    console.error("[documentos] falha ao importar:", error.message);
-    return { ok: false, mensagem: "Não foi possível importar os documentos agora." };
+    const { error } = await supabase.from("documentos_viagem").insert(linhas);
+    if (error) throw falhaDoBanco(error, "importar", "Não foi possível importar os documentos agora.");
+    return { importados: linhas.length, aviso: semChave ? AVISO_SEM_CHAVE : undefined };
   }
-  return { ok: true, importados: linhas.length, aviso: semChave ? AVISO_SEM_CHAVE : undefined };
-}
+);

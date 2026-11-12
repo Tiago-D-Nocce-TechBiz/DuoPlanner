@@ -3,7 +3,7 @@
 import { importarDocumentosLegados } from "@/app/dashboard/documentos/actions";
 import { todayInSaoPaulo } from "@/lib/dates";
 import { operacoesDoLegado } from "./importacao";
-import { CHAVES_LEGADAS, lerDadosLegados, removerLegado, type AreaLegada } from "./legado";
+import { lerDadosLegados, removerLegado, type AreaLegada } from "./legado";
 import { enfileirarOperacoes, getContexto } from "./motor";
 
 /**
@@ -42,19 +42,14 @@ export async function importarDadosLegados(): Promise<ResultadoImportacaoLegado>
     const r = await importarDocumentosLegados(
       dados.documentos.map((d) => ({ tipo: d.tipo, titular: d.titular, numero: d.numero, observacao: d.observacao }))
     );
-    if (r.ok) {
-      documentos = r.importados;
-      aviso = r.aviso;
+    if (r.success) {
+      documentos = r.data.importados;
+      aviso = r.data.aviso;
       removerLegado(window.localStorage, ["documentos"]);
     } else {
       // Mantém os documentos antigos: tentaremos de novo quando o servidor permitir.
-      aviso = `Documentos não importados agora: ${r.mensagem}`;
+      aviso = `Documentos não importados agora: ${r.error}`;
     }
   }
   return { importados: operacoes.length, descartados, documentos, aviso };
-}
-
-/** Apaga os dados antigos deste navegador sem importar (não são desta conta). */
-export function descartarDadosLegados() {
-  removerLegado(window.localStorage, Object.keys(CHAVES_LEGADAS) as AreaLegada[]);
 }

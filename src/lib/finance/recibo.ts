@@ -1,16 +1,14 @@
-import { z } from "zod";
-import {
-  CATEGORIAS,
-  classificarDespesa,
-  type Categoria,
-  type Escopo,
-} from "./classificar";
+import { classificarDespesa, type Categoria, type Escopo } from "./classificar";
 
 /**
  * Proposta de gasto lida de um recibo ou comprovante (puro, sem I/O).
  *
  * Compartilhado entre o agente de IA (servidor) e a tela de Finanças
  * (cliente): o agente devolve a proposta e o usuário revisa antes de salvar.
+ *
+ * Sem zod aqui de propósito: este módulo vai para o navegador. O esquema que
+ * valida a saída da IA fica no servidor (`@/lib/ai/recibo-esquema`) e é
+ * conferido contra este tipo com `satisfies`.
  */
 
 export const TIPOS_COMPROVANTE = [
@@ -24,17 +22,17 @@ export const TIPOS_COMPROVANTE = [
 
 export type TipoComprovante = (typeof TIPOS_COMPROVANTE)[number];
 
-export const propostaReciboSchema = z.object({
-  titulo: z.string().min(1).max(80),
-  estabelecimento: z.string().max(80),
-  valor: z.number().min(0.01).max(1_000_000),
-  data: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  moeda: z.string().regex(/^[A-Z]{3}$/),
-  categoria: z.enum(CATEGORIAS),
-  tipoComprovante: z.enum(TIPOS_COMPROVANTE),
-});
-
-export type PropostaRecibo = z.infer<typeof propostaReciboSchema>;
+export interface PropostaRecibo {
+  titulo: string;
+  estabelecimento: string;
+  valor: number;
+  /** AAAA-MM-DD. */
+  data: string;
+  /** Código ISO de 3 letras. */
+  moeda: string;
+  categoria: Categoria;
+  tipoComprovante: TipoComprovante;
+}
 
 /**
  * Escopo sugerido: as regras do classificador (palavra inteira) vencem; se

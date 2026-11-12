@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { obterSessao } from "@/lib/auth/sessao";
+import { ErroAcao, withAuthAction } from "@/lib/acoes/com-sessao";
 import { getWorkspaceAtual } from "./workspace";
 
 /**
@@ -17,11 +17,6 @@ import { getWorkspaceAtual } from "./workspace";
  */
 
 export type SearchKind = "voo" | "hospedagem";
-
-export interface SaveSearchResult {
-  ok: boolean;
-  message: string;
-}
 
 // Campo inválido é descartado (não derruba o registro inteiro).
 const texto = z.string().trim().min(1).max(120).optional().catch(undefined);
@@ -55,39 +50,26 @@ const esquemaDados = z.object({
   cabin: z.enum(["economy", "premium", "business", "first"]).optional().catch(undefined),
 });
 
-export async function saveSearch(tipo: SearchKind, dados: Record<string, unknown>): Promise<SaveSearchResult> {
-  if (tipo !== "voo" && tipo !== "hospedagem") {
-    return { ok: false, message: "Tipo de busca inválido." };
-  }
-  const auth = await obterSessao();
-  if (!auth.ok) {
-    return {
-      ok: false,
-      message:
-        auth.motivo === "nao_configurado"
-          ? "Supabase não configurado — busca gerada sem salvar."
-          : "Entre na sua conta para salvar o histórico de buscas.",
-    };
-  }
-  const { supabase, userId } = auth.sessao;
-  const lido = esquemaDados.safeParse(dados ?? {});
-  if (!lido.success) {
-    return { ok: false, message: "Dados de busca inválidos." };
-  }
-  const limpo = Object.fromEntries(Object.entries(lido.data).filter(([, v]) => v !== undefined));
+const esquemaBusca = z.object({
+  tipo: z.enum(["voo", "hospedagem"], { error: "Tipo de busca inválido." }),
+  dados: esquemaDados,
+});
+
+export const saveSearch = withAuthAction("saveSearch", esquemaBusca, async ({ tipo, dados }, { sessao }): Promise<null> => {
+  const limpo = Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined));
   const workspace = await getWorkspaceAtual();
 
-  const { error } = await supabase.from("viagens").insert({
-    user_id: userId,
+  const { error } = await sessao.supabase.from("viagens").insert({
+    user_id: sessao.userId,
     workspace_id: workspace?.id ?? null,
     tipo,
-    origem: lido.data.originCity ?? null,
-    destino: lido.data.destinationCity ?? lido.data.city ?? null,
+    origem: dados.originCity ?? null,
+    destino: dados.destinationCity ?? dados.city ?? null,
     dados: limpo,
   });
   if (error) {
     console.error("[viagens] falha ao salvar busca:", error.message);
-    return { ok: false, message: "Não foi possível salvar a busca no histórico." };
+    throw new ErroAcao("INDISPONIVEL", "Não foi possível salvar a busca no histórico.");
   }
-  return { ok: true, message: "Busca salva no histórico." };
-}
+  return null;
+});

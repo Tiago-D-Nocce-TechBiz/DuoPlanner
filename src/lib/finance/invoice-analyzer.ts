@@ -20,7 +20,9 @@
 
 import { isoToBR } from "@/lib/dates";
 import { CATEGORIAS_DUOFINANCE, ICONE_POR_CATEGORIA, type CategoriaDuoFinance } from "./categorias-duofinance";
+import type { CompraParaFingerprint } from "./fingerprint";
 import { importarExtrato, type FormatoExtrato, type LinhaIgnorada } from "./importar";
+import { fromCents, roundMoney, sumCents, toCents } from "./money";
 
 /* ======================================================================== */
 /* Categorias padronizadas (definidas em ./categorias-duofinance)           */
@@ -76,6 +78,11 @@ export interface TransacaoAnalisada {
   categoryIcon: string;
   /** Privacidade sugerida; 'pessoal_privado' é o padrão seguro. */
   suggestedScope: EscopoSugerido;
+  /**
+   * O catálogo local identificou o estabelecimento com certeza: a etapa 2
+   * (IA) não precisa desta linha.
+   */
+  reconhecidoLocalmente: boolean;
 
   installmentInfo: InformacaoParcela;
 
@@ -157,21 +164,20 @@ export function detectarParcela(descricao: string, valorParcela: number): Inform
     const ehRegexBarraSimples = p === 1;
     if (ehRegexBarraSimples && m.index <= 1) continue;
 
-    const installmentAmount = Math.round(valorParcela * 100) / 100;
-    const totalPurchaseAmount = Math.round(installmentAmount * total * 100) / 100;
+    // Em centavos: parcela × meses é multiplicação inteira, sem ruído de float.
+    const parcelaCentavos = toCents(valorParcela);
     const remainingMonths = total - atual;
-    const remainingAmount = Math.round(installmentAmount * remainingMonths * 100) / 100;
     return {
       isInstallment: true,
       currentInstallment: atual,
       totalInstallments: total,
-      installmentAmount,
-      totalPurchaseAmount,
-      remainingAmount,
+      installmentAmount: fromCents(parcelaCentavos),
+      totalPurchaseAmount: fromCents(parcelaCentavos * total),
+      remainingAmount: fromCents(parcelaCentavos * remainingMonths),
       remainingMonths,
     };
   }
-  return { ...SEM_PARCELA, installmentAmount: Math.round(valorParcela * 100) / 100 };
+  return { ...SEM_PARCELA, installmentAmount: roundMoney(valorParcela) };
 }
 
 /* ======================================================================== */
@@ -240,6 +246,12 @@ interface EntradaDicionario {
   oque: string;
   categoria: CategoriaDuoFinance;
   escopo: EscopoSugerido;
+  /**
+   * Palavra genérica ("posto", "hotel", "farmácia"): a categoria é provável,
+   * mas o estabelecimento não foi identificado. Mantém o nome da fatura e a
+   * linha segue para a IA (etapa 2) refinar.
+   */
+  generico?: true;
   /** Termos que casam (palavra inteira, normalizados). */
   termos: string[];
 }
@@ -288,10 +300,10 @@ const DICIONARIO: EntradaDicionario[] = [
   { nome: "Shell", oque: "Combustível", categoria: "Transporte", escopo: "compartilhado", termos: ["shell", "shell box", "raizen"] },
   { nome: "Ipiranga", oque: "Combustível", categoria: "Transporte", escopo: "compartilhado", termos: ["ipiranga", "posto ipiranga"] },
   { nome: "Petrobras", oque: "Combustível", categoria: "Transporte", escopo: "compartilhado", termos: ["petrobras", "br mania", "posto br"] },
-  { nome: "Posto de combustível", oque: "Combustível", categoria: "Transporte", escopo: "compartilhado", termos: ["posto", "auto posto", "combustivel", "gasolina", "etanol", "alcool"] },
+  { nome: "Posto de combustível", oque: "Combustível", categoria: "Transporte", escopo: "compartilhado", generico: true, termos: ["posto", "auto posto", "combustivel", "gasolina", "etanol", "alcool"] },
   { nome: "Sem Parar", oque: "Pedágio / Estacionamento", categoria: "Transporte", escopo: "compartilhado", termos: ["sem parar", "semparar"] },
   { nome: "ConectCar", oque: "Pedágio / Estacionamento", categoria: "Transporte", escopo: "compartilhado", termos: ["conectcar", "veloe"] },
-  { nome: "Pedágio", oque: "Pedágio", categoria: "Transporte", escopo: "compartilhado", termos: ["pedagio", "ccr", "ecovias", "autoban"] },
+  { nome: "Pedágio", oque: "Pedágio", categoria: "Transporte", escopo: "compartilhado", generico: true, termos: ["pedagio", "ccr", "ecovias", "autoban"] },
   { nome: "Localiza", oque: "Aluguel de carro", categoria: "Transporte", escopo: "compartilhado", termos: ["localiza"] },
   { nome: "Movida", oque: "Aluguel de carro", categoria: "Transporte", escopo: "compartilhado", termos: ["movida"] },
   { nome: "Unidas", oque: "Aluguel de carro", categoria: "Transporte", escopo: "compartilhado", termos: ["unidas", "rentcars", "hertz"] },
@@ -312,7 +324,7 @@ const DICIONARIO: EntradaDicionario[] = [
   { nome: "Booking.com", oque: "Hospedagem", categoria: "Hospedagem", escopo: "compartilhado", termos: ["booking", "booking com"] },
   { nome: "Hotel Urbano / Hurb", oque: "Hospedagem", categoria: "Hospedagem", escopo: "compartilhado", termos: ["hurb", "hotel urbano"] },
   { nome: "Accor", oque: "Hospedagem", categoria: "Hospedagem", escopo: "compartilhado", termos: ["accor", "ibis", "mercure", "novotel"] },
-  { nome: "Hospedagem", oque: "Hospedagem", categoria: "Hospedagem", escopo: "compartilhado", termos: ["hotel", "pousada", "resort", "hostel", "hospedagem", "flat", "chale"] },
+  { nome: "Hospedagem", oque: "Hospedagem", categoria: "Hospedagem", escopo: "compartilhado", generico: true, termos: ["hotel", "pousada", "resort", "hostel", "hospedagem", "flat", "chale"] },
 
   /* ---- Compras / varejo / marketplaces ---- */
   { nome: "Amazon", oque: "Compra online", categoria: "Compras", escopo: "pessoal_privado", termos: ["amazon", "amzn", "amazon br", "amazon prime"] },
@@ -337,7 +349,7 @@ const DICIONARIO: EntradaDicionario[] = [
   { nome: "Sympla", oque: "Ingresso / Evento", categoria: "Lazer & Passeios", escopo: "compartilhado", termos: ["sympla"] },
   { nome: "Eventim", oque: "Ingresso / Evento", categoria: "Lazer & Passeios", escopo: "compartilhado", termos: ["eventim", "ticketmaster", "ingresso rapido", "ingresso com"] },
   { nome: "Cinemark", oque: "Cinema", categoria: "Lazer & Passeios", escopo: "compartilhado", termos: ["cinemark", "cinepolis", "kinoplex", "uci"] },
-  { nome: "Passeio turístico", oque: "Passeio / Atração", categoria: "Lazer & Passeios", escopo: "compartilhado", termos: ["ingresso", "parque", "tour", "passeio", "museu", "show", "aquario", "bondinho", "teleferico", "escuna", "mergulho"] },
+  { nome: "Passeio turístico", oque: "Passeio / Atração", categoria: "Lazer & Passeios", escopo: "compartilhado", generico: true, termos: ["ingresso", "parque", "tour", "passeio", "museu", "show", "aquario", "bondinho", "teleferico", "escuna", "mergulho"] },
 
   /* ---- Assinaturas / streaming / serviços ---- */
   { nome: "Netflix", oque: "Assinatura de streaming", categoria: "Assinaturas", escopo: "pessoal_privado", termos: ["netflix"] },
@@ -350,20 +362,20 @@ const DICIONARIO: EntradaDicionario[] = [
   { nome: "Microsoft", oque: "Serviço / Assinatura", categoria: "Assinaturas", escopo: "pessoal_privado", termos: ["microsoft", "office 365", "xbox"] },
   { nome: "iCloud", oque: "Serviço / Assinatura", categoria: "Assinaturas", escopo: "pessoal_privado", termos: ["icloud", "apple icloud"] },
   { nome: "ChatGPT / OpenAI", oque: "Serviço / Assinatura", categoria: "Assinaturas", escopo: "pessoal_privado", termos: ["openai", "chatgpt"] },
-  { nome: "Academia", oque: "Mensalidade de academia", categoria: "Assinaturas", escopo: "pessoal_privado", termos: ["academia", "smart fit", "smartfit", "bodytech", "bio ritmo"] },
+  { nome: "Academia", oque: "Mensalidade de academia", categoria: "Assinaturas", escopo: "pessoal_privado", generico: true, termos: ["academia", "smart fit", "smartfit", "bodytech", "bio ritmo"] },
 
   /* ---- Saúde & Farmácia ---- */
   { nome: "Drogasil", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["drogasil"] },
   { nome: "Droga Raia", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["droga raia", "drogaraia", "raia"] },
   { nome: "Pacheco", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["drogaria pacheco", "pacheco"] },
   { nome: "Pague Menos", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["pague menos", "paguemenos", "extrafarma"] },
-  { nome: "Farmácia", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["farmacia", "drogaria", "panvel", "nissei", "ultrafarma"] },
-  { nome: "Plano de saúde", oque: "Saúde", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", termos: ["plano de saude", "unimed", "amil", "hapvida", "sulamerica saude", "consulta", "laboratorio", "exame"] },
+  { nome: "Farmácia", oque: "Farmácia", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", generico: true, termos: ["farmacia", "drogaria", "panvel", "nissei", "ultrafarma"] },
+  { nome: "Plano de saúde", oque: "Saúde", categoria: "Saúde & Farmácia", escopo: "pessoal_privado", generico: true, termos: ["plano de saude", "unimed", "amil", "hapvida", "sulamerica saude", "consulta", "laboratorio", "exame"] },
 
   /* ---- Taxas & Impostos ---- */
   { nome: "IOF", oque: "IOF / Taxa bancária", categoria: "Taxas & Impostos", escopo: "compartilhado", termos: ["iof"] },
-  { nome: "Anuidade do cartão", oque: "Taxa bancária", categoria: "Taxas & Impostos", escopo: "pessoal_privado", termos: ["anuidade", "tarifa", "tarifas", "taxa", "juros", "encargos", "multa"] },
-  { nome: "Seguro", oque: "Seguro", categoria: "Taxas & Impostos", escopo: "pessoal_privado", termos: ["seguro", "seguros", "prestamista"] },
+  { nome: "Anuidade do cartão", oque: "Taxa bancária", categoria: "Taxas & Impostos", escopo: "pessoal_privado", generico: true, termos: ["anuidade", "tarifa", "tarifas", "taxa", "juros", "encargos", "multa"] },
+  { nome: "Seguro", oque: "Seguro", categoria: "Taxas & Impostos", escopo: "pessoal_privado", generico: true, termos: ["seguro", "seguros", "prestamista"] },
 ];
 
 const DICIONARIO_NORMALIZADO = DICIONARIO.map((e) => ({
@@ -371,26 +383,32 @@ const DICIONARIO_NORMALIZADO = DICIONARIO.map((e) => ({
   termos: e.termos.map(normalizar),
 }));
 
-/** Enriquecimento semântico 100% local (fallback que nunca falha). */
-export function enriquecerPeloDicionario(
-  descricaoOriginal: string,
-  cleanMerchantName: string
-): {
+export interface EnriquecimentoLocal {
   cleanMerchantName: string;
   whatWasBought: string;
   category: CategoriaDuoFinance;
   categoryIcon: string;
   suggestedScope: EscopoSugerido;
-} {
+  /**
+   * true = estabelecimento identificado com certeza (marca do catálogo): a IA
+   * não é chamada para esta linha. Palavra genérica ou nenhuma correspondência
+   * = false: a categoria local vale até a IA responder.
+   */
+  reconhecido: boolean;
+}
+
+/** Enriquecimento semântico 100% local (fallback que nunca falha). */
+export function enriquecerPeloDicionario(descricaoOriginal: string, cleanMerchantName: string): EnriquecimentoLocal {
   const alvo = normalizar(`${descricaoOriginal} ${cleanMerchantName}`);
   for (const entrada of DICIONARIO_NORMALIZADO) {
     if (entrada.termos.some((t) => alvo.includes(t))) {
       return {
-        cleanMerchantName: entrada.nome,
+        cleanMerchantName: entrada.generico ? cleanMerchantName : entrada.nome,
         whatWasBought: entrada.oque,
         category: entrada.categoria,
         categoryIcon: ICONE_POR_CATEGORIA[entrada.categoria],
         suggestedScope: entrada.escopo,
+        reconhecido: !entrada.generico,
       };
     }
   }
@@ -401,6 +419,7 @@ export function enriquecerPeloDicionario(
     category: "Outros",
     categoryIcon: ICONE_POR_CATEGORIA["Outros"],
     suggestedScope: "pessoal_privado",
+    reconhecido: false,
   };
 }
 
@@ -448,6 +467,7 @@ export function analisarFatura(texto: string, hojeIso: string): ResultadoAnalise
       category: semantico.category,
       categoryIcon: semantico.categoryIcon,
       suggestedScope: semantico.suggestedScope,
+      reconhecidoLocalmente: semantico.reconhecido,
       installmentInfo,
       ignorarNoCalculo: false,
       fonteEnriquecimento: "dicionario",
@@ -459,6 +479,18 @@ export function analisarFatura(texto: string, hojeIso: string): ResultadoAnalise
     ignoradas,
     formato,
     faturaReferencia: referenciaDaFatura(transacoes.map((t) => t.dataIso)),
+  };
+}
+
+/** Os campos da transação que entram no `transaction_fingerprint`. */
+export function compraDaTransacao(t: TransacaoAnalisada): CompraParaFingerprint {
+  const p = t.installmentInfo;
+  return {
+    dataIso: t.dataIso,
+    descricaoOriginal: t.descricaoOriginal,
+    valor: t.valor,
+    moeda: t.moeda,
+    parcela: p.isInstallment ? { atual: p.currentInstallment, total: p.totalInstallments } : null,
   };
 }
 
@@ -490,21 +522,27 @@ export interface RaioXFatura {
   porCategoria: ResumoCategoria[];
 }
 
-export function calcularRaioX(transacoes: TransacaoAnalisada[]): RaioXFatura {
-  const ativas = transacoes.filter((t) => !t.ignorarNoCalculo);
-  const totalFatura = ativas.reduce((a, t) => a + t.valor, 0);
+/** Percentual com 1 casa (12,3%); 0 quando não há total. */
+function percentualDe(parteCentavos: number, totalCentavos: number): number {
+  return totalCentavos > 0 ? Math.round((parteCentavos / totalCentavos) * 1000) / 10 : 0;
+}
 
+export function calcularRaioX(transacoes: TransacaoAnalisada[]): RaioXFatura {
+  // Tudo em centavos: o total da fatura fecha com a soma das linhas e das
+  // categorias, ao centavo, mesmo com centenas de compras.
+  const ativas = transacoes.filter((t) => !t.ignorarNoCalculo);
   const aVista = ativas.filter((t) => !t.installmentInfo.isInstallment);
   const parceladas = ativas.filter((t) => t.installmentInfo.isInstallment);
 
-  const totalAVista = aVista.reduce((a, t) => a + t.valor, 0);
-  const totalParceladoMes = parceladas.reduce((a, t) => a + t.valor, 0);
-  const comprometimentoFuturo = parceladas.reduce((a, t) => a + t.installmentInfo.remainingAmount, 0);
+  const totalFatura = sumCents(ativas.map((t) => toCents(t.valor)));
+  const totalAVista = sumCents(aVista.map((t) => toCents(t.valor)));
+  const totalParceladoMes = sumCents(parceladas.map((t) => toCents(t.valor)));
+  const comprometimentoFuturo = sumCents(parceladas.map((t) => toCents(t.installmentInfo.remainingAmount)));
 
   const mapa = new Map<CategoriaDuoFinance, { total: number; quantidade: number }>();
   for (const t of ativas) {
     const atual = mapa.get(t.category) ?? { total: 0, quantidade: 0 };
-    atual.total += t.valor;
+    atual.total += toCents(t.valor);
     atual.quantidade += 1;
     mapa.set(t.category, atual);
   }
@@ -512,20 +550,20 @@ export function calcularRaioX(transacoes: TransacaoAnalisada[]): RaioXFatura {
     .map(([category, { total, quantidade }]) => ({
       category,
       icon: ICONE_POR_CATEGORIA[category],
-      total: Math.round(total * 100) / 100,
-      percentual: totalFatura > 0 ? Math.round((total / totalFatura) * 1000) / 10 : 0,
+      total: fromCents(total),
+      percentual: percentualDe(total, totalFatura),
       quantidade,
     }))
     .sort((a, b) => b.total - a.total);
 
   return {
-    totalFatura: Math.round(totalFatura * 100) / 100,
-    totalAVista: Math.round(totalAVista * 100) / 100,
+    totalFatura: fromCents(totalFatura),
+    totalAVista: fromCents(totalAVista),
     qtdAVista: aVista.length,
-    percentualAVista: totalFatura > 0 ? Math.round((totalAVista / totalFatura) * 1000) / 10 : 0,
-    totalParceladoMes: Math.round(totalParceladoMes * 100) / 100,
+    percentualAVista: percentualDe(totalAVista, totalFatura),
+    totalParceladoMes: fromCents(totalParceladoMes),
     qtdParcelada: parceladas.length,
-    comprometimentoFuturo: Math.round(comprometimentoFuturo * 100) / 100,
+    comprometimentoFuturo: fromCents(comprometimentoFuturo),
     porCategoria,
   };
 }
@@ -544,27 +582,38 @@ export interface EnriquecimentoSemantico {
   suggestedScope: EscopoSugerido;
 }
 
+/** Linhas em que a pessoa já mexeu na tela (a IA não desfaz). */
+export interface EdicoesManuais {
+  categoria: ReadonlySet<string>;
+  escopo: ReadonlySet<string>;
+}
+
+const SEM_EDICOES: EdicoesManuais = { categoria: new Set(), escopo: new Set() };
+
 /**
- * Aplica o enriquecimento (vindo da Server Action, IA ou dicionário) de volta
- * nas transações completas. Puro: não depende do servidor, usado no cliente
- * após a resposta da action.
+ * Aplica o enriquecimento (IA, etapa 2) nas transações completas, linha a
+ * linha, conforme cada lote responde. Categoria e privacidade escolhidas à
+ * mão enquanto a IA trabalhava continuam valendo. Puro (usado no cliente).
  */
 export function mesclarEnriquecimento(
   transacoes: TransacaoAnalisada[],
   enriquecimento: EnriquecimentoSemantico[],
-  fonte: "ia" | "dicionario"
+  fonte: "ia" | "dicionario",
+  editadas: EdicoesManuais = SEM_EDICOES
 ): TransacaoAnalisada[] {
   const porId = new Map(enriquecimento.map((e) => [e.id, e]));
+  if (porId.size === 0) return transacoes;
   return transacoes.map((t) => {
     const e = porId.get(t.id);
     if (!e) return t;
+    const manterCategoria = editadas.categoria.has(t.id);
     return {
       ...t,
       cleanMerchantName: e.cleanMerchantName,
       whatWasBought: e.whatWasBought,
-      category: e.category,
-      categoryIcon: e.categoryIcon,
-      suggestedScope: e.suggestedScope,
+      category: manterCategoria ? t.category : e.category,
+      categoryIcon: manterCategoria ? t.categoryIcon : e.categoryIcon,
+      suggestedScope: editadas.escopo.has(t.id) ? t.suggestedScope : e.suggestedScope,
       fonteEnriquecimento: fonte,
     };
   });

@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
+import { ambiente } from "@/lib/env";
 import {
   describePreference,
   type DuoPreferences,
@@ -34,15 +35,10 @@ import type { HotelOffer, HotelSearchResponse } from "./types";
 const DEFAULT_HOST = "booking-com15.p.rapidapi.com";
 const RESULT_LIMIT = 20;
 
-export function isBookingConfigured(): boolean {
-  return Boolean(process.env.RAPIDAPI_KEY);
-}
-
-function rapidApiConfig() {
-  return {
-    key: process.env.RAPIDAPI_KEY,
-    host: process.env.RAPIDAPI_BOOKING_HOST || DEFAULT_HOST,
-  };
+/** Chave e host da RapidAPI (validados em @/lib/env); null sem a chave. */
+function rapidApiConfig(): { key: string; host: string } | null {
+  const hospedagem = ambiente().hospedagem;
+  return hospedagem ? { key: hospedagem.apiKey, host: hospedagem.host || DEFAULT_HOST } : null;
 }
 
 /* ------------------------------- Validação ------------------------------- */
@@ -130,8 +126,9 @@ async function rapidApiGet(
   path: string,
   params: Record<string, string>
 ): Promise<UpstreamResult<unknown>> {
-  const { key, host } = rapidApiConfig();
-  if (!key) return { ok: false, status: 503, message: "RAPIDAPI_KEY não configurada." };
+  const config = rapidApiConfig();
+  if (!config) return { ok: false, status: 503, message: "RAPIDAPI_KEY não configurada." };
+  const { key, host } = config;
 
   try {
     const res = await fetch(`https://${host}${path}?${new URLSearchParams(params)}`, {

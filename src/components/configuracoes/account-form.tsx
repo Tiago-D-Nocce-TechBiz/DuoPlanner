@@ -94,11 +94,12 @@ function FormularioPerfil({ perfil }: { perfil: PerfilProprio | null }) {
           emailAlertas: form.emailAlertas,
           emailResumoSemanal: form.emailResumoSemanal,
         });
-        if (!r.ok) return setMensagem({ tipo: "erro", texto: r.mensagem });
+        if (!r.success) return setMensagem({ tipo: "erro", texto: r.error });
+        const perfil = r.data;
         if (ctx) {
           atualizarContexto({
-            perfil: r.perfil,
-            membros: ctx.membros.map((m) => (m.userId === ctx.userId ? { ...m, nome: r.perfil.nome, pix: r.perfil.pix } : m)),
+            perfil,
+            membros: ctx.membros.map((m) => (m.userId === ctx.userId ? { ...m, nome: perfil.nome, pix: perfil.pix } : m)),
           });
         }
         setMensagem({ tipo: "ok", texto: "Perfil salvo." });

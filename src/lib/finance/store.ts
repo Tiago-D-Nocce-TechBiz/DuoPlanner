@@ -16,6 +16,7 @@
 import { calcularAcerto, descreverRegra, valorEmReais, type LancamentoAcerto } from "@/lib/finance/acerto";
 import type { CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
 import { classificarDespesa, type Categoria, type Escopo } from "@/lib/finance/classificar";
+import { fromCents, roundMoney, splitAmount, sumMoney, toCents } from "@/lib/finance/money";
 import { todayInSaoPaulo } from "@/lib/dates";
 import { regraDoAcordo, type ContextoSincronizacao } from "@/lib/sync/contexto";
 import type { Despesa, OrigemDespesa } from "@/lib/sync/modelos";
@@ -100,10 +101,10 @@ export interface NovaDespesa {
     parcela: { atual: number; total: number } | null;
     /** AAAA-MM; "" quando não deu para inferir. */
     referencia: string;
+    /** `transaction_fingerprint` (./fingerprint); null sem Web Crypto. */
+    fingerprint: string | null;
   };
 }
-
-const centavos = (v: number) => Math.round(v * 100) / 100;
 
 /** Cria o gasto na fila de sincronização. null = painel ainda sem contexto. */
 export function criarDespesa(nova: NovaDespesa): Despesa | null {
@@ -118,7 +119,7 @@ export function criarDespesa(nova: NovaDespesa): Despesa | null {
     pagoPor: nova.pagoPor ?? ctx.userId,
     tipo: nova.tipo ?? "gasto",
     descricao: nova.descricao.trim().slice(0, 120) || "Despesa",
-    valor: centavos(nova.valor),
+    valor: roundMoney(nova.valor),
     moeda,
     cotacaoBrl: moeda === "BRL" ? null : nova.cotacaoBrl ?? null,
     data: nova.data ?? todayInSaoPaulo(),
@@ -133,6 +134,7 @@ export function criarDespesa(nova: NovaDespesa): Despesa | null {
       parcelaAtual: nova.fatura.parcela?.atual ?? null,
       totalParcelas: nova.fatura.parcela?.total ?? null,
       faturaReferencia: /^\d{4}-(0[1-9]|1[0-2])$/.test(nova.fatura.referencia) ? nova.fatura.referencia : null,
+      transactionFingerprint: nova.origem === "importacao" ? nova.fatura.fingerprint : null,
     }),
     criadoEm: agora,
     atualizadoEm: agora,
@@ -171,11 +173,6 @@ export function atualizarDespesa(id: string, campos: Partial<Despesa>): void {
 
 export function removerDespesa(id: string): void {
   removerRegistro("despesas", id);
-}
-
-/** Recria um gasto removido (botão "Desfazer"), com o mesmo id. */
-export function restaurarDespesa(despesa: Despesa): void {
-  criarRegistro("despesas", despesa);
 }
 
 /* -------------------------------- leitura -------------------------------- */
@@ -225,17 +222,18 @@ export function resumirDespesas(
   const compartilhados = lista.filter((d) => d.escopo === "viagem_compartilhado" && d.tipo === "gasto");
   const privados = lista.filter((d) => d.escopo === "pessoal_privado" && (!ctx || d.userId === ctx.userId));
   const emReais = (d: Despesa) => valorEmReais(d) ?? 0;
-  const totalCompartilhado = centavos(compartilhados.reduce((a, d) => a + emReais(d), 0));
-  const totalPrivado = centavos(privados.reduce((a, d) => a + emReais(d), 0));
+  const totalCompartilhado = sumMoney(compartilhados.map(emReais));
+  const totalPrivado = sumMoney(privados.map(emReais));
 
+  // Por categoria em centavos: a soma das categorias fecha com o total.
   const mapa = new Map<Categoria, number>();
-  for (const d of compartilhados) mapa.set(d.categoria, (mapa.get(d.categoria) ?? 0) + emReais(d));
+  for (const d of compartilhados) mapa.set(d.categoria, (mapa.get(d.categoria) ?? 0) + toCents(emReais(d)));
   const porCategoria = [...mapa.entries()]
-    .map(([categoria, total]) => ({ categoria, total: centavos(total) }))
+    .map(([categoria, total]) => ({ categoria, total: fromCents(total) }))
     .sort((a, b) => b.total - a.total);
 
   const regra = ctx ? regraDoAcordo(ctx.acordo) : ({ regra: "igual" } as const);
-  let suaParte = totalCompartilhado / 2;
+  let suaParte = fromCents(splitAmount(toCents(totalCompartilhado), 2)[0]);
   let descricao = "Divisão igual (50/50)";
   if (ctx) {
     const dono = ctx.membros.find((m) => m.papel === "dono");
@@ -259,8 +257,8 @@ export function resumirDespesas(
 
   return {
     totalCompartilhado,
-    suaParte: centavos(suaParte),
-    metade: centavos(suaParte),
+    suaParte,
+    metade: suaParte,
     regra: descricao,
     totalPrivado,
     qtdCompartilhado: compartilhados.length,

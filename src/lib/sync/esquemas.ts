@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { CATEGORIAS, ESCOPOS } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE } from "@/lib/finance/categorias-duofinance";
+import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint";
+import { roundMoney } from "@/lib/finance/money";
 import { ORIGENS_DESPESA, RECURSOS, type Recurso } from "./modelos";
 
 /**
@@ -20,7 +22,8 @@ const dataIso = z
     const d = new Date(`${v}T00:00:00Z`);
     return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === v;
   }, "Data inválida.");
-const centavos = (v: number) => Math.round(v * 100) / 100;
+/** Ao centavo, metade para longe do zero (`roundMoney`); só depois de `.max()`. */
+const centavos = roundMoney;
 const iata = z.string().regex(/^[A-Z]{3}$/).nullable();
 const horario = z.string().regex(/^(|([01]\d|2[0-3]):[0-5]\d)$/, "Horário inválido.");
 
@@ -50,8 +53,14 @@ export const despesaCriar = despesaCampos
     id: uuid,
     tipo: z.enum(["gasto", "acerto"]),
     origem: z.enum(ORIGENS_DESPESA),
+    // Só na criação (o esquema de atualização nem o conhece) e só em gasto
+    // importado da fatura; o banco o congela e garante a unicidade por pessoa.
+    transactionFingerprint: z.string().regex(FORMATO_FINGERPRINT, "Impressão digital inválida.").nullable().optional(),
   })
   .superRefine((d, ctx) => {
+    if (d.transactionFingerprint && (d.origem !== "importacao" || d.tipo !== "gasto")) {
+      ctx.addIssue({ code: "custom", path: ["transactionFingerprint"], message: "Só compras importadas da fatura têm impressão digital." });
+    }
     if (d.moeda !== "BRL" && !d.cotacaoBrl) {
       ctx.addIssue({ code: "custom", path: ["cotacaoBrl"], message: "Informe a cotação da moeda estrangeira." });
     }
@@ -180,6 +189,7 @@ const COLUNA_DO_CAMPO: Record<Recurso, Record<string, string>> = {
     parcelaAtual: "parcela_atual",
     totalParcelas: "total_parcelas",
     faturaReferencia: "fatura_referencia",
+    transactionFingerprint: "transaction_fingerprint",
   },
   roteiro_dias: { id: "id", data: "data", ordem: "ordem" },
   roteiro_itens: { id: "id", diaId: "dia_id", horario: "horario", titulo: "titulo", nota: "descricao", ordem: "ordem" },

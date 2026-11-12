@@ -2,7 +2,11 @@ import { iataDaCidade } from "@/lib/concierge";
 import { addDays } from "@/lib/dates";
 import { CATEGORIAS, ESCOPOS, type Categoria, type Escopo } from "@/lib/finance/classificar";
 import { parseValorMonetario } from "@/lib/finance/importar";
+import { roundMoney } from "@/lib/finance/money";
 import { ESQUEMAS_CRIAR } from "./esquemas";
+
+/** Mesmo teto de valor do esquema de despesas. */
+const LIMITE_VALOR = 1_000_000;
 import type { Operacao } from "./fila";
 import type { DadosLegados } from "./legado";
 import type { AlertaPreco, Despesa, ItemChecklist, RoteiroDia, RoteiroItem } from "./modelos";
@@ -62,7 +66,8 @@ export function operacoesDoLegado(dados: DadosLegados, ctx: ContextoImportacao):
       pagoPor: ctx.userId,
       tipo: "gasto",
       descricao: d.estabelecimento.slice(0, 120),
-      valor: Math.round(d.valor * 100) / 100,
+      // Acima do teto o esquema descarta a linha; abaixo, arredonda ao centavo.
+      valor: d.valor > LIMITE_VALOR ? d.valor : roundMoney(d.valor),
       moeda: "BRL",
       cotacaoBrl: null,
       data: brParaIso(d.data, ctx.hoje),

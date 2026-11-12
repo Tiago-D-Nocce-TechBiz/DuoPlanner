@@ -3,8 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Database } from "@/components/ui/icons";
 import { useMontado } from "@/lib/local-store";
-import { contarDadosLegados, lerDadosLegados, totalLegado } from "@/lib/sync/legado";
-import { descartarDadosLegados, importarDadosLegados } from "@/lib/sync/importar-legado";
+import { contarDadosLegados, descartarDadosLegados, lerDadosLegados, totalLegado } from "@/lib/sync/legado";
 import { useContextoSync } from "@/lib/sync/motor";
 
 /**
@@ -12,6 +11,10 @@ import { useContextoSync } from "@/lib/sync/motor";
  *
  * Nunca importamos sozinhos: num navegador compartilhado, esses dados podem
  * ser de outra pessoa. A conta logada escolhe importar ou descartar.
+ *
+ * A conversão (`importar-legado`, com os esquemas zod da sincronização) só é
+ * baixada quando a pessoa toca em "Importar": quase ninguém tem dados antigos,
+ * e o painel inteiro carregava esse código à toa.
  */
 export function BannerImportacao() {
   const montado = useMontado();
@@ -49,6 +52,7 @@ export function BannerImportacao() {
   function importar() {
     startImportacao(async () => {
       try {
+        const { importarDadosLegados } = await import("@/lib/sync/importar-legado");
         const r = await importarDadosLegados();
         setResolvido(true);
         const extra = [
@@ -65,7 +69,7 @@ export function BannerImportacao() {
   }
 
   function descartar() {
-    descartarDadosLegados();
+    descartarDadosLegados(window.localStorage);
     setResolvido(true);
     setMensagem("Os dados antigos deste navegador foram apagados.");
   }

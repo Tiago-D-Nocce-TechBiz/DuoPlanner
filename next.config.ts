@@ -1,4 +1,24 @@
 import type { NextConfig } from "next";
+import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { analisarAmbiente, descreverAmbiente, ErroDeAmbiente } from "./src/lib/env/esquema";
+
+/**
+ * Fail-fast do ambiente no build, no `next dev` e no `next start`: valor
+ * malformado (chave secreta numa NEXT_PUBLIC_, URL inválida, CRON_SECRET
+ * curto...) interrompe aqui, antes de compilar, e o deploy quebrado nunca vai
+ * ao ar. O `instrumentation.ts` repete a validação em cada instância do
+ * servidor (que na Vercel não lê este arquivo) e imprime o relatório.
+ */
+function validarAmbiente(fase: string): void {
+  const resultado = analisarAmbiente(process.env);
+  if (!resultado.ok) throw new ErroDeAmbiente(resultado.erros);
+  // O build avalia este arquivo de novo nos workers (que herdam o ambiente):
+  // a marca faz o relatório sair uma vez só.
+  if (fase === PHASE_PRODUCTION_BUILD && !process.env.PD_AMBIENTE_RELATADO) {
+    process.env.PD_AMBIENTE_RELATADO = "1";
+    console.info(descreverAmbiente(resultado));
+  }
+}
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
@@ -63,4 +83,7 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default function configuracao(fase: string): NextConfig {
+  validarAmbiente(fase);
+  return nextConfig;
+}

@@ -2,6 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
+import { ambiente } from "@/lib/env";
 
 /**
  * Cliente Supabase para Server Components, Server Actions e Route Handlers.
@@ -14,20 +15,12 @@ import { cookies } from "next/headers";
  * degradem sem quebrar a UI (mesmo comportamento do cliente do browser).
  */
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-export function isSupabaseServerConfigured(): boolean {
-  return Boolean(url && key);
-}
-
 export async function createSupabaseServerClient(): Promise<SupabaseClient | null> {
-  if (!url || !key) return null;
+  const supabase = ambiente().supabase;
+  if (!supabase) return null;
   const cookieStore = await cookies();
 
-  return createServerClient(url, key, {
+  return createServerClient(supabase.url, supabase.chavePublica, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

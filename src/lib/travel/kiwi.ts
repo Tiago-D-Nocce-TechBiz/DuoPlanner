@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
+import { ambiente } from "@/lib/env";
 import {
   describePreference,
   type DuoPreferences,
@@ -38,10 +39,6 @@ import type {
 
 const DEFAULT_BASE_URL = "https://api.tequila.kiwi.com";
 const RESULT_LIMIT = 20;
-
-export function isKiwiConfigured(): boolean {
-  return Boolean(process.env.KIWI_API_KEY);
-}
 
 /* ------------------------------- Validação ------------------------------- */
 
@@ -385,12 +382,13 @@ async function fetchKiwiOffers(
 ): Promise<UpstreamResult<FlightOffer[]>> {
   "use cache";
 
-  const apiKey = process.env.KIWI_API_KEY;
-  if (!apiKey) {
+  const voos = ambiente().voos;
+  if (!voos) {
     cacheLife("seconds");
     return { ok: false, status: 503, message: "KIWI_API_KEY não configurada." };
   }
-  const baseUrl = (process.env.KIWI_API_BASE_URL || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const apiKey = voos.apiKey;
+  const baseUrl = voos.baseUrl || DEFAULT_BASE_URL;
 
   try {
     const res = await fetch(`${baseUrl}/v2/search?${buildKiwiParams(req)}`, {

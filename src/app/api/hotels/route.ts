@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirSessaoApi } from "@/lib/auth/sessao";
+import { integracaoAtiva } from "@/lib/env";
 import { loadPreferencesSafe } from "@/lib/memory/store";
 import { consumirCota, respostaCotaNegada } from "@/lib/seguranca/cotas";
 import {
   applyHotelPreferences,
-  isBookingConfigured,
   parseHotelSearchParams,
   searchHotels,
 } from "@/lib/travel/booking";
@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
   const parsed = parseHotelSearchParams(request.nextUrl.searchParams);
   if (!parsed.success) return invalidParamsResponse(parsed.error);
 
-  if (!isBookingConfigured()) {
+  if (!integracaoAtiva("hospedagem")) {
     return notConfiguredResponse(
       "BOOKING_NOT_CONFIGURED",
       "Motor de hospedagem indisponível: defina RAPIDAPI_KEY com assinatura da API Booking.com15."

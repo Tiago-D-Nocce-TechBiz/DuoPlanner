@@ -10,9 +10,10 @@ import { SairModal } from "@/components/dashboard/sair-modal";
 import { BrandLogo } from "@/components/brand/logo";
 import { NoraProvider } from "@/components/ai/nora-provider";
 import { NoraTrigger } from "@/components/ai/nora-trigger";
-import { NoraDrawer } from "@/components/ai/nora-drawer";
+import { NoraSobDemanda } from "@/components/ai/nora-sob-demanda";
 import { SincronizacaoProvider } from "@/components/sync/sincronizacao-provider";
 import { AvisoSincronizacao } from "@/components/sync/aviso-sincronizacao";
+import { SyncStatusBadge } from "@/components/sync/SyncStatusBadge";
 import { IndicadorOffline } from "@/components/pwa/indicador-offline";
 import { InstallPwaPrompt } from "@/components/pwa/InstallPwaPrompt";
 import { AquecerCacheOffline } from "@/components/pwa/registrar-sw";
@@ -147,13 +148,20 @@ export default function DashboardLayout({
 
       {/* Área Principal */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header Superior */}
-        <header className="glass-panel chrome-surface border-b border-[var(--color-border)] px-6 py-3.5 flex items-center justify-between gap-4">
-          <div className="text-xs sm:text-sm text-[var(--color-heading)] font-semibold truncate">
+        {/* Header Superior. `relative z-30`: onde o backdrop-filter do
+            .glass-panel vale (Safari), o cabeçalho vira um contexto de
+            empilhamento, e sem z-index o painel de notificações ficaria
+            atrás dos cards da página. */}
+        <header
+          data-cabecalho-painel
+          className="relative z-30 glass-panel chrome-surface border-b border-[var(--color-border)] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-3 sm:gap-4"
+        >
+          <div className="min-w-0 text-xs sm:text-sm text-[var(--color-heading)] font-semibold truncate">
             Planejamento de Viagens e Finanças
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <SyncStatusBadge />
             <NoraTrigger />
             <InviteButton />
             <NotificationBell />
@@ -163,10 +171,12 @@ export default function DashboardLayout({
             <button
               type="button"
               onClick={() => setModalSairAberto(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Sair"
+              title="Sair"
+              className="inline-flex shrink-0 items-center gap-1.5 p-2 sm:px-3.5 sm:py-1.5 rounded-xl text-xs font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 transition-colors cursor-pointer"
             >
               <LogOut className="h-3.5 w-3.5" />
-              Sair
+              <span className="hidden sm:inline">Sair</span>
             </button>
           </div>
         </header>
@@ -187,8 +197,8 @@ export default function DashboardLayout({
         pendenciasExtras={status.pendentes}
       />
 
-      {/* Painel lateral da Nora — acessível de qualquer rota do dashboard */}
-      <NoraDrawer />
+      {/* Painel lateral da Nora — acessível de qualquer rota; código sob demanda */}
+      <NoraSobDemanda />
 
       {/* PWA: estado offline/sincronização, convite de instalação e cache offline */}
       <IndicadorOffline />

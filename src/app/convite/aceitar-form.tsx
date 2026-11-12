@@ -6,14 +6,15 @@ import { aceitarConviteAction } from "@/app/(auth)/actions";
 
 /** Botão de aceite: POST explícito (Server Action, com checagem de Origin). */
 export function AceitarConviteForm({ codigo }: { codigo: string }) {
-  const [estado, enviar, pendente] = useActionState(aceitarConviteAction, undefined);
+  // Sucesso redireciona ao painel; aqui só chega a falha.
+  const [estado, enviar, pendente] = useActionState(aceitarConviteAction, null);
 
   return (
     <form action={enviar} className="mt-6">
       <input type="hidden" name="codigo" value={codigo} />
-      {estado?.erro && (
+      {estado && !estado.success && (
         <p role="alert" className="mb-3 text-xs font-medium text-[var(--color-danger)]">
-          {estado.erro}
+          {estado.error}
         </p>
       )}
       <div className="flex flex-wrap items-center justify-center gap-3">

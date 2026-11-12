@@ -1,11 +1,13 @@
 "use server";
 
-import { AiNotConfiguredError, isGeminiConfigured } from "@/lib/ai/model";
+import { z } from "zod";
+import { ErroAcao, withAuthAction } from "@/lib/acoes/com-sessao";
+import { AiNotConfiguredError } from "@/lib/ai/model";
 import { runReceiptAgent } from "@/lib/ai/receipt-agent";
-import type { PropostaRecibo } from "@/lib/finance/recibo";
 import { parseBase64Upload } from "@/lib/ai/upload";
-import { obterSessao } from "@/lib/auth/sessao";
 import { todayInSaoPaulo } from "@/lib/dates";
+import { integracaoAtiva } from "@/lib/env";
+import type { PropostaRecibo } from "@/lib/finance/recibo";
 import { consumirCota } from "@/lib/seguranca/cotas";
 
 /**
@@ -15,46 +17,34 @@ import { consumirCota } from "@/lib/seguranca/cotas";
  * agente LangGraph extrai { titulo, estabelecimento, valor, data, moeda,
  * categoria } → devolve uma PROPOSTA. Nada é gravado aqui: o usuário revisa
  * e confirma na tela, e só então o gasto entra na fila de sincronização.
- *
- * Antes, esta action gravava direto em `despesas` e funcionava sem login
- * (user_id nulo), porque Server Actions aceitam POST em qualquer rota.
- *
- * Nunca lança para o cliente: devolve sempre um resultado com mensagem em PT-BR.
  */
 
-export type ReceiptScanResult =
-  | { ok: true; proposta: PropostaRecibo; avisos: string[] }
-  | { ok: false; message: string };
-
-export async function processReceiptImage(base64Image: string): Promise<ReceiptScanResult> {
-  const auth = await obterSessao();
-  if (!auth.ok) return { ok: false, message: auth.mensagem };
-
-  const upload = parseBase64Upload(base64Image);
-  if (!upload.ok) return upload;
-
-  if (!isGeminiConfigured()) {
-    return { ok: false, message: new AiNotConfiguredError().message };
-  }
-
-  const cota = await consumirCota(auth.sessao.supabase, auth.sessao.userId, "ia");
-  if (!cota.permitido) return { ok: false, message: cota.mensagem };
-
-  try {
-    const state = await runReceiptAgent({
-      mimeType: upload.mimeType,
-      base64: upload.base64,
-      hoje: todayInSaoPaulo(),
-    });
-    if (state.erro || !state.proposta) {
-      return { ok: false, message: state.erro ?? "Não foi possível ler o comprovante." };
-    }
-    return { ok: true, proposta: state.proposta, avisos: state.avisos };
-  } catch (error) {
-    console.error("[processReceiptImage]", error);
-    return {
-      ok: false,
-      message: "A IA não conseguiu processar o comprovante agora. Tente novamente em instantes.",
-    };
-  }
+export interface LeituraRecibo {
+  proposta: PropostaRecibo;
+  avisos: string[];
 }
+
+export const processReceiptImage = withAuthAction(
+  "processReceiptImage",
+  z.string({ error: "Envie a imagem do comprovante." }),
+  async (base64Image, { sessao }): Promise<LeituraRecibo> => {
+    const upload = parseBase64Upload(base64Image);
+    if (!upload.ok) throw new ErroAcao("ENTRADA_INVALIDA", upload.message);
+    if (!integracaoAtiva("ia")) throw new ErroAcao("NAO_CONFIGURADO", new AiNotConfiguredError().message);
+
+    const cota = await consumirCota(sessao.supabase, sessao.userId, "ia");
+    if (!cota.permitido) throw new ErroAcao("COTA_EXCEDIDA", cota.mensagem);
+
+    let state: Awaited<ReturnType<typeof runReceiptAgent>>;
+    try {
+      state = await runReceiptAgent({ mimeType: upload.mimeType, base64: upload.base64, hoje: todayInSaoPaulo() });
+    } catch (error) {
+      console.error("[processReceiptImage]", error);
+      throw new ErroAcao("INDISPONIVEL", "A IA não conseguiu processar o comprovante agora. Tente novamente em instantes.");
+    }
+    if (state.erro || !state.proposta) {
+      throw new ErroAcao("ENTRADA_INVALIDA", state.erro ?? "Não foi possível ler o comprovante.");
+    }
+    return { proposta: state.proposta, avisos: state.avisos };
+  }
+);

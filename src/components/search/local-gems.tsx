@@ -2,20 +2,37 @@
 
 import { Suspense, use } from "react";
 import { Clock, Compass, Lightbulb, Sparkles, Wallet } from "@/components/ui/icons";
-import type { LocalGemsResult } from "@/app/dashboard/actions";
+import { sugerirExperienciasLocais, type ExperienciasLocais } from "@/app/dashboard/actions";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { falha, type ResultadoAcao } from "@/lib/acoes/resultado";
+
+export type PedidoExperiencias = { destino: string; resultado: Promise<ResultadoAcao<ExperienciasLocais>> };
+
+/**
+ * Dispara a Server Action no submit da busca. A promise nunca rejeita: sem
+ * rede vira uma falha comum, e o `use()` abaixo não derruba a página no
+ * error boundary do painel.
+ */
+export function pedirExperiencias(destino: string, dataViagem: string | null): PedidoExperiencias {
+  return {
+    destino,
+    resultado: sugerirExperienciasLocais({ destino, dataViagem }).catch(() =>
+      falha("INDISPONIVEL", "Sem conexão com o servidor agora.")
+    ),
+  };
+}
 
 /**
  * Etapa "Experiências Ocultas": recebe a promise da Server Action
  * `sugerirExperienciasLocais` (criada no submit da busca) e a resolve com
  * `use()` dentro de <Suspense>, sem efeitos colaterais no render.
  */
-export function LocalGems({ promise }: { promise: Promise<LocalGemsResult> }) {
+export function LocalGems({ pedido }: { pedido: PedidoExperiencias }) {
   return (
     <section aria-label="Experiências ocultas no destino">
       <Suspense fallback={<GemsSkeleton />}>
-        <GemsContent promise={promise} />
+        <GemsContent pedido={pedido} />
       </Suspense>
     </section>
   );
@@ -32,20 +49,19 @@ function GemsHeader({ destino }: { destino?: string }) {
   );
 }
 
-function GemsContent({ promise }: { promise: Promise<LocalGemsResult> }) {
-  const result = use(promise);
+function GemsContent({ pedido }: { pedido: PedidoExperiencias }) {
+  const resposta = use(pedido.resultado);
 
-  if (!result.ok) {
+  if (!resposta.success) {
     return (
       <>
-        <GemsHeader destino={result.destino} />
-        <Card className="p-5 text-sm text-muted">
-          Sugestões da IA indisponíveis: {result.message}
-        </Card>
+        <GemsHeader destino={pedido.destino.trim().slice(0, 80)} />
+        <Card className="p-5 text-sm text-muted">Sugestões da IA indisponíveis: {resposta.error}</Card>
       </>
     );
   }
 
+  const result = resposta.data;
   return (
     <>
       <GemsHeader destino={result.destino} />

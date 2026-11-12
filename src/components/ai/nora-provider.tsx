@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { NoraResposta } from "@/lib/ai/nora-brain";
-import { getSupabase } from "@/lib/supabase/client";
+import { obterSupabase } from "@/lib/supabase/client-sob-demanda";
 import { getContexto } from "@/lib/sync/motor";
 
 /** Extrai o primeiro nome de um nome completo ou e-mail. */
@@ -61,15 +61,12 @@ export function NoraProvider({ children }: { children: React.ReactNode }) {
       if (n) setNomeUsuario(n);
     };
 
-    const supabase = getSupabase();
-    if (!supabase) {
-      // Defer para microtask: evita setState síncrono dentro do efeito.
-      queueMicrotask(() => aplicar(doLocal()));
-      return;
-    }
-    supabase.auth
-      .getUser()
-      .then(({ data }) => {
+    // O cliente Supabase chega sob demanda (fora do carregamento inicial);
+    // a resposta é sempre assíncrona, então não há setState síncrono no efeito.
+    obterSupabase()
+      .then(async (supabase) => {
+        if (!supabase) return aplicar(doLocal());
+        const { data } = await supabase.auth.getUser();
         const meta = (data.user?.user_metadata ?? {}) as { nome?: string; name?: string; full_name?: string };
         aplicar(
           primeiroNome(meta.nome || meta.name || meta.full_name) ||

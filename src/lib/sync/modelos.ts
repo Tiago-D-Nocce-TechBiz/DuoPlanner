@@ -1,5 +1,6 @@
 import { CATEGORIAS, ESCOPOS, type Categoria, type Escopo } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE, type CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
+import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint";
 
 /**
  * Modelos sincronizados entre o casal (puro: usado no navegador e no servidor).
@@ -27,7 +28,7 @@ export const RECURSO_POR_TABELA: Record<string, Recurso> = Object.fromEntries(
 
 export const COLUNAS: Record<Recurso, string> = {
   despesas:
-    "id, user_id, workspace_id, pago_por, tipo, descricao, valor, moeda, cotacao_brl, data, categoria, escopo, proporcao_divisao, origem, o_que_foi_gasto, categoria_detalhada, parcela_atual, total_parcelas, fatura_referencia, criado_em, atualizado_em, atualizado_por",
+    "id, user_id, workspace_id, pago_por, tipo, descricao, valor, moeda, cotacao_brl, data, categoria, escopo, proporcao_divisao, origem, o_que_foi_gasto, categoria_detalhada, parcela_atual, total_parcelas, fatura_referencia, transaction_fingerprint, criado_em, atualizado_em, atualizado_por",
   roteiro_dias: "id, workspace_id, user_id, data, ordem, atualizado_em, atualizado_por",
   roteiro_itens: "id, workspace_id, dia_id, horario, titulo, descricao, ordem, atualizado_em, atualizado_por",
   checklist: "id, workspace_id, user_id, texto, categoria, feito, ordem, atualizado_em, atualizado_por",
@@ -65,6 +66,12 @@ export interface Despesa {
   totalParcelas?: number | null;
   /** Mês da fatura, AAAA-MM. */
   faturaReferencia?: string | null;
+  /**
+   * Impressão digital da compra na fatura (`@/lib/finance/fingerprint`): só
+   * em gastos importados; imutável. O banco não deixa a mesma pessoa gravar
+   * a mesma compra duas vezes.
+   */
+  transactionFingerprint?: string | null;
   criadoEm: string;
   atualizadoEm: string;
   atualizadoPor: string | null;
@@ -180,6 +187,10 @@ export function despesaDaLinha(l: Linha): Despesa {
     parcelaAtual: numOuNull(l.parcela_atual),
     totalParcelas: numOuNull(l.total_parcelas),
     faturaReferencia: txtOuNull(l.fatura_referencia),
+    transactionFingerprint:
+      typeof l.transaction_fingerprint === "string" && FORMATO_FINGERPRINT.test(l.transaction_fingerprint)
+        ? l.transaction_fingerprint
+        : null,
     criadoEm: txt(l.criado_em),
     atualizadoEm: txt(l.atualizado_em),
     atualizadoPor: txtOuNull(l.atualizado_por),

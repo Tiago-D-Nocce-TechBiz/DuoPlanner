@@ -5,8 +5,8 @@ import { ThemeToggle } from "@/components/theme/theme-toggle";
 import { BrandLogo } from "@/components/brand/logo";
 import { obterSessao } from "@/lib/auth/sessao";
 import { codigoConviteValido } from "@/lib/auth/seguranca";
-import { obterConvite } from "@/app/(auth)/actions";
 import { AceitarConviteForm } from "./aceitar-form";
+import { obterConvite } from "./dados";
 
 export const metadata = { title: "Convite — DuoPlanner" };
 
@@ -62,7 +62,7 @@ async function ResolvedorConvite({
   const auth = await obterSessao();
   if (!auth.ok) redirect(`/login?convite=${encodeURIComponent(codigo)}`);
 
-  const info = await obterConvite(codigo);
+  const info = await obterConvite(codigo, auth.sessao);
   if (!info.valido) {
     return (
       <>

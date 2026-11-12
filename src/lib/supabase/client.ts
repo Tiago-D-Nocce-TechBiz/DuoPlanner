@@ -1,5 +1,6 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ambientePublico } from "@/lib/env/publico";
 
 /**
  * Cliente Supabase para o browser.
@@ -13,23 +14,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
  * proteção real vem das políticas RLS no Supabase). Sem as variáveis (ex.:
  * build de CI sem segredos), `getSupabase()` devolve null e as features de
  * persistência degradam sem quebrar a UI.
+ *
+ * Este módulo traz o supabase-js + Realtime (~270 KB): no navegador, importe
+ * por `./client-sob-demanda` para ele não entrar no carregamento inicial.
  */
-
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const anonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
 let cached: SupabaseClient | null = null;
 
 export function getSupabase(): SupabaseClient | null {
   if (cached) return cached;
-  if (!url || !anonKey || typeof window === "undefined") return null;
-  cached = createBrowserClient(url, anonKey);
+  const config = ambientePublico.supabase;
+  if (!config || typeof window === "undefined") return null;
+  cached = createBrowserClient(config.url, config.chavePublica);
   return cached;
-}
-
-/** Indica se o Supabase está configurado neste ambiente. */
-export function isSupabaseConfigured(): boolean {
-  return Boolean(url && anonKey);
 }

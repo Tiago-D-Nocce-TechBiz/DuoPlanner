@@ -1,8 +1,8 @@
-import { Brain, Database, History, X } from "@/components/ui/icons";
-import { esquecerPreferenciaAction } from "@/app/dashboard/configuracoes/actions";
+import { Brain, Database, History } from "@/components/ui/icons";
 import { Card } from "@/components/ui/card";
 import { loadDuoMemory } from "@/lib/memory/store";
 import { formatDateBR } from "@/lib/utils";
+import { EsquecerPreferencia } from "./esquecer-preferencia";
 import { TeachMemoryForm } from "./teach-memory-form";
 
 /**
@@ -61,16 +61,7 @@ export async function MemoryPanel() {
                     className="inline-flex items-center gap-1 rounded-full border border-border bg-background py-1 pl-3.5 pr-1 text-sm text-foreground"
                   >
                     {item.descricao}
-                    <form action={esquecerPreferenciaAction}>
-                      <input type="hidden" name="chave" value={item.chave} />
-                      <button
-                        type="submit"
-                        aria-label={`Esquecer: ${item.descricao}`}
-                        className="rounded-full p-1 text-subtle transition-colors hover:bg-elevated hover:text-heading"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </form>
+                    <EsquecerPreferencia chave={item.chave} descricao={item.descricao} />
                   </li>
                 ))}
               </ul>

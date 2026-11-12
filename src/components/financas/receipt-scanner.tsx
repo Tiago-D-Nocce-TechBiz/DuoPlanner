@@ -148,12 +148,12 @@ export function ReceiptScanner({
     startLeitura(async () => {
       try {
         const resultado = await processReceiptImage(await prepararArquivo(arquivo));
-        if (!resultado.ok) {
-          setErro(resultado.message);
+        if (!resultado.success) {
+          setErro(resultado.error);
           return;
         }
-        setRascunho(rascunhoDaProposta(resultado.proposta, taxas));
-        setAvisos(resultado.avisos);
+        setRascunho(rascunhoDaProposta(resultado.data.proposta, taxas));
+        setAvisos(resultado.data.avisos);
       } catch (e) {
         setErro(e instanceof Error ? e.message : "Não foi possível ler o arquivo.");
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 /**
  * Cotações do dia no navegador (1 unidade = X reais).
@@ -9,6 +9,10 @@ import { useEffect, useState } from "react";
  * hydration mismatch) e, depois de montar, busca `/api/cotacoes` (AwesomeAPI,
  * cache de 1 hora; o Service Worker guarda a última resposta para uso
  * offline). Sem rede, fica com as referências.
+ *
+ * Uma busca por aba, compartilhada: várias partes da tela (formulário,
+ * recibo, conversor) usam o mesmo resultado em vez de repetir o pedido.
+ * Depois de 1 hora, a próxima tela que montar busca de novo.
  */
 
 export const MOEDAS: { codigo: string; nome: string; simbolo: string; referencia: number }[] = [
@@ -38,44 +42,70 @@ interface RespostaCotacoes {
   mensagem?: string;
 }
 
-export function useCotacoes(): { taxas: Record<string, number>; cotacao: EstadoCotacao } {
-  const [taxas, setTaxas] = useState<Record<string, number>>(TAXAS_REFERENCIA);
-  const [cotacao, setCotacao] = useState<EstadoCotacao>({ estado: "carregando" });
+interface Cotacoes {
+  taxas: Record<string, number>;
+  cotacao: EstadoCotacao;
+}
 
-  useEffect(() => {
-    let ativo = true;
-    fetch("/api/cotacoes", { headers: { accept: "application/json" } })
-      .then((res) => res.json())
-      .then((dados: RespostaCotacoes) => {
-        if (!ativo) return;
-        if (!dados.ok || !dados.taxas) {
-          setCotacao({ estado: "referencia", mensagem: dados.mensagem ?? "Cotação ao vivo indisponível agora." });
-          return;
-        }
-        const vivas = dados.taxas;
-        setTaxas((atuais) => {
-          const proximas = { ...atuais };
-          for (const [codigo, taxa] of Object.entries(vivas)) {
-            if (Number.isFinite(taxa) && taxa > 0) proximas[codigo] = taxa;
-          }
-          return proximas;
-        });
-        setCotacao({
-          estado: "ao-vivo",
-          de: dados.atualizadoDe ?? "",
-          ate: dados.atualizadoAte ?? dados.atualizadoDe ?? "",
-          fonte: dados.fonte ?? "AwesomeAPI",
-        });
-      })
-      .catch(() => {
-        if (ativo) setCotacao({ estado: "referencia", mensagem: "Cotação ao vivo indisponível agora." });
-      });
-    return () => {
-      ativo = false;
-    };
-  }, []);
+const INICIAL: Cotacoes = { taxas: TAXAS_REFERENCIA, cotacao: { estado: "carregando" } };
+const VALIDADE_MS = 60 * 60 * 1000;
+const INDISPONIVEL = "Cotação ao vivo indisponível agora.";
 
-  return { taxas, cotacao };
+let atual: Cotacoes = INICIAL;
+let buscadoEm = 0;
+let buscando = false;
+const ouvintes = new Set<() => void>();
+
+function publicar(proximo: Cotacoes) {
+  atual = proximo;
+  for (const ouvinte of ouvintes) ouvinte();
+}
+
+async function buscar() {
+  buscando = true;
+  try {
+    const res = await fetch("/api/cotacoes", { headers: { accept: "application/json" } });
+    const dados = (await res.json()) as RespostaCotacoes;
+    if (!dados.ok || !dados.taxas) {
+      publicar({ taxas: atual.taxas, cotacao: { estado: "referencia", mensagem: dados.mensagem ?? INDISPONIVEL } });
+      return;
+    }
+    const taxas = { ...atual.taxas };
+    for (const [codigo, taxa] of Object.entries(dados.taxas)) {
+      if (Number.isFinite(taxa) && taxa > 0) taxas[codigo] = taxa;
+    }
+    buscadoEm = Date.now();
+    publicar({
+      taxas,
+      cotacao: {
+        estado: "ao-vivo",
+        de: dados.atualizadoDe ?? "",
+        ate: dados.atualizadoAte ?? dados.atualizadoDe ?? "",
+        fonte: dados.fonte ?? "AwesomeAPI",
+      },
+    });
+  } catch {
+    // Sem rede: fica com o que já tem; a próxima tela que montar tenta de novo.
+    publicar({ taxas: atual.taxas, cotacao: { estado: "referencia", mensagem: INDISPONIVEL } });
+  } finally {
+    buscando = false;
+  }
+}
+
+function assinar(ouvinte: () => void) {
+  ouvintes.add(ouvinte);
+  if (!buscando && Date.now() - buscadoEm > VALIDADE_MS) void buscar();
+  return () => {
+    ouvintes.delete(ouvinte);
+  };
+}
+
+export function useCotacoes(): Cotacoes {
+  return useSyncExternalStore(
+    assinar,
+    () => atual,
+    () => INICIAL
+  );
 }
 
 export function simboloDe(codigo: string): string {

@@ -24,7 +24,7 @@ export function idDaOperacao(op: Operacao): string {
 const mesmoAlvo = (a: Operacao, recurso: Recurso, id: string) => a.recurso === recurso && idDaOperacao(a) === id;
 
 /** Campos que não mudam depois de criado (o banco também os congela). */
-const IMUTAVEIS = new Set(["id", "userId", "workspaceId", "tipo", "origem", "criadoEm", "diaId"]);
+const IMUTAVEIS = new Set(["id", "userId", "workspaceId", "tipo", "origem", "criadoEm", "diaId", "transactionFingerprint"]);
 
 function semImutaveis(registro: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(registro).filter(([campo]) => !IMUTAVEIS.has(campo)));

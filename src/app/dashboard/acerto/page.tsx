@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { CheckCircle2, Handshake, Users, AlertTriangle, Coins } from "@/components/ui/icons";
 import { salvarAcordoDivisao } from "@/app/dashboard/sincronizacao-actions";
@@ -105,7 +105,10 @@ function AcertoDoCasal({
   const membros: Record<Papel, Membro> = { dono, parceiro };
   const nomes: Record<Papel, string> = { dono: dono.nome, parceiro: parceiro.nome };
   const meuPapel: Papel = meuId === dono.userId ? "dono" : "parceiro";
-  const regra = regraDoAcordo(acordo);
+  // A regra nova vale na tela (saldo, partes, Pix) assim que é salva; se o
+  // servidor recusar, volta sozinha à regra confirmada.
+  const [acordoNaTela, mostrarAcordo] = useOptimistic(acordo);
+  const regra = useMemo(() => regraDoAcordo(acordoNaTela), [acordoNaTela]);
 
   const { lancamentos, semCotacao } = useMemo(() => lancamentosDoAcerto(despesas), [despesas]);
   const r = useMemo(
@@ -171,7 +174,7 @@ function AcertoDoCasal({
         <PagamentoPix valor={r.valorAcerto} devedor={devedor} credor={credor} meuId={meuId} />
       )}
 
-      <EditorRegra acordo={acordo} nomes={nomes} meuPapel={meuPapel} />
+      <EditorRegra acordo={acordo} nomes={nomes} meuPapel={meuPapel} aoSalvar={mostrarAcordo} />
 
       {/* Gastos que entram no acerto */}
       <section className="glass-panel rounded-2xl p-5 space-y-3">
@@ -382,10 +385,13 @@ function EditorRegra({
   acordo,
   nomes,
   meuPapel,
+  aoSalvar,
 }: {
   acordo: AcordoDivisao;
   nomes: Record<Papel, string>;
   meuPapel: Papel;
+  /** Mostra a regra na tela antes da confirmação do servidor (useOptimistic). */
+  aoSalvar: (acordo: AcordoDivisao) => void;
 }) {
   const [regra, setRegra] = useState(acordo.regra);
   const [percentual, setPercentual] = useState(String(acordo.percentualDono));
@@ -404,10 +410,17 @@ function EditorRegra({
       return;
     }
     startSalvar(async () => {
+      aoSalvar({
+        ...acordo,
+        regra,
+        percentualDono: regra === "proporcional" ? pct : 50,
+        valorFixo: regra === "fixo" ? valorFixo : null,
+        quemCobreFixo: quemCobre,
+      });
       try {
         const r = await salvarAcordoDivisao({ regra, percentualDono: pct, valorFixo, quemCobreFixo: quemCobre });
-        if (!r.ok) return setMensagem(r.mensagem);
-        atualizarContexto({ acordo: r.acordo });
+        if (!r.success) return setMensagem(r.error);
+        atualizarContexto({ acordo: r.data });
         setMensagem("Regra salva para os dois.");
       } catch {
         setMensagem("Sem conexão: a regra não foi salva. Tente de novo quando voltar a internet.");

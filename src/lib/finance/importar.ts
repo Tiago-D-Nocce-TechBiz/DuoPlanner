@@ -20,6 +20,7 @@
 
 import { isoFromParts } from "@/lib/dates";
 import { normalizarTexto } from "./classificar";
+import { roundMoney } from "./money";
 
 export type FormatoExtrato = "cartao" | "conta" | "texto";
 
@@ -112,8 +113,9 @@ export function parseValorMonetario(bruto: string): number | null {
       return null;
     }
   }
-  if (!Number.isFinite(numero)) return null;
-  const arredondado = Math.round(numero * 100) / 100;
+  // Um trilhão ou mais não é valor de fatura (e sairia da faixa exata em centavos).
+  if (!Number.isFinite(numero) || numero >= 1e12) return null;
+  const arredondado = roundMoney(numero);
   if (arredondado === 0) return 0;
   return negativo ? -arredondado : arredondado;
 }

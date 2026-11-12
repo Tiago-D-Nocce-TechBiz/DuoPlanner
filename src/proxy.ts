@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { ambientePublico } from "@/lib/env/publico";
 
 /**
  * Proteção de rotas do painel (Proxy — convenção atual do Next 16, substitui o
@@ -31,24 +32,21 @@ function negarAcesso(request: NextRequest): NextResponse {
 }
 
 export async function proxy(request: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key =
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const config = ambientePublico.supabase;
 
   // Fail-closed: sem configuração do Supabase não há como validar a sessão.
   // Em produção, bloqueamos o painel (redireciona ao login) para não deixar
   // /dashboard/* aberto por acidente. Só em desenvolvimento local deixamos
   // passar, para não travar quem ainda não ligou o Auth.
-  if (!url || !key) {
-    if (process.env.NODE_ENV === "production") return negarAcesso(request);
+  if (!config) {
+    if (ambientePublico.producao) return negarAcesso(request);
     return NextResponse.next();
   }
 
   // Resposta mutável para o Supabase poder atualizar cookies de sessão.
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(url, key, {
+  const supabase = createServerClient(config.url, config.chavePublica, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

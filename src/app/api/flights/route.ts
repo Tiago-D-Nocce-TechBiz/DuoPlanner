@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { exigirSessaoApi } from "@/lib/auth/sessao";
+import { integracaoAtiva } from "@/lib/env";
 import { loadPreferencesSafe } from "@/lib/memory/store";
 import { consumirCota, respostaCotaNegada } from "@/lib/seguranca/cotas";
 import {
@@ -9,7 +10,6 @@ import {
 } from "@/lib/travel/http";
 import {
   applyFlightPreferences,
-  isKiwiConfigured,
   parseFlightSearchParams,
   searchFlights,
 } from "@/lib/travel/kiwi";
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   const parsed = parseFlightSearchParams(request.nextUrl.searchParams);
   if (!parsed.success) return invalidParamsResponse(parsed.error);
 
-  if (!isKiwiConfigured()) {
+  if (!integracaoAtiva("voos")) {
     return notConfiguredResponse(
       "KIWI_NOT_CONFIGURED",
       "Motor de voos indisponível: defina KIWI_API_KEY (chave de parceiro Tequila da Kiwi.com)."

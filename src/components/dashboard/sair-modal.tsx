@@ -4,8 +4,8 @@ import { useMemo, useTransition } from "react";
 import { Modal } from "@/components/ui/modal";
 import { AlertTriangle } from "@/components/ui/icons";
 import { logoutAction } from "@/app/(auth)/actions";
-import { getSupabase } from "@/lib/supabase/client";
 import { limparDadosLocais } from "@/lib/privacidade/limpeza-local";
+import { obterSupabase } from "@/lib/supabase/client-sob-demanda";
 import { lerDadosLegados, totalLegado } from "@/lib/sync/legado";
 
 /**
@@ -47,19 +47,27 @@ export function SairModal({
       await limparDadosLocais();
       try {
         // Revoga o refresh token no servidor e redireciona para o início.
-        await logoutAction();
+        // Só volta aqui se o servidor não conseguiu (sucesso redireciona).
+        const resultado = await logoutAction();
+        if (!resultado.success) await sairSoNesteNavegador();
       } catch {
-        // Sem rede: encerra a sessão só neste navegador e sai mesmo assim.
-        try {
-          await getSupabase()?.auth.signOut({ scope: "local" });
-        } catch {
-          // ignora: os cookies serão recusados pelo servidor quando expirarem
-        }
-        // Navegação completa (não o router): descarta todo o estado em memória
-        // da conta que saiu; `replace` impede voltar ao painel pelo histórico.
-        window.location.replace(`${window.location.origin}/`);
+        // Sem rede.
+        await sairSoNesteNavegador();
       }
     });
+  }
+
+  /** Encerra a sessão só neste navegador e sai mesmo assim. */
+  async function sairSoNesteNavegador() {
+    try {
+      const supabase = await obterSupabase();
+      await supabase?.auth.signOut({ scope: "local" });
+    } catch {
+      // ignora: os cookies serão recusados pelo servidor quando expirarem
+    }
+    // Navegação completa (não o router): descarta todo o estado em memória
+    // da conta que saiu; `replace` impede voltar ao painel pelo histórico.
+    window.location.replace(`${window.location.origin}/`);
   }
 
   return (

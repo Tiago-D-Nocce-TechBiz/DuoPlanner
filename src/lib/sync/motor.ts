@@ -2,11 +2,13 @@
 
 import { useSyncExternalStore } from "react";
 import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
-import type { RespostaSincronizacao } from "@/app/dashboard/sincronizacao-actions";
-import { tabelaAusente } from "@/lib/auth/seguranca";
+import type { RespostaLote } from "@/app/dashboard/sincronizacao-actions";
+import { falhaTransitoria, type ResultadoAcao } from "@/lib/acoes/resultado";
+import { colunaAusente, tabelaAusente } from "@/lib/auth/seguranca";
 import { adicionarNotificacao } from "@/lib/notifications/store";
 import { EVENTO_DADOS_LIMPOS } from "@/lib/privacidade/limpeza-local";
-import { getSupabase } from "@/lib/supabase/client";
+// Sob demanda: o supabase-js (~270 KB) não entra no carregamento do painel.
+import { obterSupabase } from "@/lib/supabase/client-sob-demanda";
 import { acordoDaLinha, type ContextoSincronizacao } from "./contexto";
 import { derivar, enfileirar, type Operacao } from "./fila";
 import {
@@ -41,7 +43,15 @@ export interface StatusSync {
   modo: ModoSync;
   online: boolean;
   pendentes: number;
+  /**
+   * Identificador do ciclo de pendência atual (muda quando a fila sai de
+   * vazia para não vazia); null = nada pendente. Permite à tela esperar um
+   * pouco antes de mostrar "Salvando…" sem piscar a cada toque.
+   */
+  pendenteDesde: number | null;
   enviando: boolean;
+  /** O servidor não respondeu na última tentativa (rede ou instabilidade). */
+  semServidor: boolean;
   ultimoErro: string | null;
   ultimaSincronizacao: string | null;
 }
@@ -68,18 +78,22 @@ const estado = {
   online: true,
   servidor: servidorVazio(),
   fila: [] as Operacao[],
+  pendenteDesde: null as number | null,
   emVoo: new Set<string>(),
   enviando: false,
+  semServidor: false,
   ultimoErro: null as string | null,
   ultimaSincronizacao: null as string | null,
 };
+
+let cicloPendente = 0;
 
 /**
  * Quem envia o lote ao servidor: a Server Action `sincronizarOperacoes`,
  * injetada pelo provider. O motor não a importa direto para continuar
  * importável em testes e pela Nora (lógica pura) sem puxar código de servidor.
  */
-export type EnviadorLote = (lote: { ops: Operacao[] }) => Promise<RespostaSincronizacao>;
+export type EnviadorLote = (lote: { ops: Operacao[] }) => Promise<ResultadoAcao<RespostaLote>>;
 let enviador: EnviadorLote | null = null;
 
 let canal: RealtimeChannel | null = null;
@@ -96,6 +110,9 @@ let cacheListas: { versao: number; listas: Partial<Record<Recurso, Registro[]>> 
 let cacheStatus: { versao: number; status: StatusSync } | null = null;
 
 function mudou() {
+  // Um ciclo de pendência começa quando a fila deixa de estar vazia.
+  if (estado.fila.length === 0) estado.pendenteDesde = null;
+  else if (estado.pendenteDesde === null) estado.pendenteDesde = ++cicloPendente;
   versao++;
   for (const ouvinte of ouvintes) ouvinte();
 }
@@ -120,7 +137,9 @@ function status(): StatusSync {
     modo: estado.modo,
     online: estado.online,
     pendentes: estado.fila.length,
+    pendenteDesde: estado.pendenteDesde,
     enviando: estado.enviando,
+    semServidor: estado.semServidor,
     ultimoErro: estado.ultimoErro,
     ultimaSincronizacao: estado.ultimaSincronizacao,
   };
@@ -133,7 +152,9 @@ const STATUS_SERVIDOR: StatusSync = {
   modo: "inativo",
   online: true,
   pendentes: 0,
+  pendenteDesde: null,
   enviando: false,
+  semServidor: false,
   ultimoErro: null,
   ultimaSincronizacao: null,
 };
@@ -169,7 +190,22 @@ function persistirJa() {
 
 function persistir() {
   if (temporizadorPersistir) clearTimeout(temporizadorPersistir);
-  temporizadorPersistir = setTimeout(persistirJa, 250);
+  temporizadorPersistir = setTimeout(() => {
+    temporizadorPersistir = null;
+    persistirJa();
+  }, 250);
+}
+
+/**
+ * Grava já o que espera a gravação adiada (250 ms). Chamado ao ocultar ou
+ * fechar a página: sem isso, uma alteração feita logo antes de fechar a aba
+ * ficava só na memória e se perdia.
+ */
+export function persistirAgora() {
+  if (!temporizadorPersistir) return;
+  clearTimeout(temporizadorPersistir);
+  temporizadorPersistir = null;
+  persistirJa();
 }
 
 function carregarPersistido(ctx: ContextoSincronizacao) {
@@ -196,11 +232,17 @@ function carregarPersistido(ctx: ContextoSincronizacao) {
 
 /* ------------------------------- leitura ------------------------------- */
 
+/** O motor ainda é da mesma conta e do mesmo espaço (nada trocou durante um await). */
+function mesmoEscopo(userId: string, ws: string | null): boolean {
+  return estado.contexto?.userId === userId && (estado.contexto.workspace?.id ?? null) === ws;
+}
+
 async function carregarRecurso(recurso: Recurso): Promise<"ok" | "ausente" | "erro"> {
   const ctx = estado.contexto;
-  const supabase = getSupabase();
-  if (!ctx || !supabase) return "erro";
+  if (!ctx) return "erro";
   const ws = ctx.workspace?.id ?? null;
+  const supabase = await obterSupabase();
+  if (!supabase || !mesmoEscopo(ctx.userId, ws)) return "erro";
   const tabela = TABELAS[recurso];
   let consulta = supabase.from(tabela).select(COLUNAS[recurso]);
 
@@ -219,7 +261,9 @@ async function carregarRecurso(recurso: Recurso): Promise<"ok" | "ausente" | "er
   }
 
   const { data, error } = await consulta.limit(2000);
-  if (error) return tabelaAusente(error) ? "ausente" : "erro";
+  // Tabela ou coluna desta versão ainda não existe no banco: modo local.
+  if (error) return tabelaAusente(error) || colunaAusente(error) ? "ausente" : "erro";
+  if (!mesmoEscopo(ctx.userId, ws)) return "erro"; // trocou de conta ou de espaço no meio da consulta
 
   // Substitui o snapshot, mas sem regredir: se um evento do Realtime trouxe uma
   // versão mais nova durante a consulta, ela vence.
@@ -241,10 +285,12 @@ async function carregarTudo() {
   if (resultados.includes("ausente")) {
     estado.modo = "local";
   } else if (resultados.includes("erro")) {
+    estado.semServidor = true;
     estado.ultimoErro = "Sem conexão com o servidor: mostrando a última cópia salva neste aparelho.";
     if (estado.modo === "carregando") estado.modo = "nuvem";
   } else {
     estado.modo = "nuvem";
+    estado.semServidor = false;
     if (estado.ultimoErro?.startsWith("Sem conexão")) estado.ultimoErro = null;
   }
   persistir();
@@ -328,9 +374,11 @@ function aoMudarNoBanco(payload: RealtimePostgresChangesPayload<Record<string, u
 
 async function assinarRealtime() {
   const ctx = estado.contexto;
-  const supabase = getSupabase();
   const ws = ctx?.workspace?.id;
-  if (!ctx || !supabase || !ws || canal) return;
+  if (!ctx || !ws || canal) return;
+  const supabase = await obterSupabase();
+  // Enquanto o cliente carregava, o motor pode ter parado ou trocado de espaço.
+  if (!supabase || canal || estado.contexto?.workspace?.id !== ws || removerOuvintes === null) return;
 
   // Garante que o Realtime use o token da sessão (RLS por assinante).
   try {
@@ -359,10 +407,10 @@ async function assinarRealtime() {
 }
 
 function cancelarRealtime() {
-  if (canal) {
-    void getSupabase()?.removeChannel(canal);
-    canal = null;
-  }
+  const ativo = canal;
+  if (!ativo) return;
+  canal = null;
+  void obterSupabase().then((supabase) => supabase?.removeChannel(ativo));
 }
 
 /* -------------------------------- envio -------------------------------- */
@@ -388,12 +436,13 @@ async function enviar() {
   estado.enviando = true;
   mudou();
 
-  let resposta: RespostaSincronizacao;
+  let chamada: ResultadoAcao<RespostaLote>;
   try {
-    resposta = await enviador({ ops: lote });
+    chamada = await enviador({ ops: lote });
   } catch {
     estado.enviando = false;
     estado.emVoo = new Set();
+    estado.semServidor = true;
     retentar("Sem conexão. As alterações ficam guardadas neste aparelho e vão assim que a internet voltar.");
     mudou();
     return;
@@ -401,14 +450,22 @@ async function enviar() {
   estado.enviando = false;
   estado.emVoo = new Set();
 
-  if (!resposta.ok) {
-    estado.ultimoErro =
-      resposta.motivo === "sessao"
-        ? "Sua sessão expirou. Entre de novo para sincronizar as alterações guardadas."
-        : resposta.mensagem;
+  if (!chamada.success) {
+    if (falhaTransitoria(chamada)) {
+      // Servidor instável (ou erro inesperado lá): a fila espera e tenta de novo.
+      estado.semServidor = true;
+      retentar(chamada.error);
+    } else {
+      estado.ultimoErro =
+        chamada.code === "NAO_AUTENTICADO"
+          ? "Sua sessão expirou. Entre de novo para sincronizar as alterações guardadas."
+          : chamada.error;
+    }
     mudou();
     return;
   }
+  const resposta = chamada.data;
+  estado.semServidor = false;
   if (resposta.indisponivel) estado.modo = "local";
 
   const porOperacao = new Map(resposta.resultados.map((r) => [r.opId, r]));
@@ -437,7 +494,9 @@ async function enviar() {
       }
       return false;
     }
-    rejeitadas.push(r.mensagem);
+    // Duplicata da fatura (outra aba ou aparelho já gravou a mesma compra):
+    // some em silêncio; a recarga traz a cópia que já está no servidor.
+    if (r.motivo !== "duplicado") rejeitadas.push(r.mensagem);
     recarregar.add(op.recurso);
     return false;
   });
@@ -471,8 +530,10 @@ function aoFicarOffline() {
   mudou();
 }
 
-function aoVoltarParaATela() {
-  if (document.visibilityState === "visible" && estado.modo !== "inativo") void carregarTudo();
+function aoMudarVisibilidade() {
+  // No celular, sair do app pode encerrar a página sem aviso: grava antes.
+  if (document.visibilityState === "hidden") return persistirAgora();
+  if (estado.modo !== "inativo") void carregarTudo();
 }
 
 function aoLimparDados() {
@@ -517,12 +578,14 @@ export function iniciarSincronizacao(ctx: ContextoSincronizacao, opcoes: { envia
 
   window.addEventListener("online", aoFicarOnline);
   window.addEventListener("offline", aoFicarOffline);
-  document.addEventListener("visibilitychange", aoVoltarParaATela);
+  document.addEventListener("visibilitychange", aoMudarVisibilidade);
+  window.addEventListener("pagehide", persistirAgora);
   window.addEventListener(EVENTO_DADOS_LIMPOS, aoLimparDados);
   removerOuvintes = () => {
     window.removeEventListener("online", aoFicarOnline);
     window.removeEventListener("offline", aoFicarOffline);
-    document.removeEventListener("visibilitychange", aoVoltarParaATela);
+    document.removeEventListener("visibilitychange", aoMudarVisibilidade);
+    window.removeEventListener("pagehide", persistirAgora);
     window.removeEventListener(EVENTO_DADOS_LIMPOS, aoLimparDados);
   };
 
