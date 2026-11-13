@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { PHASE_PRODUCTION_BUILD } from "next/constants";
+import { CACHE_IMUTAVEL, rotasImutaveis } from "./src/lib/cache/ativos-imutaveis";
 import { analisarAmbiente, descreverAmbiente, ErroDeAmbiente } from "./src/lib/env/esquema";
 
 /**
@@ -23,6 +24,11 @@ function validarAmbiente(fase: string): void {
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
+  // gzip no `next start` (na Vercel, a borda comprime com brotli por conta
+  // própria). Explícito para ninguém desligar sem querer.
+  compress: true,
+  // Sem "X-Powered-By: Next.js": bytes a menos e nada de anunciar a stack.
+  poweredByHeader: false,
   // Oculta o indicador de desenvolvimento do Next.js (ícone "N" no canto),
   // que sobrepunha o rodapé da Sidebar.
   devIndicators: false,
@@ -30,8 +36,14 @@ const nextConfig: NextConfig = {
   // a leitura de recibos, que não está mais na interface; com ele, qualquer
   // action aceitava corpos de até 10 MB.
   images: {
-    // Fotos das hospedagens vêm do CDN da Booking.com.
+    // AVIF para quem aceita, WebP como reserva (o formato original fica para
+    // navegadores sem nenhum dos dois).
+    formats: ["image/avif", "image/webp"],
+    // Fotos das hospedagens vêm do CDN da Booking.com, numa URL assinada por
+    // foto (o conteúdo de uma URL não muda): 31 dias em cache em vez de 4 h
+    // poupa reotimizações (e a cota de imagens da Vercel).
     remotePatterns: [{ protocol: "https", hostname: "**.bstatic.com" }],
+    minimumCacheTTL: 2_678_400,
   },
   // Rotas consolidadas: /registo era cópia de /cadastro. `permanent: true`
   // responde 308 (preserva método e query, ex.: ?convite=CODIGO).
@@ -48,10 +60,16 @@ const nextConfig: NextConfig = {
   },
   // Cabeçalhos de segurança HTTP aplicados a todas as rotas. Mantemos um
   // conjunto conservador (sem CSP estrita) para não quebrar scripts inline do
-  // Next, fontes do Google, Supabase e o WebGL do avião 3D. A microfone é
-  // liberada para o ditado por voz da Nora (Web Speech API).
+  // Next, Supabase e o WebGL do avião 3D. A microfone é liberada para o
+  // ditado por voz da Nora (Web Speech API).
   async headers() {
     return [
+      // Ícones, marca e modelo 3D: um ano, imutável. Os nomes não têm hash;
+      // o teste `ativos-imutaveis.test.ts` barra conteúdo novo na mesma URL.
+      ...rotasImutaveis().map((source) => ({
+        source,
+        headers: [{ key: "Cache-Control", value: CACHE_IMUTAVEL }],
+      })),
       {
         source: "/:path*",
         headers: [

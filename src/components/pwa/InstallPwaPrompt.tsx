@@ -103,8 +103,21 @@ export function InstallPwaPrompt() {
       style={{ bottom: "calc(4rem + env(safe-area-inset-bottom))" }}
     >
       <div className="flex items-start gap-3">
+        {/* Mesma arte do ícone do PWA, nas versões WebP da marca: 44 px na
+            tela pedem no máximo 132 px (tela 3x). O PNG de 192 px pesava
+            36,6 KB; o WebP de 96 px, 1,7 KB. Tamanho explícito: sem CLS. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/icons/icon-192.png" alt="" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+        <img
+          src="/brand/logo-96.webp?v=3"
+          srcSet="/brand/logo-96.webp?v=3 96w, /brand/logo-192.webp?v=3 192w"
+          sizes="44px"
+          alt=""
+          width={44}
+          height={44}
+          loading="lazy"
+          decoding="async"
+          className="h-11 w-11 shrink-0 rounded-xl"
+        />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-[var(--color-heading)]">DuoPlanner no seu celular</p>
           {mostrarAndroid ? (
