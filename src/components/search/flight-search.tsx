@@ -9,6 +9,7 @@ import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { addDays } from "@/lib/dates";
 import { buildFlightLinks, type ProviderLink } from "@/lib/deep-links";
+import { fetchWithTimeout, tempoEsgotado } from "@/lib/http/fetch-com-limite";
 import { registrarBusca } from "@/lib/supabase/registrar-busca";
 import type {
   CabinClass,
@@ -18,7 +19,8 @@ import type {
 } from "@/lib/travel/types";
 import { cn } from "@/lib/utils";
 import { FlightOfferCard } from "./flight-offer-card";
-import { LocalGems, pedirExperiencias, type PedidoExperiencias } from "./local-gems";
+import { destinoAceito } from "@/lib/ai/experiencias-protocolo";
+import { LocalGems, usePedidosDeExperiencias, type PedidoExperiencias } from "./local-gems";
 import { ProviderLinks } from "./provider-links";
 
 /**
@@ -26,7 +28,8 @@ import { ProviderLinks } from "./provider-links";
  *
  * - Janela flexível: "ida entre" duas datas + faixa de noites no destino.
  * - Filtros vazios usam a memória da IA (escalas, duração de escala, orçamento).
- * - Depois da busca, a etapa Experiências Ocultas sugere 3 passeios baratos.
+ * - A etapa Experiências Ocultas (3 passeios baratos, em fluxo) começa junto
+ *   com a busca de preços quando o destino veio digitado como cidade.
  * - Os deep links da Fase 1 continuam como comparação e como alternativa
  *   quando a chave da Kiwi não está configurada.
  */
@@ -49,10 +52,17 @@ type Outcome =
   | { ok: true; data: FlightSearchResponse }
   | { ok: false; error: SearchErrorBody };
 
+/**
+ * A rota tem cota, preferências e a Kiwi (8 s no máximo): 15 s cobrem o pior
+ * caso. Em rede móvel parada, o botão não fica "buscando" para sempre.
+ */
+const PRAZO_BUSCA_VOOS_MS = 15_000;
+
 async function requestFlights(params: URLSearchParams): Promise<Outcome> {
   try {
-    const res = await fetch(`/api/flights?${params}`, {
+    const res = await fetchWithTimeout(`/api/flights?${params}`, {
       headers: { accept: "application/json" },
+      timeoutMs: PRAZO_BUSCA_VOOS_MS,
     });
     // Parse defensivo: evita que uma resposta não-JSON (ex.: erro 5xx com HTML)
     // faça o await lançar e derrubar o componente.
@@ -74,10 +84,15 @@ async function requestFlights(params: URLSearchParams): Promise<Outcome> {
           code: "UPSTREAM_ERROR",
         },
     };
-  } catch {
+  } catch (erro) {
     return {
       ok: false,
-      error: { error: "Sem conexão com o servidor. Tente novamente.", code: "UPSTREAM_ERROR" },
+      error: {
+        error: tempoEsgotado(erro)
+          ? "A busca demorou demais para responder. Tente novamente."
+          : "Sem conexão com o servidor. Tente novamente.",
+        code: "UPSTREAM_ERROR",
+      },
     };
   }
 }
@@ -104,6 +119,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
   const [gems, setGems] = useState<PedidoExperiencias | null>(null);
+  const experiencias = usePedidosDeExperiencias();
 
   // Preenchimento vindo do Concierge de IA. Em vez de um efeito que chama
   // setState, sincronizamos durante o render comparando a referência anterior
@@ -179,6 +195,7 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
         } as SearchErrorBody,
       });
       setLinks(providerLinks);
+      experiencias.cancelar();
       setGems(null);
       registrarBusca("voo", { originCity, destinationCity, departDate: form.dateFrom, tripType: form.tripType, passengers: form.adults });
       return;
@@ -202,13 +219,20 @@ export function FlightSearch({ preenchimento }: { preenchimento?: ConciergeParse
     if (form.maxLayoverHours) params.set("maxLayoverHours", form.maxLayoverHours);
     if (form.budget) params.set("budget", form.budget);
 
+    // Destino digitado como cidade: as sugestões começam já, em paralelo com
+    // a busca de preços (não esperam a Kiwi). Só com o IATA, esperam a cidade
+    // que a Kiwi devolver.
+    const adiantado = destinoAceito(form.destinationCity) ? experiencias.pedir(form.destinationCity.trim(), form.dateFrom) : null;
+    if (!adiantado) experiencias.cancelar();
+
     startTransition(async () => {
       const result = await requestFlights(params);
       const city = result.ok ? result.data.offers[0]?.outbound.to.city : undefined;
+      const pedido = adiantado ?? experiencias.pedir(city ?? destinationCity, form.dateFrom);
       startTransition(() => {
         setOutcome(result);
         setLinks(providerLinks);
-        setGems(pedirExperiencias(city ?? destinationCity, form.dateFrom));
+        setGems(pedido);
       });
       registrarBusca("voo", {
         originCity,

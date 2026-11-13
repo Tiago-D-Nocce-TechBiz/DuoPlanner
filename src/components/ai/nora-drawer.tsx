@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import {
   Menu,
@@ -21,6 +21,12 @@ import {
   Users,
   CheckCircle2,
 } from "@/components/ui/icons";
+import {
+  caracteresVisiveis,
+  finsDePalavra,
+  PAUSA_ANTES_DA_RESPOSTA_MS,
+  ritmoPorPalavra,
+} from "./fluxo-de-texto";
 import { NoraAvatar } from "./nora-avatar";
 import { useNora, type NoraMensagem } from "./nora-provider";
 import { responderNora, type NoraAcao, type GrupoIcone } from "@/lib/ai/nora-brain";
@@ -66,6 +72,67 @@ const ICONE_GRUPO: Record<GrupoIcone, typeof Plane> = {
 };
 
 const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
+
+/* ------------------------------ Texto em fluxo ----------------------------- */
+
+/**
+ * Resposta da Nora palavra por palavra. O texto inteiro já ocupa o lugar
+ * desde o primeiro quadro (o trecho ainda não revelado fica `invisible`):
+ * o balão não cresce, a conversa não pula e a rolagem acontece uma vez só.
+ * A primeira palavra já sai na primeira pintura.
+ *
+ * Leitor de tela lê a resposta inteira de uma vez (cópia `sr-only`), não
+ * pedaço por pedaço. Com "reduzir movimento", ela aparece inteira.
+ */
+const CONSULTA_MOVIMENTO = "(prefers-reduced-motion: reduce)";
+
+function assinarMovimento(aviso: () => void) {
+  const consulta = window.matchMedia?.(CONSULTA_MOVIMENTO);
+  consulta?.addEventListener("change", aviso);
+  return () => consulta?.removeEventListener("change", aviso);
+}
+
+function usePrefereMenosMovimento(): boolean {
+  return useSyncExternalStore(
+    assinarMovimento,
+    () => window.matchMedia?.(CONSULTA_MOVIMENTO).matches ?? false,
+    () => false
+  );
+}
+
+function TextoEmFluxo({ texto, aoTerminar }: { texto: string; aoTerminar: () => void }) {
+  const reduzir = usePrefereMenosMovimento();
+  const [visiveis, setVisiveis] = useState(() => finsDePalavra(texto)[0] ?? texto.length);
+  const terminar = useEffectEvent(aoTerminar);
+
+  useEffect(() => {
+    const fins = finsDePalavra(texto);
+    if (reduzir || fins.length <= 1) {
+      const quadro = requestAnimationFrame(() => terminar());
+      return () => cancelAnimationFrame(quadro);
+    }
+    const msPorPalavra = ritmoPorPalavra(fins.length);
+    const inicio = performance.now();
+    let quadro = requestAnimationFrame(function passo(agora) {
+      const ate = caracteresVisiveis(fins, agora - inicio, msPorPalavra);
+      setVisiveis(ate);
+      if (ate < fins[fins.length - 1]) quadro = requestAnimationFrame(passo);
+      else terminar();
+    });
+    return () => cancelAnimationFrame(quadro);
+  }, [texto, reduzir]);
+
+  const ate = reduzir ? texto.length : visiveis;
+  return (
+    <>
+      <span className="sr-only">{texto}</span>
+      <span aria-hidden data-texto-em-fluxo>
+        {texto.slice(0, ate)}
+        <span className="invisible">{texto.slice(ate)}</span>
+      </span>
+    </>
+  );
+}
 
 /* -------------------------- Cards de ação da Nora ------------------------- */
 
@@ -274,13 +341,15 @@ export function NoraDrawer() {
   const [ouvindo, setOuvindo] = useState(false);
   const [menuPrompts, setMenuPrompts] = useState(false);
   const [pensando, setPensando] = useState(false);
+  // Mensagem da Nora sendo escrita agora (só uma por vez; as demais, inteiras).
+  const [emFluxo, setEmFluxo] = useState<string | null>(null);
 
   const router = useRouter();
   const reconhecimentoRef = useRef<SpeechRecognitionLike | null>(null);
   const fimRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  // Resposta agendada (a Nora "pensa" antes de responder). Guardada para ser
-  // cancelada em "Nova conversa" e ao desmontar; senão a resposta antiga
+  // Resposta agendada (a pausa curta antes do texto em fluxo). Guardada para
+  // ser cancelada em "Nova conversa" e ao desmontar; senão a resposta antiga
   // cairia na conversa nova.
   const respostaPendenteRef = useRef<{ timer: ReturnType<typeof setTimeout> | null }>({ timer: null });
   // Propostas já gravadas: evita lançar duas vezes com clique duplo.
@@ -331,20 +400,24 @@ export function NoraDrawer() {
     setMensagens((prev) => [...prev, msgUser]);
     setTexto("");
     setMenuPrompts(false);
+    // Pergunta nova enquanto a anterior ainda escreve: a anterior fica inteira.
+    setEmFluxo(null);
 
-    // A Nora "pensa" por alguns segundos antes de responder — tempo proporcional
-    // ao tamanho da pergunta (mín. ~1,4s, máx. ~3s), para parecer deliberada.
+    // A resposta sai do aparelho na hora (`responderNora`, sem IA remota).
+    // Antes, ela ficava retida 1,4 a 3 s atrás dos pontinhos "para parecer
+    // deliberada": latência artificial. Agora, uma pausa curta e o texto em
+    // fluxo: a 1ª palavra em ~0,4 s, a resposta inteira em até ~1,6 s.
     setPensando(true);
     const resposta = responderNora(conteudo, contextoConta());
-    const atraso = Math.min(3000, 1400 + conteudo.length * 18);
     const pendente = respostaPendenteRef.current;
     if (pendente.timer !== null) clearTimeout(pendente.timer);
     pendente.timer = setTimeout(() => {
       pendente.timer = null;
       const msgNora: NoraMensagem = { id: idMsg(), papel: "nora", texto: resposta.texto, resposta };
       setMensagens((prev) => [...prev, msgNora]);
+      setEmFluxo(msgNora.id);
       setPensando(false);
-    }, atraso);
+    }, PAUSA_ANTES_DA_RESPOSTA_MS);
   }
 
   function iniciarNovaConversa() {
@@ -354,6 +427,7 @@ export function NoraDrawer() {
       pendente.timer = null;
     }
     setPensando(false);
+    setEmFluxo(null);
     novaConversa();
   }
 
@@ -521,16 +595,33 @@ export function NoraDrawer() {
                   <div key={m.id} className="flex gap-2.5">
                     <NoraAvatar tamanho={28} className="mt-0.5" />
                     <div className="max-w-[88%]">
-                      <div className="rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-background px-4 py-2.5 text-sm leading-relaxed text-[var(--color-heading)]">
-                        {m.texto}
-                        {m.resposta?.acoes.map((a, i) => (
-                          <CardAcao
-                            key={i}
-                            acao={a}
-                            onAtualizar={(nova) => atualizarAcao(m.id, i, nova)}
-                            onConfirmarDespesa={() => confirmarDespesa(m.id, i, a)}
+                      <div
+                        data-nora-resposta
+                        data-em-fluxo={emFluxo === m.id || undefined}
+                        className="rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-background px-4 py-2.5 text-sm leading-relaxed text-[var(--color-heading)]"
+                      >
+                        {emFluxo === m.id ? (
+                          <TextoEmFluxo
+                            texto={m.texto}
+                            aoTerminar={() => setEmFluxo((atual) => (atual === m.id ? null : atual))}
                           />
-                        ))}
+                        ) : (
+                          m.texto
+                        )}
+                        {/* Os cards ocupam o lugar desde já, mas só aparecem (e
+                            aceitam clique) quando o texto termina. */}
+                        {m.resposta?.acoes.length ? (
+                          <div data-acoes-nora className={emFluxo === m.id ? "invisible" : undefined}>
+                            {m.resposta.acoes.map((a, i) => (
+                              <CardAcao
+                                key={i}
+                                acao={a}
+                                onAtualizar={(nova) => atualizarAcao(m.id, i, nova)}
+                                onConfirmarDespesa={() => confirmarDespesa(m.id, i, a)}
+                              />
+                            ))}
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                   </div>

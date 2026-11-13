@@ -8,12 +8,14 @@ import { Card } from "@/components/ui/card";
 import { inputClass, labelClass } from "@/components/ui/field";
 import { buildStayLinks, type ProviderLink } from "@/lib/deep-links";
 import type { ConciergeParse } from "@/lib/concierge";
+import { fetchWithTimeout, tempoEsgotado } from "@/lib/http/fetch-com-limite";
 import { registrarBusca } from "@/lib/supabase/registrar-busca";
 import { readLocal, writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 import type { HotelSearchResponse, SearchErrorBody } from "@/lib/travel/types";
 import { cn } from "@/lib/utils";
 import { HotelCard } from "./hotel-card";
-import { LocalGems, pedirExperiencias, type PedidoExperiencias } from "./local-gems";
+import { destinoAceito } from "@/lib/ai/experiencias-protocolo";
+import { LocalGems, usePedidosDeExperiencias, type PedidoExperiencias } from "./local-gems";
 import { ProviderLinks } from "./provider-links";
 
 /**
@@ -21,17 +23,25 @@ import { ProviderLinks } from "./provider-links";
  *
  * Preço TOTAL da estadia para a dupla (2 adultos por padrão) e ranking de
  * custo-benefício calculado no servidor. Orçamento e nota mínima vazios usam a
- * memória da IA. Depois da busca, a etapa Experiências Ocultas entra em cena.
+ * memória da IA. A etapa Experiências Ocultas (em fluxo) começa junto com a
+ * busca de preços, com a cidade digitada.
  */
 
 type Outcome =
   | { ok: true; data: HotelSearchResponse }
   | { ok: false; error: SearchErrorBody };
 
+/**
+ * A rota consulta o destino e depois os hotéis na Booking (até 8 s cada),
+ * além da cota e das preferências: 25 s cobrem o pior caso.
+ */
+const PRAZO_BUSCA_HOTEIS_MS = 25_000;
+
 async function requestHotels(params: URLSearchParams): Promise<Outcome> {
   try {
-    const res = await fetch(`/api/hotels?${params}`, {
+    const res = await fetchWithTimeout(`/api/hotels?${params}`, {
       headers: { accept: "application/json" },
+      timeoutMs: PRAZO_BUSCA_HOTEIS_MS,
     });
     // Parse defensivo: se a resposta não for JSON válido (ex.: erro 5xx com
     // HTML), não deixamos o await lançar e derrubar o componente.
@@ -53,10 +63,15 @@ async function requestHotels(params: URLSearchParams): Promise<Outcome> {
           code: "UPSTREAM_ERROR",
         },
     };
-  } catch {
+  } catch (erro) {
     return {
       ok: false,
-      error: { error: "Sem conexão com o servidor. Tente novamente.", code: "UPSTREAM_ERROR" },
+      error: {
+        error: tempoEsgotado(erro)
+          ? "A busca demorou demais para responder. Tente novamente."
+          : "Sem conexão com o servidor. Tente novamente.",
+        code: "UPSTREAM_ERROR",
+      },
     };
   }
 }
@@ -99,6 +114,7 @@ export function StaySearch() {
   const [outcome, setOutcome] = useState<Outcome | null>(null);
   const [links, setLinks] = useState<ProviderLink[]>([]);
   const [gems, setGems] = useState<PedidoExperiencias | null>(null);
+  const experiencias = usePedidosDeExperiencias();
 
   function update<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -133,13 +149,20 @@ export function StaySearch() {
       rooms: form.rooms,
     });
 
+    // As sugestões começam já, em paralelo com a busca de preços. Cidade com
+    // caractere fora do padrão (ex.: número): esperam o nome que a Booking
+    // devolver.
+    const adiantado = destinoAceito(city) ? experiencias.pedir(city, form.checkin) : null;
+    if (!adiantado) experiencias.cancelar();
+
     startTransition(async () => {
       const result = await requestHotels(params);
       const destination = result.ok ? result.data.destination.name : city;
+      const pedido = adiantado ?? experiencias.pedir(destination, form.checkin);
       startTransition(() => {
         setOutcome(result);
         setLinks(providerLinks);
-        setGems(pedirExperiencias(destination, form.checkin));
+        setGems(pedido);
       });
       registrarBusca("hospedagem", {
         city: destination,
