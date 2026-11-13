@@ -1,8 +1,8 @@
 # DuoPlanner — Segurança do Back-end (LGPD + Proteção de Dados)
 
 Estado dos controles e do que ainda falta para produção. Atualizado em
-12/11/2026, com a branch `feat/producao-saas` (Épicos 1 a 4 e a rodada
-"Fluidez e Confiabilidade").
+13/11/2026, com a branch `feat/producao-saas` (Épicos 1 a 4 e as rodadas
+"Fluidez e Confiabilidade" e "Desempenho ponta a ponta").
 
 ## Resumo
 
@@ -46,6 +46,24 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 - Logout apaga os dados `pd-*` do navegador e os caches do Service Worker
   com dados do usuário.
 
+### Rotas novas (rodada de desempenho)
+
+- `POST /api/experiencias` (Experiências Ocultas em fluxo): coberta pelo proxy
+  e pela sessão (`exigirSessaoApi`), só da mesma origem
+  (`src/lib/http/mesma-origem.ts`, o mesmo critério do Next para Server
+  Actions), corpo JSON de até 2 KB contado durante a leitura
+  (`lerCorpoLimitado`) e destino validado por zod. Consome a cota "ia",
+  menos quando a resposta sai do cache da instância (1 dia, até 100
+  destinos). Se a tela fechar a conexão, a chamada ao Gemini é abortada.
+  Falha depois que o fluxo começou chega como evento `erro` com mensagem em
+  PT-BR; o detalhe fica no log. Substitui a Server Action
+  `sugerirExperienciasLocais`, removida.
+- `POST /api/vitals` (Web Vitals): **pública de propósito** (mede também a
+  landing e o login), mas só aceita a mesma origem, corpo de até 4 KB e
+  campos fechados; o caminho da página entra no log sem query nem fragmento
+  (código de convite e e-mail nunca chegam lá). Responde 204.
+- Nenhuma das duas passa pelo Service Worker (ele só trata GET).
+
 ### Banco (RLS)
 
 - Sem "fail-open": cada linha exige dono (`auth.uid() = user_id`) ou o espaço
@@ -86,9 +104,16 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 ### Custos e abuso
 
 - Cotas por usuário no Postgres (RPC `consumir_cota`, janela fixa): voos e
-  hospedagem 30/hora, IA 20/hora (cada lote de 40 linhas da fatura conta
-  um), convites 10/dia, documentos 30/hora. Se o banco falhar, a cota nega
-  (fail-closed); se a RPC ainda não existir, vale um limite em memória.
+  hospedagem 30/hora, IA 20/hora (cada lote de 40 linhas da fatura e cada
+  pedido de Experiências Ocultas fora do cache contam um), convites 10/dia,
+  documentos 30/hora. Se o banco falhar, a cota nega (fail-closed); se a RPC
+  ainda não existir, vale um limite em memória.
+- Prazos em toda chamada externa (8 s para Kiwi, Booking, Resend e Gemini;
+  5 s para a AwesomeAPI) e no Supabase (10 s no servidor, 8 s no proxy, 15 s
+  no navegador): um provedor travado não segura a função até o limite da
+  Vercel. No proxy, Auth fora do ar no prazo nega o acesso (fail-closed).
+- O fluxo das Experiências Ocultas tem teto de 40 s e `maxDuration = 60`
+  na rota: a resposta não fica pendurada cobrando tempo de função.
 
 ### Tarefas agendadas e e-mail (Épico 4)
 
@@ -110,15 +135,19 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 ### Cabeçalhos HTTP
 
 `next.config.ts` aplica `X-Content-Type-Options`, `X-Frame-Options`,
-`Referrer-Policy`, `Strict-Transport-Security` e `Permissions-Policy`. O
-`sw.js` tem CSP própria (mesma origem) e nunca fica em cache.
+`Referrer-Policy`, `Strict-Transport-Security` e `Permissions-Policy`, e não
+envia `X-Powered-By`. O `sw.js` tem CSP própria (mesma origem) e nunca fica
+em cache. Ícones, marca e modelo 3D têm cache imutável de 1 ano; o teste
+`ativos-imutaveis.test.ts` barra conteúdo novo com o mesmo nome (o
+navegador nunca pediria de novo).
 
 ## Pendências para produção
 
 1. Aplicar no SQL Editor, em ordem: `20261104120000_endurecimento_seguranca.sql`
    (antes, conferir linhas sem dono com as consultas do topo do arquivo),
-   `20261104120100_sincronizacao_casal.sql` e
-   `20261105120000_fingerprint_fatura.sql`.
+   `20261104120100_sincronizacao_casal.sql`,
+   `20261105120000_fingerprint_fatura.sql` e
+   `20261112140000_indices_performance.sql` (só índices; aditiva).
 2. Cadastrar na Vercel: `SUPABASE_SECRET_KEY`, `CRON_SECRET`,
    `RESEND_API_KEY`, `EMAIL_REMETENTE` (domínio verificado na Resend, com SPF
    e DKIM) e `DOCUMENTOS_CHAVE_CRIPTO`.
@@ -136,5 +165,8 @@ Estado dos controles e do que ainda falta para produção. Atualizado em
 - **Tabela antiga `despesas`**: fica até uma migration de remoção (expandir
   antes de contrair). Depois de confirmar a cópia, revogar o acesso e apagar.
 - **Rate limit de login**: depende do Supabase Auth (configurável no painel).
+- **Log de Web Vitals aberto**: `/api/vitals` não exige sessão. Um script na
+  mesma origem poderia encher o log com métricas falsas; o teto de 4 KB e os
+  campos fechados limitam o volume e o conteúdo, mas não a frequência.
 - **Chave secreta**: quem tiver acesso às variáveis da Vercel lê todos os
   dados. Restringir o acesso ao projeto e trocar a chave se houver suspeita.

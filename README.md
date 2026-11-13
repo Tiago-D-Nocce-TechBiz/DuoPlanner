@@ -17,6 +17,8 @@ em `main` vai direto para produção; não há ambiente de homologação).
   memória de preferências)
 - Resend (e-mails transacionais) e Vercel Cron (tarefas agendadas)
 - PWA: manifesto, Service Worker próprio (`public/sw.js`) e fila offline
+- OpenTelemetry só para o log (sem coletor externo): aviso de chamada lenta
+  e Web Vitals de quem usa o app
 - Vitest (regras de negócio e as migrations num Postgres em WASM, PGlite) e
   Playwright (fluxos de tela no Microsoft Edge instalado)
 
@@ -28,6 +30,8 @@ Escuro com tokens CSS em `src/app/globals.css`.
 - **Buscar Passagens e Hospedagem**: links pré-preenchidos para os parceiros
   (`src/lib/deep-links.ts`) e, com as chaves configuradas, preços pela Kiwi.com
   (voos) e pela Booking.com via RapidAPI (hospedagem), com cota por usuário.
+  Junto com a busca, a IA sugere 3 **Experiências Ocultas** (passeios grátis
+  ou baratos no destino): cada card aparece enquanto ela escreve.
 - **DuoFinance**: importação de fatura de cartão (CSV, TXT ou texto colado)
   em duas fases. Na hora, no navegador: separa à vista e parcelado, limpa o
   nome das lojas, categoriza pelo catálogo local e monta o Raio-X. Em segundo
@@ -37,6 +41,7 @@ Escuro com tokens CSS em `src/app/globals.css`.
   anteriormente (Ignorado)". Valores em centavos inteiros: R$ 10,01 dividido
   por dois vira R$ 5,01 + R$ 5,00. Também lê recibos e comprovantes Pix com
   IA (sempre com confirmação) e aceita lançamento manual em qualquer moeda.
+  A lista mostra 50 gastos por vez ("Carregar mais") e tem busca sem acento.
 - **Acerto de Contas**: 50/50, proporcional à renda (ex.: 60/40) ou valor
   fixo, com Pix Copia e Cola (BR Code EMV).
 - **Roteiro, Checklist, Alertas de Preço e Documentos**: sincronizados entre
@@ -54,7 +59,7 @@ Escuro com tokens CSS em `src/app/globals.css`.
 - **PWA**: instalável (Android e iOS), abre offline com a última cópia e
   sincroniza as alterações quando a conexão volta.
 - **Nora**: assistente do painel (regras locais; o que ela propõe gravar
-  passa por confirmação).
+  passa por confirmação). A resposta aparece palavra por palavra.
 
 ## Estrutura
 
@@ -64,6 +69,8 @@ src/
     (auth)/                 login, cadastro e Server Actions de acesso
     api/
       flights/ hotels/      buscas pagas (sessão + cota por usuário)
+      experiencias/         Experiências Ocultas em fluxo (NDJSON; sessão + cota "ia")
+      vitals/               Web Vitals do navegador para o log (pública, mesma origem)
       cotacoes/             câmbio do dia (estático, revalida a cada 1 h)
       cron/price-alerts/    monitor diário dos alertas (Bearer CRON_SECRET)
       cron/resumo-semanal/  resumo semanal por e-mail (Bearer CRON_SECRET)
@@ -73,6 +80,7 @@ src/
     manifest.ts             manifesto do PWA
   components/               UI por área (finance, financas, cambio, pwa, sync...)
   instrumentation.ts        valida o ambiente em cada instância do servidor
+  instrumentation.node.ts   OpenTelemetry: avisa no log o que passa de 1,5 s
   lib/
     env/                    ambiente validado (zod): fail-fast e modo degradado
     acoes/                  withAuthAction: sessão, zod e resultado padronizado
@@ -85,11 +93,14 @@ src/
     cron/ alertas/          tarefas agendadas e regra de aviso dos alertas
     seguranca/              cotas por usuário e cifra de documentos
     supabase/               clientes (navegador, servidor, admin só p/ cron)
+    http/                   fetch com prazo, mesma origem, corpo com teto
+    observabilidade/        chamada lenta (OTel) e Web Vitals
+    cache/                  ativos públicos com cache imutável (e o registro de hashes)
 supabase/migrations/        SQL versionado (aplicar no SQL Editor, em ordem)
 tests/sql/                  migrations e RLS num Postgres em WASM (Vitest)
-tests/e2e/                  fluxos de tela (Playwright)
+tests/e2e/                  fluxos de tela e medidas de desempenho (Playwright)
 public/sw.js                Service Worker
-vercel.json                 agenda das tarefas (cron)
+vercel.json                 região das funções (gru1) e agenda das tarefas (cron)
 ```
 
 ## Variáveis de ambiente
@@ -151,6 +162,11 @@ nome. Todos são idempotentes (podem rodar de novo).
    em `despesas_viagem`, índice único por pessoa e gatilho que a torna
    imutável. **Obrigatória para esta versão**: sem ela, o app detecta a coluna
    ausente e fica em "modo local" (nada se perde, a fila espera no aparelho).
+6. `20261112140000_indices_performance.sql`: índices compostos para as
+   consultas reais (painel, RLS do casal, resumo semanal, fila dos alertas).
+   Só aditiva: não apaga índice nem mexe em dados. Os índices que ficam
+   redundantes estão listados no topo do arquivo e só saem numa migration de
+   limpeza, depois de conferir `pg_stat_user_indexes` em produção.
 
 `npm test` aplica todas as migrations, em ordem, num Postgres em WASM
 (`tests/sql/`) e confere a RLS, os CHECKs e os gatilhos.
@@ -161,8 +177,8 @@ vazadas.
 
 ## Publicar (ordem segura)
 
-1. Aplicar as migrations 2, 3 e 5, nessa ordem (são aditivas: a versão em
-   produção continua funcionando com elas).
+1. Aplicar as migrations 2, 3, 5 e 6, nessa ordem (são aditivas: a versão
+   em produção continua funcionando com elas).
 2. Cadastrar as variáveis novas na Vercel (produção).
 3. Fazer o merge em `main` (deploy).
 4. Logo depois do deploy, rodar de novo a migration 3: ela copia para
@@ -174,6 +190,26 @@ vazadas.
 curl -H "Authorization: Bearer $CRON_SECRET" https://<seu-domínio>/api/cron/price-alerts
 curl -H "Authorization: Bearer $CRON_SECRET" https://<seu-domínio>/api/cron/resumo-semanal
 ```
+
+## Desempenho e observabilidade
+
+- **Prazos**: toda chamada externa tem prazo (`src/lib/http/fetch-com-limite.ts`):
+  8 s para Kiwi, Booking/RapidAPI, Resend e Gemini; 5 s para a AwesomeAPI;
+  10 s para o Supabase no servidor, 8 s no proxy e 15 s no navegador. No
+  fluxo das Experiências Ocultas o prazo de 8 s vale por trecho da resposta
+  da IA, com teto de 40 s para a resposta inteira.
+- **Região**: `vercel.json` fixa as funções em `gru1` (São Paulo). Precisa ser
+  a região do projeto Supabase (veja a nota no `.env.example`).
+- **Cache**: ícones, marca e o modelo 3D saem com
+  `Cache-Control: public, max-age=31536000, immutable`. Como os nomes não
+  têm hash, `src/lib/cache/ativos-imutaveis.test.ts` falha se um desses
+  arquivos mudar sem trocar de nome. Imagens otimizadas em AVIF/WebP.
+- **Chamada lenta**: Server Action, rota de API ou requisição acima de
+  1,5 s vira uma linha JSON no log (`"evento":"chamada_lenta"`, com nome,
+  rota, duração e `traceId`). Sem coletor: só o log da Vercel.
+- **Web Vitals**: o navegador envia LCP, INP, CLS, FCP e TTFB para
+  `/api/vitals`; cada métrica vira uma linha `"evento":"web_vital"` no log
+  (nota ruim sai como aviso).
 
 ## Tarefas agendadas
 
@@ -206,11 +242,19 @@ desenvolvimento sem login e sem sincronização.
 npm test          # Vitest: regras de negócio e migrations (PGlite)
 npm run lint      # ESLint
 npm run build     # valida o ambiente, compila e confere os tipos
-npm run test:e2e  # Playwright: fluxos de tela (~1 min)
+npm run test:e2e  # Playwright: fluxos de tela e medidas (~2,5 min)
 ```
 
 `npm run test:e2e` usa o Microsoft Edge instalado (não baixa navegadores) e
 sobe `next dev` na porta 3200 sem Supabase, com as Server Actions cortadas
-(modo local/offline). Cobre o importador de fatura, o "Desfazer" e o selo de
-sincronização. O limite de 100 ms da fase 1 do importador é medido com o React
-de produção, num pacote só do importador (`importador-producao.spec.ts`).
+(modo local/offline). Cobre o importador de fatura, o "Desfazer", o selo de
+sincronização, as respostas em fluxo (Experiências Ocultas e Nora) e o
+celular lento: CPU 4x mais lenta e rede "Slow 4G" pelo CDP
+(`celular-lento.spec.ts`).
+
+Tempo de resposta se mede com o React de produção, não no `next dev`:
+`importador-producao.spec.ts` e `painel-producao.spec.ts` empacotam as telas
+(rolldown, CSS real do Tailwind) e medem cada interação pelo Event Timing, a
+mesma base do INP. Tetos: fase 1 do importador abaixo de 100 ms; com a CPU
+4x, interações do painel abaixo de 200 ms (INP "bom") e rolagem de centenas
+de linhas sem tarefa longa.

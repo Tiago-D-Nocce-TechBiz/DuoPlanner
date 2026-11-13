@@ -111,5 +111,34 @@ Código pronto na `feat/producao-saas`; falta aplicar
 - [ ] 6.9 SQL `20261105120000_fingerprint_fatura.sql` aplicado no SQL Editor
       (depois da 3.x) — aguardando o Tiago
 
+## Fase 7 — Desempenho ponta a ponta (rodada de 12–13/11/2026)
+Código pronto na `feat/producao-saas`; falta aplicar
+`20261112140000_indices_performance.sql` e publicar.
+- [x] 7.1 Prazo em toda chamada externa (`fetchWithTimeout`, 8 s) e nos
+      clientes do Supabase; erro de prazo vira mensagem em PT-BR
+- [x] 7.2 Banco: sem `SELECT *`, leitura completa paginada por id (o corte
+      silencioso de 1000 linhas do PostgREST sumiu), lotes em vez de consultas
+      em laço (sincronização e crons), leituras independentes em paralelo
+- [x] 7.3 Índices compostos (migration 6, só aditiva), testados no PGlite
+- [x] 7.4 Experiências Ocultas em fluxo (`POST /api/experiencias`, NDJSON) e
+      Nora palavra por palavra (1ª palavra em ~0,5 s; antes 1,4 a 3 s de espera)
+- [x] 7.5 DuoFinance: 50 gastos por vez, busca sem acento com debounce de
+      300 ms, abas montadas com `<Activity>`; linhas memoizadas no Roteiro e
+      na lista (o motor mantém a referência do que não mudou)
+- [x] 7.6 Altura reservada das linhas fora da tela medida por largura
+      (`content-visibility`), cache imutável dos ícones/marca/3D, AVIF/WebP,
+      `compress`, região `gru1`
+- [x] 7.7 Observabilidade: aviso de chamada lenta (> 1,5 s, OpenTelemetry só
+      no log) e Web Vitals em `/api/vitals`
+- [x] 7.8 Celular lento nos testes: CPU 4x + Slow 4G (app completo) e React
+      de produção com CPU 4x (interações do painel abaixo de 200 ms)
+- [ ] 7.9 SQL `20261112140000_indices_performance.sql` aplicado no SQL Editor
+      (depois da 6.9) — aguardando o Tiago
+- [ ] 7.10 Confirmar que o projeto Supabase está em São Paulo (sa-east-1); se
+      não, trocar `gru1` no `vercel.json`
+- [ ] 7.11 Em produção, medir a IA contra o prazo de 8 s (recibos, lote de 40
+      linhas da fatura) e, depois de semanas de uso, remover os índices
+      redundantes que `pg_stat_user_indexes` mostrar sem uso
+
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.
