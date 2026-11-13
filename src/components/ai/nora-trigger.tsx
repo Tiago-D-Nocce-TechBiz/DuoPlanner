@@ -38,7 +38,7 @@ export function NoraTrigger() {
       onFocus={preCarregarNora}
       title="Perguntar à Nora (Alt+N)"
       aria-label="Perguntar à Nora"
-      className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-blue-500/30 bg-[var(--color-card)] p-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--color-heading)] shadow-[0_0_20px_rgba(59,130,246,0.12)] backdrop-blur-md transition-all hover:shadow-[0_0_28px_rgba(59,130,246,0.22)] hover:border-blue-500/50 cursor-pointer"
+      className="group inline-flex shrink-0 items-center gap-2 rounded-full border border-blue-500/30 bg-[var(--color-card)] p-1.5 sm:px-4 sm:py-2 text-xs font-semibold text-[var(--color-heading)] shadow-[0_0_20px_rgba(59,130,246,0.12)] transition-all hover:shadow-[0_0_28px_rgba(59,130,246,0.22)] hover:border-blue-500/50 cursor-pointer"
     >
       <NoraAvatar tamanho={22} />
       <span className="hidden sm:inline">Perguntar à Nora</span>
