@@ -1,5 +1,5 @@
 import "server-only";
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestError, SupabaseClient } from "@supabase/supabase-js";
 import { SITE_URL, tabelaAusente } from "@/lib/auth/seguranca";
 import { todayInSaoPaulo } from "@/lib/dates";
 import { emailResumoSemanal } from "@/lib/email/templates";
@@ -12,8 +12,10 @@ import {
 import { enviarEmail } from "@/lib/mail";
 import { criarLeitorDeEmails } from "@/lib/supabase/admin";
 import { escolherWorkspace } from "@/lib/supabase/escolher-workspace";
-import { acordoDaLinha, ACORDO_PADRAO, type AcordoDivisao } from "@/lib/sync/contexto";
+import { lerTodasAsPaginas } from "@/lib/supabase/paginar";
+import { acordoDaLinha, ACORDO_PADRAO, COLUNAS_ACORDO, type AcordoDivisao } from "@/lib/sync/contexto";
 import { COLUNAS, despesaDaLinha, type Despesa } from "@/lib/sync/modelos";
+import { emParalelo } from "./em-paralelo";
 
 /**
  * Resumo Semanal do Orçamento (chamado por /api/cron/resumo-semanal).
@@ -40,6 +42,11 @@ export interface ResumoEnvio {
 }
 
 const LOTE = 40;
+/** Consultas simultâneas ao Auth (e-mail de cada conta). */
+const BUSCAS_DE_EMAIL_SIMULTANEAS = 8;
+
+type LinhaDespesa = Record<string, unknown> & { id: unknown };
+type PaginaDespesas = { data: LinhaDespesa[] | null; error: PostgrestError | null };
 
 type LinhaVinculo = {
   user_id: string;
@@ -103,29 +110,33 @@ export async function enviarResumosSemanais(
     }
     const espacos = [...new Set([...espacoDe.values()].map((w) => w.id))];
 
+    // Gastos lidos inteiros, em páginas: o `.limit(20_000)` antigo esbarrava
+    // no corte de 1000 linhas do PostgREST e o saldo saía errado sem aviso.
     const [membrosLidos, acordosLidos, compartilhadosLidos, privadosLidos] = await Promise.all([
       espacos.length
         ? admin.from("workspace_members").select("workspace_id, user_id, papel").in("workspace_id", espacos)
         : Promise.resolve({ data: [] as { workspace_id: string; user_id: string; papel: string }[], error: null }),
       espacos.length
-        ? admin.from("acordos_divisao").select("*").in("workspace_id", espacos)
+        ? admin.from("acordos_divisao").select(COLUNAS_ACORDO).in("workspace_id", espacos)
         : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
       espacos.length
-        ? admin
-            .from("despesas_viagem")
-            .select(COLUNAS.despesas)
-            .in("workspace_id", espacos)
-            .eq("escopo", "viagem_compartilhado")
-            .limit(20_000)
-        : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
-      admin
-        .from("despesas_viagem")
-        .select(COLUNAS.despesas)
-        .in("user_id", ids)
-        .eq("escopo", "pessoal_privado")
-        .gte("data", periodo.inicio)
-        .lte("data", periodo.fim)
-        .limit(20_000),
+        ? lerTodasAsPaginas<LinhaDespesa, PostgrestError>((depoisDe, tamanho) => {
+            let q = admin.from("despesas_viagem").select(COLUNAS.despesas).in("workspace_id", espacos).eq("escopo", "viagem_compartilhado");
+            if (depoisDe) q = q.gt("id", depoisDe);
+            return q.order("id").limit(tamanho) as unknown as PromiseLike<PaginaDespesas>;
+          })
+        : Promise.resolve({ data: [] as LinhaDespesa[], error: null }),
+      lerTodasAsPaginas<LinhaDespesa, PostgrestError>((depoisDe, tamanho) => {
+        let q = admin
+          .from("despesas_viagem")
+          .select(COLUNAS.despesas)
+          .in("user_id", ids)
+          .eq("escopo", "pessoal_privado")
+          .gte("data", periodo.inicio)
+          .lte("data", periodo.fim);
+        if (depoisDe) q = q.gt("id", depoisDe);
+        return q.order("id").limit(tamanho) as unknown as PromiseLike<PaginaDespesas>;
+      }),
     ]);
     const falhaLeitura = [membrosLidos, acordosLidos, compartilhadosLidos, privadosLidos].find((r) => r.error);
     if (falhaLeitura?.error) {
@@ -163,11 +174,8 @@ export async function enviarResumosSemanais(
       privadosDe.set(d.userId, lista);
     }
 
-    for (const pessoa of lote) {
-      if (Date.now() > encerrarEm) {
-        resumo.adiados++;
-        continue;
-      }
+    // 1) O resumo de cada pessoa (só memória, nenhuma consulta).
+    const calculados = lote.map((pessoa) => {
       const userId = String(pessoa.user_id);
       const espaco = espacoDe.get(userId) ?? null;
       const membros: MembroResumo[] = espaco
@@ -185,16 +193,31 @@ export async function enviarResumosSemanais(
         despesas: [...(espaco ? compartilhadosDe.get(espaco.id) ?? [] : []), ...(privadosDe.get(userId) ?? [])],
         periodo,
       });
+      return { pessoa, userId, espaco, calculado };
+    });
 
-      const marcarProcessado = () =>
-        admin.from("perfis").update({ resumo_semanal_enviado_em: new Date().toISOString() }).eq("user_id", userId);
+    // 2) E-mails de quem tem novidade, em paralelo limitado (era uma chamada
+    //    ao Auth por pessoa, em sequência).
+    const emails = new Map<string, string | null>();
+    await emParalelo(
+      calculados.filter((c) => !c.calculado.vazio),
+      BUSCAS_DE_EMAIL_SIMULTANEAS,
+      async (c) => void emails.set(c.userId, await emailDe(c.userId))
+    );
 
-      if (calculado.vazio) {
-        resumo.semNovidades++;
-        await marcarProcessado();
+    // 3) Envios em sequência (a Resend limita requisições por segundo).
+    const processados: string[] = [];
+    for (const { pessoa, userId, espaco, calculado } of calculados) {
+      if (Date.now() > encerrarEm) {
+        resumo.adiados++;
         continue;
       }
-      const email = await emailDe(userId);
+      if (calculado.vazio) {
+        resumo.semNovidades++;
+        processados.push(userId);
+        continue;
+      }
+      const email = emails.get(userId);
       if (!email) {
         resumo.semEmail++;
         continue;
@@ -218,10 +241,21 @@ export async function enviarResumosSemanais(
       });
       if (envio.ok) {
         resumo.enviados++;
-        await marcarProcessado();
+        processados.push(userId);
       } else {
         resumo.falhas++;
       }
+    }
+
+    // 4) Marca o lote numa gravação só (era um UPDATE por pessoa). Se a
+    //    função cair antes daqui, a próxima rodada repete o lote, e a chave de
+    //    idempotência faz a Resend descartar o e-mail repetido (24 h).
+    if (processados.length > 0) {
+      const { error: erroMarcar } = await admin
+        .from("perfis")
+        .update({ resumo_semanal_enviado_em: new Date().toISOString() })
+        .in("user_id", processados);
+      if (erroMarcar) console.error("[cron:resumo] falha ao marcar o lote como processado:", erroMarcar.message);
     }
   }
 

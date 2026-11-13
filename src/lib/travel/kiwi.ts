@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
 import { ambiente } from "@/lib/env";
+import { fetchWithTimeout, tempoEsgotado } from "@/lib/http/fetch-com-limite";
 import {
   describePreference,
   type DuoPreferences,
@@ -391,9 +392,8 @@ async function fetchKiwiOffers(
   const baseUrl = voos.baseUrl || DEFAULT_BASE_URL;
 
   try {
-    const res = await fetch(`${baseUrl}/v2/search?${buildKiwiParams(req)}`, {
+    const res = await fetchWithTimeout(`${baseUrl}/v2/search?${buildKiwiParams(req)}`, {
       headers: { apikey: apiKey, accept: "application/json" },
-      signal: AbortSignal.timeout(20_000),
     });
     const body: unknown = await res.json().catch(() => null);
 
@@ -420,7 +420,7 @@ async function fetchKiwiOffers(
     return { ok: true, data: offers };
   } catch (error) {
     cacheLife("seconds");
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    const timedOut = tempoEsgotado(error);
     return {
       ok: false,
       status: timedOut ? 504 : 502,

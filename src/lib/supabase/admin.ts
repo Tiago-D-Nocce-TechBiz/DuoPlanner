@@ -1,6 +1,8 @@
 import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { ambiente } from "@/lib/env";
+import { fetchComPrazo } from "@/lib/http/fetch-com-limite";
+import { PRAZO_SUPABASE_SERVIDOR_MS } from "./server";
 
 /**
  * Cliente com a chave SECRETA do Supabase: ignora a RLS.
@@ -20,6 +22,8 @@ export function criarClienteAdmin(): SupabaseClient | null {
   if (!admin) return null;
   return createClient(admin.url, admin.chaveSecreta, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    // Uma consulta travada não consome o tempo inteiro da tarefa agendada.
+    global: { fetch: fetchComPrazo(PRAZO_SUPABASE_SERVIDOR_MS) },
   });
 }
 

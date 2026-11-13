@@ -177,10 +177,15 @@ export async function appendMemoryEntry(
 /**
  * Só as preferências, sem histórico. Nunca lança: uma falha na memória não
  * pode derrubar uma busca de voos ou hospedagem.
+ *
+ * Com a `sessao` já verificada (rotas e actions), usa o mesmo cliente e não
+ * repete o `getClaims`.
  */
-export async function loadPreferencesSafe(): Promise<DuoPreferences> {
+export async function loadPreferencesSafe(sessao?: { supabase: SupabaseClient; userId: string }): Promise<DuoPreferences> {
   try {
-    const memory = await loadDuoMemory({ historyLimit: 0 });
+    const memory = sessao
+      ? await readDuoMemory(sessao.supabase, sessao.userId, 0)
+      : await loadDuoMemory({ historyLimit: 0 });
     if (memory.error) console.error("[memória] leitura parcial:", memory.error);
     return memory.preferences;
   } catch (error) {

@@ -1,6 +1,7 @@
 import "server-only";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
+import { fetchWithTimeout } from "@/lib/http/fetch-com-limite";
 
 /**
  * Cotações do dia em reais (AwesomeAPI, gratuita, sem chave).
@@ -8,7 +9,11 @@ import { z } from "zod";
  * Cache de 1 hora (`cacheLife("hours")`): no máximo uma chamada por hora ao
  * serviço, qualquer que seja o tráfego, bem abaixo do limite gratuito. Em
  * falha, guarda o erro por pouco tempo e a tela volta às taxas de referência.
+ *
+ * Prazo de 5 s, abaixo dos 8 s padrão: a cotação é acessória (há taxas de
+ * referência) e a rota é revalidada em segundo plano.
  */
+const PRAZO_COTACOES_MS = 5_000;
 
 export const MOEDAS_COTADAS = ["USD", "EUR", "GBP", "ARS", "CLP"] as const;
 export type MoedaCotada = (typeof MOEDAS_COTADAS)[number];
@@ -37,9 +42,9 @@ export async function buscarCotacoes(): Promise<ResultadoCotacoes> {
   "use cache";
 
   try {
-    const res = await fetch(URL_COTACOES, {
+    const res = await fetchWithTimeout(URL_COTACOES, {
       headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(5000),
+      timeoutMs: PRAZO_COTACOES_MS,
     });
     if (!res.ok) {
       cacheLife("minutes");

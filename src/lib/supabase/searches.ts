@@ -57,7 +57,7 @@ const esquemaBusca = z.object({
 
 export const saveSearch = withAuthAction("saveSearch", esquemaBusca, async ({ tipo, dados }, { sessao }): Promise<null> => {
   const limpo = Object.fromEntries(Object.entries(dados).filter(([, v]) => v !== undefined));
-  const workspace = await getWorkspaceAtual();
+  const workspace = await getWorkspaceAtual(sessao);
 
   const { error } = await sessao.supabase.from("viagens").insert({
     user_id: sessao.userId,

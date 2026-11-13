@@ -3,6 +3,14 @@ import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { ambiente } from "@/lib/env";
+import { fetchComPrazo } from "@/lib/http/fetch-com-limite";
+
+/**
+ * Prazo por requisição ao Supabase (banco e Auth) no servidor. Sem ele, um
+ * banco travado prendia a Server Action até o limite da função na Vercel;
+ * com ele, a consulta falha em 10 s e a tela recebe o erro tratado.
+ */
+export const PRAZO_SUPABASE_SERVIDOR_MS = 10_000;
 
 /**
  * Cliente Supabase para Server Components, Server Actions e Route Handlers.
@@ -21,6 +29,7 @@ export async function createSupabaseServerClient(): Promise<SupabaseClient | nul
   const cookieStore = await cookies();
 
   return createServerClient(supabase.url, supabase.chavePublica, {
+    global: { fetch: fetchComPrazo(PRAZO_SUPABASE_SERVIDOR_MS) },
     cookies: {
       getAll() {
         return cookieStore.getAll();

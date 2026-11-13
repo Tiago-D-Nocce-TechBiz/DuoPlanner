@@ -2,6 +2,7 @@ import "server-only";
 import { cacheLife } from "next/cache";
 import { z } from "zod";
 import { ambiente } from "@/lib/env";
+import { fetchWithTimeout, tempoEsgotado } from "@/lib/http/fetch-com-limite";
 import {
   describePreference,
   type DuoPreferences,
@@ -131,13 +132,12 @@ async function rapidApiGet(
   const { key, host } = config;
 
   try {
-    const res = await fetch(`https://${host}${path}?${new URLSearchParams(params)}`, {
+    const res = await fetchWithTimeout(`https://${host}${path}?${new URLSearchParams(params)}`, {
       headers: {
         "x-rapidapi-key": key,
         "x-rapidapi-host": host,
         accept: "application/json",
       },
-      signal: AbortSignal.timeout(20_000),
     });
     const body: unknown = await res.json().catch(() => null);
 
@@ -160,7 +160,7 @@ async function rapidApiGet(
     }
     return { ok: true, data: body };
   } catch (error) {
-    const timedOut = error instanceof Error && error.name === "TimeoutError";
+    const timedOut = tempoEsgotado(error);
     return {
       ok: false,
       status: timedOut ? 504 : 502,

@@ -60,6 +60,9 @@ export interface ContextoSincronizacao {
   iaAtiva?: boolean;
 }
 
+/** Colunas de `acordos_divisao` que `acordoDaLinha` lê (nada de `select("*")`). */
+export const COLUNAS_ACORDO = "workspace_id, regra, percentual_dono, valor_fixo, quem_cobre_fixo, atualizado_em, atualizado_por";
+
 export const ACORDO_PADRAO: AcordoDivisao = {
   regra: "igual",
   percentualDono: 50,

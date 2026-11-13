@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { QualCartaoUsar } from "@/components/cambio/qual-cartao-usar";
 import { Shuffle } from "@/components/ui/icons";
 import { parseValorMonetario } from "@/lib/finance/importar";
+import { fetchWithTimeout } from "@/lib/http/fetch-com-limite";
 
 /**
  * Conversor de Moedas.
@@ -60,7 +61,7 @@ export default function ConversorPage() {
   // Cotação do dia, uma vez após montar.
   useEffect(() => {
     let ativo = true;
-    fetch("/api/cotacoes", { headers: { accept: "application/json" } })
+    fetchWithTimeout("/api/cotacoes", { headers: { accept: "application/json" } })
       .then((res) => res.json())
       .then((dados: RespostaCotacoes) => {
         if (!ativo) return;

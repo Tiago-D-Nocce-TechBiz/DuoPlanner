@@ -36,7 +36,7 @@ function falhaDoBanco(erro: { code?: string; message?: string }, contexto: strin
 }
 
 export const listarDocumentos = withAuthAction("listarDocumentos", async ({ sessao }): Promise<DocumentoVisivel[]> => {
-  const ws = await getWorkspaceAtual();
+  const ws = await getWorkspaceAtual(sessao);
   const { userId, supabase } = sessao;
   const consulta = supabase
     .from("documentos_viagem")
@@ -80,7 +80,7 @@ export const salvarDocumento = withAuthAction(
     const { supabase, userId } = sessao;
     if (!d.titular && !d.numero && !d.id) throw new ErroAcao("ENTRADA_INVALIDA", "Informe o titular ou o número do documento.");
 
-    const ws = await getWorkspaceAtual();
+    const ws = await getWorkspaceAtual(sessao);
     if (d.escopo === "viagem_compartilhado" && !ws) {
       throw new ErroAcao("CONFLITO", "Convide seu par para compartilhar documentos.");
     }
@@ -172,7 +172,7 @@ export const importarDocumentosLegados = withAuthAction(
   "importarDocumentosLegados",
   esquemaLegado,
   async (documentos, { sessao }): Promise<{ importados: number; aviso?: string }> => {
-    const ws = await getWorkspaceAtual();
+    const ws = await getWorkspaceAtual(sessao);
     const { supabase, userId } = sessao;
 
     let semChave = false;

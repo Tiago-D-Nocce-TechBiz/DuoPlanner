@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { ambientePublico } from "@/lib/env/publico";
+import { fetchComPrazo, LIMITE_EXTERNO_MS } from "@/lib/http/fetch-com-limite";
 
 /**
  * Proteção de rotas do painel (Proxy — convenção atual do Next 16, substitui o
@@ -8,8 +9,8 @@ import { ambientePublico } from "@/lib/env/publico";
  *
  * Qualquer acesso a /dashboard/* exige sessão ativa do Supabase. Sem sessão, o
  * usuário é redirecionado para /login (com ?redirect= para voltar ao destino
- * depois de entrar). /api/flights e /api/hotels também exigem sessão e
- * respondem 401 em JSON.
+ * depois de entrar). /api/flights, /api/hotels e /api/experiencias também
+ * exigem sessão e respondem 401 em JSON.
  *
  * Degradação graciosa: se as variáveis do Supabase não estiverem configuradas
  * no ambiente, o proxy não bloqueia (deixa passar), para não travar o
@@ -22,7 +23,7 @@ import { ambientePublico } from "@/lib/env/publico";
 function negarAcesso(request: NextRequest): NextResponse {
   if (request.nextUrl.pathname.startsWith("/api/")) {
     return NextResponse.json(
-      { error: "Sua sessão expirou. Entre de novo para buscar preços.", code: "NAO_AUTENTICADO" },
+      { error: "Sua sessão expirou. Entre de novo para continuar.", code: "NAO_AUTENTICADO" },
       { status: 401 }
     );
   }
@@ -47,6 +48,9 @@ export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(config.url, config.chavePublica, {
+    // Auth fora do ar não prende a navegação: o getClaims falha no prazo e o
+    // acesso é negado (fail-closed), em vez de a página ficar carregando.
+    global: { fetch: fetchComPrazo(LIMITE_EXTERNO_MS) },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -77,7 +81,7 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-// Painel e APIs de preço (consomem cota paga da Kiwi/RapidAPI: só com login).
+// Painel e APIs pagas (cota da Kiwi, da RapidAPI e do Gemini): só com login.
 export const config = {
-  matcher: ["/dashboard/:path*", "/api/flights", "/api/hotels"],
+  matcher: ["/dashboard/:path*", "/api/flights", "/api/hotels", "/api/experiencias"],
 };

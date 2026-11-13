@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import type { RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import type { PostgrestError, RealtimeChannel, RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import type { RespostaLote } from "@/app/dashboard/sincronizacao-actions";
 import { falhaTransitoria, type ResultadoAcao } from "@/lib/acoes/resultado";
 import { colunaAusente, tabelaAusente } from "@/lib/auth/seguranca";
@@ -9,6 +9,7 @@ import { adicionarNotificacao } from "@/lib/notifications/store";
 import { EVENTO_DADOS_LIMPOS } from "@/lib/privacidade/limpeza-local";
 // Sob demanda: o supabase-js (~270 KB) não entra no carregamento do painel.
 import { obterSupabase } from "@/lib/supabase/client-sob-demanda";
+import { lerTodasAsPaginas } from "@/lib/supabase/paginar";
 import { acordoDaLinha, type ContextoSincronizacao } from "./contexto";
 import { derivar, enfileirar, type Operacao } from "./fila";
 import {
@@ -237,6 +238,9 @@ function mesmoEscopo(userId: string, ws: string | null): boolean {
   return estado.contexto?.userId === userId && (estado.contexto.workspace?.id ?? null) === ws;
 }
 
+/** Linha crua do PostgREST (sempre com o id, que é o cursor da paginação). */
+type LinhaDoBanco = Record<string, unknown> & { id: unknown };
+
 async function carregarRecurso(recurso: Recurso): Promise<"ok" | "ausente" | "erro"> {
   const ctx = estado.contexto;
   if (!ctx) return "erro";
@@ -244,23 +248,27 @@ async function carregarRecurso(recurso: Recurso): Promise<"ok" | "ausente" | "er
   const supabase = await obterSupabase();
   if (!supabase || !mesmoEscopo(ctx.userId, ws)) return "erro";
   const tabela = TABELAS[recurso];
-  let consulta = supabase.from(tabela).select(COLUNAS[recurso]);
-
-  if (recurso === "despesas") {
-    consulta = ws
-      ? consulta.or(`workspace_id.eq.${ws},and(user_id.eq.${ctx.userId},escopo.eq.pessoal_privado)`)
-      : consulta.eq("user_id", ctx.userId);
-  } else if (recurso === "alertas") {
-    consulta = ws ? consulta.or(`workspace_id.eq.${ws},user_id.eq.${ctx.userId}`) : consulta.eq("user_id", ctx.userId);
-  } else {
-    if (!ws) {
-      estado.servidor[recurso].clear();
-      return "ok";
-    }
-    consulta = consulta.eq("workspace_id", ws);
+  if (recurso !== "despesas" && recurso !== "alertas" && !ws) {
+    estado.servidor[recurso].clear();
+    return "ok";
   }
 
-  const { data, error } = await consulta.limit(2000);
+  // Todas as linhas, em páginas por id: os totais e o acerto saem delas, e o
+  // PostgREST cortava a resposta única em 1000 linhas sem avisar.
+  const { data, error } = await lerTodasAsPaginas<LinhaDoBanco, PostgrestError>((depoisDe, tamanho) => {
+    let consulta = supabase.from(tabela).select(COLUNAS[recurso]);
+    if (recurso === "despesas") {
+      consulta = ws
+        ? consulta.or(`workspace_id.eq.${ws},and(user_id.eq.${ctx.userId},escopo.eq.pessoal_privado)`)
+        : consulta.eq("user_id", ctx.userId);
+    } else if (recurso === "alertas") {
+      consulta = ws ? consulta.or(`workspace_id.eq.${ws},user_id.eq.${ctx.userId}`) : consulta.eq("user_id", ctx.userId);
+    } else {
+      consulta = consulta.eq("workspace_id", ws);
+    }
+    if (depoisDe) consulta = consulta.gt("id", depoisDe);
+    return consulta.order("id").limit(tamanho) as unknown as PromiseLike<{ data: LinhaDoBanco[] | null; error: PostgrestError | null }>;
+  });
   // Tabela ou coluna desta versão ainda não existe no banco: modo local.
   if (error) return tabelaAusente(error) || colunaAusente(error) ? "ausente" : "erro";
   if (!mesmoEscopo(ctx.userId, ws)) return "erro"; // trocou de conta ou de espaço no meio da consulta

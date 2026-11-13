@@ -10,7 +10,10 @@
  * - 429 por excesso de requisições (padrão: 10 por segundo): espera o
  *   Retry-After (até 2 s) e tenta uma vez. Cota diária/mensal estourada não
  *   adianta repetir.
+ * - Prazo de 8 s por tentativa (`fetchWithTimeout`): a Resend fora do ar não
+ *   prende a tarefa agendada nem o convite.
  */
+import { fetchWithTimeout } from "../http/fetch-com-limite";
 
 export const URL_RESEND = "https://api.resend.com/emails";
 
@@ -85,12 +88,7 @@ export function criarEnviador(config: ConfigEnvio) {
       const ultima = tentativa === 2;
       let resposta: Response;
       try {
-        resposta = await fazerFetch(URL_RESEND, {
-          method: "POST",
-          headers: cabecalhos,
-          body: corpo,
-          signal: AbortSignal.timeout(10_000),
-        });
+        resposta = await fetchWithTimeout(URL_RESEND, { method: "POST", headers: cabecalhos, body: corpo }, fazerFetch);
       } catch (erro) {
         // Sem chave de idempotência, repetir poderia mandar o e-mail duas vezes.
         if (!ultima && msg.idempotencia) {

@@ -45,10 +45,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cota = await consumirCota(supabase, userId, "hospedagem");
+  // Cota e preferências em paralelo (independentes). Com a cota negada, a
+  // leitura das preferências é descartada: nada é buscado na Booking.
+  const [cota, preferences] = await Promise.all([
+    consumirCota(supabase, userId, "hospedagem"),
+    parsed.data.memory ? loadPreferencesSafe({ supabase, userId }) : Promise.resolve({}),
+  ]);
   if (!cota.permitido) return respostaCotaNegada(cota);
-
-  const preferences = parsed.data.memory ? await loadPreferencesSafe() : {};
   const { query, applied } = applyHotelPreferences(parsed.data, preferences);
 
   const result = await searchHotels(query, applied);

@@ -1,6 +1,7 @@
 import "server-only";
 import { ChatGoogle } from "@langchain/google";
 import { ambiente } from "@/lib/env";
+import { LIMITE_EXTERNO_MS } from "@/lib/http/fetch-com-limite";
 
 /**
  * Fábrica do modelo Gemini (via @langchain/google, o pacote LangChain atual
@@ -42,5 +43,11 @@ export function createGeminiModel(options?: {
   });
 }
 
-/** Tempo máximo por chamada ao modelo (ms). */
-export const AI_TIMEOUT_MS = 45_000;
+/**
+ * Tempo máximo por chamada ao modelo (ms), o mesmo dos demais serviços
+ * externos. Cobre a chamada inteira, retentativa incluída: a LangChain
+ * transforma o `timeout` num único AbortSignal para o `invoke`. Nas
+ * respostas em fluxo (`stream`), vale por trecho: o prazo recomeça a cada
+ * parte que chega.
+ */
+export const AI_TIMEOUT_MS = LIMITE_EXTERNO_MS;

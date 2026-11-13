@@ -1,6 +1,7 @@
 import { createBrowserClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ambientePublico } from "@/lib/env/publico";
+import { fetchComPrazo } from "@/lib/http/fetch-com-limite";
 
 /**
  * Cliente Supabase para o browser.
@@ -21,10 +22,19 @@ import { ambientePublico } from "@/lib/env/publico";
 
 let cached: SupabaseClient | null = null;
 
+/**
+ * Prazo por requisição HTTP no navegador (o Realtime usa WebSocket e não
+ * entra). Em rede móvel parada, a leitura falha e o motor de sincronização
+ * passa para "sem servidor" e tenta de novo, em vez de esperar para sempre.
+ */
+const PRAZO_SUPABASE_NAVEGADOR_MS = 15_000;
+
 export function getSupabase(): SupabaseClient | null {
   if (cached) return cached;
   const config = ambientePublico.supabase;
   if (!config || typeof window === "undefined") return null;
-  cached = createBrowserClient(config.url, config.chavePublica);
+  cached = createBrowserClient(config.url, config.chavePublica, {
+    global: { fetch: fetchComPrazo(PRAZO_SUPABASE_NAVEGADOR_MS) },
+  });
   return cached;
 }

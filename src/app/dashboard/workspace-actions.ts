@@ -1,6 +1,5 @@
 "use server";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { ErroAcao, withAuthAction } from "@/lib/acoes/com-sessao";
 import { SITE_URL } from "@/lib/auth/seguranca";
@@ -47,12 +46,17 @@ export const gerarConvite = withAuthAction(
       throw new ErroAcao("ENTRADA_INVALIDA", "Informe o e-mail da outra pessoa (este é o seu).");
     }
 
-    const ws = await getWorkspaceAtual();
+    const ws = await getWorkspaceAtual(sessao);
     if (!ws) throw new ErroAcao("INDISPONIVEL", "Não foi possível preparar o espaço da dupla. Tente de novo em instantes.");
 
     const cota = await consumirCota(supabase, userId, "convite");
     if (!cota.permitido) throw new ErroAcao("COTA_EXCEDIDA", cota.mensagem);
 
+    // Com e-mail, o nome de quem convida (para o texto do e-mail) é lido junto
+    // com a criação do convite, não depois dela.
+    // (Promise.resolve dispara a consulta agora: o builder do PostgREST só
+    // envia o pedido quando alguém chama o `then`.)
+    const perfil = email ? Promise.resolve(supabase.from("perfis").select("nome").eq("user_id", userId).maybeSingle()) : null;
     const { data, error } = await supabase
       .from("convites")
       .insert({ workspace_id: ws.id, email_convidado: email || null, convidado_por: userId })
@@ -74,8 +78,7 @@ export const gerarConvite = withAuthAction(
     }
 
     const emailEnviado = await enviarConvitePorEmail({
-      supabase,
-      userId,
+      perfil: perfil ?? Promise.resolve({ data: null }),
       emailProprio: sessao.email,
       para: email,
       nomeEspaco: ws.nome,
@@ -94,8 +97,8 @@ export const gerarConvite = withAuthAction(
 );
 
 async function enviarConvitePorEmail(p: {
-  supabase: SupabaseClient;
-  userId: string;
+  /** Leitura do perfil já iniciada, em paralelo com a criação do convite. */
+  perfil: PromiseLike<{ data: { nome?: unknown } | null }>;
   emailProprio: string | null;
   para: string;
   nomeEspaco: string;
@@ -104,7 +107,7 @@ async function enviarConvitePorEmail(p: {
 }): Promise<boolean> {
   try {
     // Nome de quem convida: o do perfil (o par vê o mesmo nome no painel).
-    const { data: perfil } = await p.supabase.from("perfis").select("nome").eq("user_id", p.userId).maybeSingle();
+    const { data: perfil } = await p.perfil;
     const nome =
       (typeof perfil?.nome === "string" && perfil.nome.trim()) || (p.emailProprio ? p.emailProprio.split("@")[0] : "");
     const montado = emailConvite({ nomeConvidante: nome, nomeEspaco: p.nomeEspaco, link: p.link, validadeDias: VALIDADE_DIAS });

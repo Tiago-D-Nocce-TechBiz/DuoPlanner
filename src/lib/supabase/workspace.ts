@@ -1,4 +1,5 @@
 import "server-only";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 import { escolherWorkspace } from "@/lib/supabase/escolher-workspace";
 import {
@@ -24,18 +25,13 @@ export interface Workspace {
   papel: "dono" | "parceiro";
 }
 
-/**
- * Resolve o workspace ativo do usuário logado. Se o usuário ainda não tem
- * workspace, cria um automaticamente (ele vira dono). Devolve null quando não
- * há Supabase configurado ou sessão.
- */
-export const getWorkspaceAtual = cache(async (): Promise<Workspace | null> => {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return null;
+/** Sessão já verificada (`withAuthAction` / `obterSessao`): cliente e usuário. */
+export interface SessaoWorkspace {
+  supabase: SupabaseClient;
+  userId: string;
+}
 
-  const userId = await getCurrentUserId(supabase);
-  if (!userId) return null;
-
+async function resolverWorkspace({ supabase, userId }: SessaoWorkspace): Promise<Workspace | null> {
   // Já é membro de algum workspace? Escolha determinística: quem aceitou um
   // convite fica no espaço COMPARTILHADO (papel "parceiro"), não no espaço
   // vazio criado automaticamente no primeiro acesso; empate → o mais recente.
@@ -70,4 +66,24 @@ export const getWorkspaceAtual = cache(async (): Promise<Workspace | null> => {
 
   if (error || !novo) return null;
   return { id: novo.id, nome: novo.nome, codigo: novo.codigo, papel: "dono" };
+}
+
+/**
+ * Resolve o workspace ativo do usuário logado. Se o usuário ainda não tem
+ * workspace, cria um automaticamente (ele vira dono). Devolve null quando não
+ * há Supabase configurado ou sessão.
+ *
+ * Dentro de uma Server Action, passe a `sessao` do `withAuthAction`: sem ela,
+ * esta função cria outro cliente e repete o `getClaims` (que, com chave
+ * HS256, é uma ida ao Auth). O `cache` do React deduplica por argumento
+ * dentro da mesma requisição.
+ */
+export const getWorkspaceAtual = cache(async (sessao?: SessaoWorkspace): Promise<Workspace | null> => {
+  if (sessao) return resolverWorkspace(sessao);
+
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return null;
+  const userId = await getCurrentUserId(supabase);
+  if (!userId) return null;
+  return resolverWorkspace({ supabase, userId });
 });

@@ -53,10 +53,13 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const cota = await consumirCota(supabase, userId, "voos");
+  // Cota e preferências em paralelo (independentes). Com a cota negada, a
+  // leitura das preferências é descartada: nada é buscado na Kiwi.
+  const [cota, preferences] = await Promise.all([
+    consumirCota(supabase, userId, "voos"),
+    parsed.data.memory ? loadPreferencesSafe({ supabase, userId }) : Promise.resolve({}),
+  ]);
   if (!cota.permitido) return respostaCotaNegada(cota);
-
-  const preferences = parsed.data.memory ? await loadPreferencesSafe() : {};
   const { query, applied } = applyFlightPreferences(parsed.data, preferences);
 
   const result = await searchFlights(query, applied);

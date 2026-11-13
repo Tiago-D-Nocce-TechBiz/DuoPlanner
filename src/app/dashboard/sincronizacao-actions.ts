@@ -7,10 +7,10 @@ import { integracaoAtiva } from "@/lib/env";
 import { roundMoney } from "@/lib/finance/money";
 import { normalizarChavePix, TIPOS_CHAVE_PIX, type TipoChavePix } from "@/lib/pix/brcode";
 import { getWorkspaceAtual } from "@/lib/supabase/workspace";
-import { aplicarOperacao, type ResultadoOperacao } from "@/lib/sync/aplicar-operacao";
+import { aplicarLote, type ResultadoOperacao } from "@/lib/sync/aplicar-operacao";
 import {
-  ACORDO_PADRAO,
   acordoDaLinha,
+  COLUNAS_ACORDO,
   type AcordoDivisao,
   type ContextoSincronizacao,
   type Membro,
@@ -66,24 +66,35 @@ export const obterContextoSincronizacao = withAuthAction(
   async ({ sessao }): Promise<ContextoSincronizacao> => {
     const { supabase, userId, email } = sessao;
 
-    const [ws, servidorPronto] = await Promise.all([getWorkspaceAtual(), bancoPronto(supabase)]);
-
-    const [membrosLidos, acordoLido] = await Promise.all([
-      ws
-        ? supabase.from("workspace_members").select("user_id, papel").eq("workspace_id", ws.id)
-        : Promise.resolve({ data: [] as { user_id: string; papel: string }[], error: null }),
-      ws && servidorPronto
-        ? supabase.from("acordos_divisao").select("*").eq("workspace_id", ws.id).maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
+    // Uma rodada só (eram três em sequência, a cada abertura do painel):
+    // integrantes, acordos e perfis vêm de TODOS os espaços da pessoa, que a
+    // RLS já limita ao que é dela ou do par, e o espaço ativo é escolhido
+    // aqui. Sem as tabelas novas, as duas últimas consultas só dão erro e
+    // são ignoradas (servidorPronto = false).
+    const [ws, servidorPronto, membrosLidos, acordosLidos, perfisLidos] = await Promise.all([
+      getWorkspaceAtual(sessao),
+      bancoPronto(supabase),
+      supabase.from("workspace_members").select("workspace_id, user_id, papel"),
+      supabase.from("acordos_divisao").select(COLUNAS_ACORDO),
+      supabase.from("perfis").select(COLUNAS_PERFIL),
     ]);
 
-    const integrantes = (membrosLidos.data ?? []) as { user_id: string; papel: string }[];
-    const ids = [...new Set([userId, ...integrantes.map((m) => m.user_id)])];
-    let perfis = new Map<string, Record<string, unknown>>();
-    if (servidorPronto) {
-      const { data } = await supabase.from("perfis").select(COLUNAS_PERFIL).in("user_id", ids);
-      perfis = new Map((data ?? []).map((p) => [String(p.user_id), p as Record<string, unknown>]));
+    const integrantes = ws
+      ? ((membrosLidos.data ?? []) as { workspace_id: string; user_id: string; papel: string }[]).filter(
+          (m) => m.workspace_id === ws.id
+        )
+      : [];
+    const ids = new Set([userId, ...integrantes.map((m) => m.user_id)]);
+    const perfis = new Map<string, Record<string, unknown>>();
+    if (servidorPronto && !perfisLidos.error) {
+      for (const p of (perfisLidos.data ?? []) as Record<string, unknown>[]) {
+        if (ids.has(String(p.user_id))) perfis.set(String(p.user_id), p);
+      }
     }
+    const acordoDoEspaco =
+      ws && servidorPronto && !acordosLidos.error
+        ? ((acordosLidos.data ?? []) as Record<string, unknown>[]).find((a) => a.workspace_id === ws.id) ?? null
+        : null;
 
     const nomePadrao = email ? email.split("@")[0] : "Você";
     const membros: Membro[] = integrantes.map((m) => {
@@ -105,7 +116,7 @@ export const obterContextoSincronizacao = withAuthAction(
       workspace: ws ? { id: ws.id, nome: ws.nome, papel: ws.papel } : null,
       membros,
       perfil: meuPerfil ? perfilDaLinha(meuPerfil) : servidorPronto ? perfilDaLinha({ nome: nomePadrao }) : null,
-      acordo: acordoLido.error ? ACORDO_PADRAO : acordoDaLinha(acordoLido.data as Record<string, unknown> | null),
+      acordo: acordoDaLinha(acordoDoEspaco),
       servidorPronto,
       criptografiaDocumentos: integracaoAtiva("criptografiaDocumentos"),
       iaAtiva: integracaoAtiva("ia"),
@@ -127,21 +138,23 @@ export const sincronizarOperacoes = withAuthAction(
   "sincronizarOperacoes",
   esquemaLote,
   async (lote, { sessao }): Promise<RespostaLote> => {
-    const ws = await getWorkspaceAtual();
-    const resultados: ResultadoOperacao[] = [];
+    const ws = await getWorkspaceAtual(sessao);
+    const invalidas: ResultadoOperacao[] = [];
+    const validas = [];
     for (const bruta of lote.ops) {
       const op = esquemaOperacao.safeParse(bruta);
-      if (!op.success) {
-        const opId = typeof (bruta as { opId?: unknown })?.opId === "string" ? (bruta as { opId: string }).opId : "?";
-        resultados.push({ opId, status: "rejeitada", motivo: "validacao", mensagem: "Operação inválida." });
+      if (op.success) {
+        validas.push(op.data);
         continue;
       }
-      const resultado = await aplicarOperacao(sessao.supabase, sessao.userId, ws, op.data);
-      // Banco sem as tabelas: para aqui; o aparelho guarda o resto da fila.
-      if (resultado === "indisponivel") return { indisponivel: true, resultados };
-      resultados.push(resultado);
+      const opId = typeof (bruta as { opId?: unknown })?.opId === "string" ? (bruta as { opId: string }).opId : "?";
+      invalidas.push({ opId, status: "rejeitada", motivo: "validacao", mensagem: "Operação inválida." });
     }
-    return { indisponivel: false, resultados };
+    // Criações e remoções seguidas do mesmo recurso vão numa gravação só (uma
+    // fatura importada eram dezenas de INSERTs em sequência). Banco sem as
+    // tabelas: para; o aparelho guarda o resto da fila.
+    const lido = await aplicarLote(sessao.supabase, sessao.userId, ws, validas);
+    return { indisponivel: lido.indisponivel, resultados: [...invalidas, ...lido.resultados] };
   }
 );
 
@@ -163,7 +176,7 @@ export const salvarAcordoDivisao = withAuthAction(
   "salvarAcordoDivisao",
   esquemaAcordo,
   async (acordo, { sessao }): Promise<AcordoDivisao> => {
-    const ws = await getWorkspaceAtual();
+    const ws = await getWorkspaceAtual(sessao);
     if (!ws) throw new ErroAcao("CONFLITO", "O espaço do casal ainda não está pronto.");
 
     const { data, error } = await sessao.supabase
@@ -178,7 +191,7 @@ export const salvarAcordoDivisao = withAuthAction(
         },
         { onConflict: "workspace_id" }
       )
-      .select("*")
+      .select(COLUNAS_ACORDO)
       .single();
     if (error) {
       if (tabelaAusente(error)) throw new ErroAcao("NAO_CONFIGURADO", "O banco ainda não foi atualizado para salvar o acordo.");

@@ -13,6 +13,7 @@ import { integracaoAtiva } from "@/lib/env";
 import { hotelSearchSchema, searchHotels } from "@/lib/travel/booking";
 import { flightSearchSchema, searchFlights } from "@/lib/travel/kiwi";
 import type { FlightOffer, HotelOffer } from "@/lib/travel/types";
+import { emParalelo } from "./em-paralelo";
 
 /**
  * Monitor diário dos Alertas de Preço (chamado por /api/cron/price-alerts).
@@ -148,18 +149,6 @@ function chaveDaBusca(a: AlertaPreco): string {
     : ["hospedagem", a.destino.trim().toLowerCase(), a.ida, a.volta, a.adultos, a.precoAlvo].join("|");
 }
 
-/** Executa as tarefas com no máximo `limite` em andamento ao mesmo tempo. */
-async function emParalelo<T>(itens: T[], limite: number, tarefa: (item: T) => Promise<void>): Promise<void> {
-  let proximo = 0;
-  const trabalhadores = Array.from({ length: Math.min(limite, itens.length) }, async () => {
-    while (proximo < itens.length) {
-      const item = itens[proximo++];
-      await tarefa(item);
-    }
-  });
-  await Promise.all(trabalhadores);
-}
-
 export async function monitorarAlertas(
   admin: SupabaseClient,
   opcoes: { prazoMs: number; maxAlertas?: number; paralelo?: number }
@@ -197,6 +186,12 @@ export async function monitorarAlertas(
   );
   const emailDe = criarLeitorDeEmails(admin);
   const buscas = new Map<string, Promise<ResultadoBusca>>();
+  // Alertas que recebem a MESMA gravação: um UPDATE por grupo no fim, em vez
+  // de um por alerta. Os que mudam preço e aviso continuam um a um (cada um
+  // tem valores próprios).
+  const vistosSemDados: string[] = [];
+  const semOferta: string[] = [];
+  const verificadoEm = new Date().toISOString();
 
   await emParalelo(pendentes, opcoes.paralelo ?? 3, async ({ alerta, ultimoPrecoNotificado }) => {
     if (Date.now() > encerrarEm) {
@@ -219,7 +214,7 @@ export async function monitorarAlertas(
         else {
           // Sem dados para buscar: marca como visto para não ocupar a fila todo dia.
           resumo.incompletos++;
-          await admin.from("alertas_preco").update({ ultima_verificacao_em: agora.toISOString() }).eq("id", alerta.id);
+          vistosSemDados.push(alerta.id);
         }
         return;
       }
@@ -228,10 +223,7 @@ export async function monitorarAlertas(
       if (!resultado.preco) {
         // Nenhuma oferta para as datas: não mostra um preço antigo como se fosse de hoje.
         resumo.semOferta++;
-        await admin
-          .from("alertas_preco")
-          .update({ ultimo_preco: null, ultimo_link: null, ultima_verificacao_em: agora.toISOString() })
-          .eq("id", alerta.id);
+        semOferta.push(alerta.id);
         return;
       }
 
@@ -296,6 +288,24 @@ export async function monitorarAlertas(
       resumo.erros++;
     }
   });
+
+  const gravacoesEmGrupo = await Promise.all([
+    vistosSemDados.length
+      ? admin.from("alertas_preco").update({ ultima_verificacao_em: verificadoEm }).in("id", vistosSemDados)
+      : null,
+    semOferta.length
+      ? admin
+          .from("alertas_preco")
+          .update({ ultimo_preco: null, ultimo_link: null, ultima_verificacao_em: verificadoEm })
+          .in("id", semOferta)
+      : null,
+  ]);
+  for (const gravacao of gravacoesEmGrupo) {
+    if (gravacao?.error) {
+      console.error("[cron:alertas] falha ao gravar um grupo de alertas:", gravacao.error.message);
+      resumo.erros++;
+    }
+  }
 
   return { ok: true, resumo };
 }

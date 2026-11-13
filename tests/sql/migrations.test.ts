@@ -86,7 +86,7 @@ describe("aplicação das migrations", () => {
     const ordem = migrationsEmOrdem();
     expect(ordem[0]).toBe("20261030000000_esquema_base.sql");
     expect(ordem.indexOf("20261104_duofinance_fatura.sql")).toBeLessThan(ordem.indexOf("20261104120000_endurecimento_seguranca.sql"));
-    expect(ordem.at(-1)).toBe("20261105120000_fingerprint_fatura.sql");
+    expect(ordem.slice(-2)).toEqual(["20261105120000_fingerprint_fatura.sql", "20261112140000_indices_performance.sql"]);
   });
 
   it("é idempotente: aplicar de novo não falha nem duplica políticas, índices ou gatilhos", async () => {
