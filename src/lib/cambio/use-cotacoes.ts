@@ -1,6 +1,8 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { fetchWithTimeout } from "@/lib/http/fetch-com-limite";
+import { formatadorDeMoeda } from "@/lib/utils";
 
 /**
  * Cotações do dia no navegador (1 unidade = X reais).
@@ -64,7 +66,9 @@ function publicar(proximo: Cotacoes) {
 async function buscar() {
   buscando = true;
   try {
-    const res = await fetch("/api/cotacoes", { headers: { accept: "application/json" } });
+    // Com prazo: um pedido pendurado deixava `buscando` ligado e ninguém na
+    // aba tentava de novo até recarregar a página.
+    const res = await fetchWithTimeout("/api/cotacoes", { headers: { accept: "application/json" } });
     const dados = (await res.json()) as RespostaCotacoes;
     if (!dados.ok || !dados.taxas) {
       publicar({ taxas: atual.taxas, cotacao: { estado: "referencia", mensagem: dados.mensagem ?? INDISPONIVEL } });
@@ -112,11 +116,12 @@ export function simboloDe(codigo: string): string {
   return MOEDAS.find((m) => m.codigo === codigo)?.simbolo ?? codigo;
 }
 
-/** "US$ 25,00" — formato curto para listas. */
+/**
+ * "US$ 25,00" — formato curto para listas. O formatador de cada moeda é
+ * criado uma vez (`formatadorDeMoeda`): a lista do DuoFinance chama isto em
+ * cada linha e no índice da busca.
+ */
 export function formatarMoeda(valor: number, codigo: string): string {
-  try {
-    return new Intl.NumberFormat("pt-BR", { style: "currency", currency: codigo }).format(valor);
-  } catch {
-    return `${simboloDe(codigo)} ${valor.toFixed(2).replace(".", ",")}`;
-  }
+  const formatador = formatadorDeMoeda(codigo);
+  return formatador ? formatador.format(valor) : `${simboloDe(codigo)} ${valor.toFixed(2).replace(".", ",")}`;
 }

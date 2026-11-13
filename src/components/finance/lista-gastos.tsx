@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
-import { ChevronDown, Layers, Lock, ShieldCheck, Users, X } from "@/components/ui/icons";
+import { Activity, memo, useCallback, useMemo, useState, useTransition } from "react";
+import { ChevronDown, Layers, Lock, Search, ShieldCheck, Users, X } from "@/components/ui/icons";
 import { ToastDesfazer } from "@/components/ui/toast-desfazer";
 import { formatarMoeda } from "@/lib/cambio/use-cotacoes";
 import { isoToBR } from "@/lib/dates";
@@ -18,6 +18,8 @@ import {
   type Escopo,
 } from "@/lib/finance/store";
 import { useContextoSync } from "@/lib/sync/motor";
+import { combina, indiceDeBusca, normalizarBusca } from "@/lib/ui/busca";
+import { useDebounce } from "@/lib/ui/use-debounce";
 import { DURACAO_DESFAZER_MS, useRemocaoAdiada } from "@/lib/ui/use-remocao-adiada";
 
 /**
@@ -27,7 +29,17 @@ import { DURACAO_DESFAZER_MS, useRemocaoAdiada } from "@/lib/ui/use-remocao-adia
  * Cada mudança entra na fila de sincronização e aparece na hora (a fila é
  * aplicada por cima da cópia do servidor), inclusive offline; a remoção só
  * vai para a fila quando o prazo do "Desfazer" acaba.
+ *
+ * Lista longa (fatura importada = centenas de linhas): mostra 50 por vez
+ * ("Carregar mais", em transição), com busca sem acento que filtra uma vez
+ * por pausa na digitação (300 ms). Os totais e o acerto continuam usando
+ * todos os gastos: a paginação é só da tela. Cada linha é memoizada (editar
+ * uma não redesenha as outras), as fora da tela pulam o layout
+ * (`content-visibility`) e as duas abas ficam montadas (`<Activity>`).
  */
+
+/** Linhas por página da lista (e a cada "Carregar mais"). */
+export const LINHAS_POR_PAGINA = 50;
 
 const brl = (v: number) => formatBRL(toCents(v));
 const doisDigitos = (n: number) => String(n).padStart(2, "0");
@@ -61,52 +73,69 @@ export function ListaGastos() {
     () => despesas.filter((d) => d.escopo === "pessoal_privado" && d.userId === meuId && d.id !== oculto).sort(porData),
     [despesas, meuId, oculto]
   );
-  const lista = aba === "compartilhado" ? compartilhados : privados;
+  const ativa = aba === "compartilhado" ? compartilhados : privados;
 
-  const nomeDe = (id: string | null) =>
-    id === meuId ? "você" : ctx?.membros.find((m) => m.userId === id)?.nome ?? "seu par";
+  const [busca, setBusca] = useState("");
+  const buscaAplicada = useDebounce(busca);
+  const termo = normalizarBusca(buscaAplicada);
+
+  const comuns = {
+    termo,
+    buscaAplicada,
+    meuId,
+    temEspaco: Boolean(ctx?.workspace),
+    membros: ctx?.membros ?? SEM_MEMBROS,
+    onRemover: remocao.remover,
+  };
 
   return (
     <div className="glass-panel rounded-2xl p-6">
-      <div className="flex items-center gap-3 mb-6" role="tablist" aria-label="Tipo de gasto">
-        {(["compartilhado", "privado"] as const).map((a) => (
-          <button
-            key={a}
-            type="button"
-            role="tab"
-            aria-selected={aba === a}
-            onClick={() => setAba(a)}
-            className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
-              aba === a ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]" : "glass-panel text-[var(--color-muted)]"
-            }`}
-          >
-            <span className="inline-flex items-center gap-1.5">
-              {a === "compartilhado" ? <Users className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
-              {a === "compartilhado" ? `Da viagem (${compartilhados.length})` : `Pessoais (${privados.length})`}
-            </span>
-          </button>
-        ))}
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3" role="tablist" aria-label="Tipo de gasto">
+          {(["compartilhado", "privado"] as const).map((a) => (
+            <button
+              key={a}
+              type="button"
+              role="tab"
+              aria-selected={aba === a}
+              onClick={() => setAba(a)}
+              className={`px-4 py-2 rounded-xl text-xs font-semibold cursor-pointer transition-all ${
+                aba === a ? "bg-[var(--color-accent)] text-[var(--color-accent-foreground)]" : "glass-panel text-[var(--color-muted)]"
+              }`}
+            >
+              <span className="inline-flex items-center gap-1.5">
+                {a === "compartilhado" ? <Users className="h-4 w-4" /> : <ShieldCheck className="h-4 w-4" />}
+                {a === "compartilhado" ? `Da viagem (${compartilhados.length})` : `Pessoais (${privados.length})`}
+              </span>
+            </button>
+          ))}
+        </div>
+        {ativa.length > 0 && (
+          <label className="relative block sm:w-64">
+            <span className="sr-only">Buscar gastos</span>
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--color-muted)]" aria-hidden />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar (ex.: mercado, 12/2026)"
+              maxLength={80}
+              autoComplete="off"
+              className="glass-input w-full py-2 pl-8 pr-3 text-xs"
+            />
+          </label>
+        )}
       </div>
 
-      {lista.length === 0 ? (
-        <p className="py-8 text-center text-sm text-[var(--color-muted)]">
-          Nenhum gasto {aba === "compartilhado" ? "da viagem" : "pessoal"} ainda. Importe uma fatura, leia um recibo ou adicione
-          um lançamento.
-        </p>
-      ) : (
-        <ul className="space-y-3">
-          {lista.map((d) => (
-            <LinhaGasto
-              key={d.id}
-              d={d}
-              meu={d.userId === meuId}
-              temEspaco={Boolean(ctx?.workspace)}
-              pagador={d.escopo === "viagem_compartilhado" ? nomeDe(d.pagoPor ?? d.userId) : null}
-              onRemover={remocao.remover}
-            />
-          ))}
-        </ul>
-      )}
+      {/* As duas abas ficam montadas: a escondida é pré-renderizada em segundo
+          plano (prioridade baixa) e trocar de aba só a revela, sem desmontar
+          e montar dezenas de linhas. Cada aba guarda a própria página. */}
+      <Activity mode={aba === "compartilhado" ? "visible" : "hidden"}>
+        <ListaDaAba itens={compartilhados} vazio="da viagem" {...comuns} />
+      </Activity>
+      <Activity mode={aba === "privado" ? "visible" : "hidden"}>
+        <ListaDaAba itens={privados} vazio="pessoal" {...comuns} />
+      </Activity>
 
       {remocao.pendente && (
         <ToastDesfazer
@@ -121,7 +150,115 @@ export function ListaGastos() {
   );
 }
 
-function LinhaGasto({
+const SEM_MEMBROS: NonNullable<ReturnType<typeof useContextoSync>>["membros"] = [];
+
+/**
+ * A lista de uma aba. Memoizada: digitar na busca redesenha só o campo (o
+ * filtro chega depois, na pausa), e as props são estáveis entre teclas.
+ */
+const ListaDaAba = memo(function ListaDaAba({
+  itens,
+  vazio,
+  termo,
+  buscaAplicada,
+  meuId,
+  temEspaco,
+  membros,
+  onRemover,
+}: {
+  itens: Despesa[];
+  vazio: "da viagem" | "pessoal";
+  termo: string;
+  buscaAplicada: string;
+  meuId: string | null;
+  temEspaco: boolean;
+  membros: NonNullable<ReturnType<typeof useContextoSync>>["membros"];
+  onRemover: (d: Despesa) => void;
+}) {
+  // Índice da busca só existe enquanto há busca, e é montado uma vez por
+  // mudança na lista (não a cada tecla).
+  const buscando = termo !== "";
+  const indice = useMemo(
+    () =>
+      buscando
+        ? new Map(
+            itens.map((d) => [
+              d.id,
+              indiceDeBusca([d.descricao, d.oQueFoiGasto, d.categoriaDetalhada, rotuloCategoria(d), isoToBR(d.data), formatarMoeda(d.valor, d.moeda)]),
+            ])
+          )
+        : null,
+    [itens, buscando]
+  );
+  const filtrados = useMemo(() => (indice ? itens.filter((d) => combina(indice.get(d.id) ?? "", termo)) : itens), [itens, indice, termo]);
+
+  // Busca nova volta para a primeira página.
+  const [paginaDe, setPaginaDe] = useState(termo);
+  const [limite, setLimite] = useState(LINHAS_POR_PAGINA);
+  if (paginaDe !== termo) {
+    setPaginaDe(termo);
+    setLimite(LINHAS_POR_PAGINA);
+  }
+  // Mais 50 linhas é trabalho grande e não urgente: em transição, o toque
+  // responde na hora e as linhas entram sem travar a tela.
+  const [expandindo, expandir] = useTransition();
+  const visiveis = filtrados.length > limite ? filtrados.slice(0, limite) : filtrados;
+  const restantes = filtrados.length - visiveis.length;
+
+  const nomeDe = (id: string | null) => (id === meuId ? "você" : (membros.find((m) => m.userId === id)?.nome ?? "seu par"));
+
+  if (itens.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-[var(--color-muted)]">
+        Nenhum gasto {vazio} ainda. Importe uma fatura, leia um recibo ou adicione um lançamento.
+      </p>
+    );
+  }
+  if (filtrados.length === 0) {
+    return (
+      <p className="py-8 text-center text-sm text-[var(--color-muted)]" role="status">
+        Nenhum gasto encontrado para “{buscaAplicada.trim()}”.
+      </p>
+    );
+  }
+  return (
+    <>
+      {buscando && (
+        <p className="mb-3 text-xs text-[var(--color-muted)]" role="status">
+          {filtrados.length === 1 ? "1 gasto encontrado" : filtrados.length + " gastos encontrados"}
+        </p>
+      )}
+      <ul className="space-y-3">
+        {visiveis.map((d) => (
+          <LinhaGasto
+            key={d.id}
+            d={d}
+            meu={d.userId === meuId}
+            temEspaco={temEspaco}
+            pagador={d.escopo === "viagem_compartilhado" ? nomeDe(d.pagoPor ?? d.userId) : null}
+            onRemover={onRemover}
+          />
+        ))}
+      </ul>
+      {restantes > 0 && (
+        <button
+          type="button"
+          onClick={() => expandir(() => setLimite((n) => n + LINHAS_POR_PAGINA))}
+          disabled={expandindo}
+          aria-busy={expandindo || undefined}
+          className="mt-4 w-full rounded-xl glass-panel px-4 py-2.5 text-xs font-semibold text-[var(--color-heading)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer transition-colors disabled:cursor-progress"
+        >
+          {expandindo
+            ? "Carregando…"
+            : `Carregar mais ${Math.min(restantes, LINHAS_POR_PAGINA)} (${restantes} ${restantes === 1 ? "restante" : "restantes"})`}
+        </button>
+      )}
+    </>
+  );
+});
+
+/** Memoizada: o motor mantém o objeto de cada gasto sem alteração, então só a linha editada redesenha. */
+const LinhaGasto = memo(function LinhaGasto({
   d,
   meu,
   temEspaco,
@@ -152,7 +289,11 @@ function LinhaGasto({
     atualizarDespesa(d.id, { escopo: (compartilhado ? "pessoal_privado" : "viagem_compartilhado") as Escopo });
 
   return (
-    <li className="rounded-xl border border-[var(--color-border)] px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 [content-visibility:auto] [contain-intrinsic-size:auto_76px]">
+    // Altura reservada das linhas que nunca apareceram na tela (medida no
+    // painel-producao.spec.ts): ~184 px no celular, com os controles quebrando
+    // linha; 118 px do sm ao lg; 68 px em linha a partir do lg. Reserva errada
+    // faz a página pular na rolagem e o alvo do toque mudar de lugar.
+    <li className="rounded-xl border border-[var(--color-border)] px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-3 [content-visibility:auto] [contain-intrinsic-size:auto_184px] sm:[contain-intrinsic-size:auto_118px] lg:[contain-intrinsic-size:auto_68px]">
       <div className="min-w-0">
         <p className="text-sm font-semibold text-[var(--color-heading)] break-words">
           {d.descricao}
@@ -224,4 +365,4 @@ function LinhaGasto({
       </div>
     </li>
   );
-}
+});

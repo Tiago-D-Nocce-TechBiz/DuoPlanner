@@ -21,18 +21,34 @@ export function formatDateBR(iso: string): string {
 }
 
 /**
+ * Um `Intl.NumberFormat` de moeda (pt-BR) por código, criado uma vez e
+ * reaproveitado: construir um custa bem mais que formatar, e as listas
+ * (gastos, hospedagens, voos) formatam em cada linha a cada render.
+ * `null` = código que o Intl recusa. Teto de 64 códigos (vêm dos dados).
+ */
+const formatadoresDeMoeda = new Map<string, Intl.NumberFormat | null>();
+
+export function formatadorDeMoeda(codigo: string): Intl.NumberFormat | null {
+  let formatador = formatadoresDeMoeda.get(codigo);
+  if (formatador === undefined) {
+    try {
+      formatador = new Intl.NumberFormat("pt-BR", { style: "currency", currency: codigo });
+    } catch {
+      formatador = null;
+    }
+    if (formatadoresDeMoeda.size >= 64) formatadoresDeMoeda.clear();
+    formatadoresDeMoeda.set(codigo, formatador);
+  }
+  return formatador;
+}
+
+/**
  * Formata um valor como moeda (pt-BR). Padrão: Real. Códigos ISO inválidos
  * (ex.: vindos de um recibo mal lido) caem num formato simples em vez de lançar.
  */
 export function formatCurrency(value: number, currency = "BRL"): string {
-  try {
-    return new Intl.NumberFormat("pt-BR", {
-      style: "currency",
-      currency,
-    }).format(value);
-  } catch {
-    return `${currency} ${value.toFixed(2)}`;
-  }
+  const formatador = formatadorDeMoeda(currency);
+  return formatador ? formatador.format(value) : `${currency} ${value.toFixed(2)}`;
 }
 
 /** Duração em minutos para "2h 05min" / "45min" / "3h". */

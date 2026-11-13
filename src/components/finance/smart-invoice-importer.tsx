@@ -893,7 +893,9 @@ interface PropsLinha {
 /**
  * Memoizada: com centenas de linhas, só a que mudou (resposta da IA, edição)
  * renderiza de novo. `content-visibility` deixa o navegador pular o layout das
- * linhas fora da tela.
+ * linhas fora da tela; a altura reservada para elas é a medida em
+ * `importador-producao.spec.ts`: 118 px no celular, ~90 px no sm, 70 px a
+ * partir do md (linha com aviso de duplicada ou parcela é mais alta).
  */
 const LinhaTransacao = memo(function LinhaTransacao({
   t,
@@ -915,7 +917,7 @@ const LinhaTransacao = memo(function LinhaTransacao({
     <div
       data-linha-fatura={t.id}
       aria-busy={aguardandoIa || undefined}
-      className={`rounded-xl border px-4 py-3 [content-visibility:auto] [contain-intrinsic-size:auto_96px] ${
+      className={`rounded-xl border px-4 py-3 [content-visibility:auto] [contain-intrinsic-size:auto_118px] sm:[contain-intrinsic-size:auto_90px] md:[contain-intrinsic-size:auto_70px] ${
         pulado ? "border-dashed border-[var(--color-border-strong)] opacity-80" : "border-[var(--color-border)]"
       }`}
     >

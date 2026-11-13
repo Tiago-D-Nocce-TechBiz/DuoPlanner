@@ -96,8 +96,26 @@ export function enfileirar(
 }
 
 /**
- * Visão da tela: snapshot do servidor + fila aplicada em ordem.
- * `montar` completa o registro criado localmente (ex.: valores padrão).
+ * Resultado de cada operação sobre a versão anterior do registro. A mesma
+ * operação (as da fila são imutáveis: combinar cria outra) sobre a mesma
+ * base devolve o MESMO objeto: o registro que não mudou mantém a referência
+ * de uma derivação para a outra, e as linhas memoizadas da tela não
+ * redesenham. Sem isso, no modo local ou offline (tudo ainda na fila), cada
+ * tecla recriava todos os registros pendentes.
+ */
+const derivados = new WeakMap<Operacao, { base: unknown; resultado: unknown }>();
+
+function sobre<T>(op: Operacao, base: T | undefined, calcular: () => T): T {
+  const guardado = derivados.get(op);
+  if (guardado && guardado.base === base) return guardado.resultado as T;
+  const resultado = calcular();
+  derivados.set(op, { base, resultado });
+  return resultado;
+}
+
+/**
+ * Visão da tela: snapshot do servidor + fila aplicada em ordem. Registro sem
+ * mudança desde a última derivação sai com a mesma referência.
  */
 export function derivar<T extends { id: string }>(
   servidor: ReadonlyMap<string, T>,
@@ -108,10 +126,11 @@ export function derivar<T extends { id: string }>(
   for (const op of fila) {
     if (op.recurso !== recurso) continue;
     if (op.tipo === "criar") {
-      mapa.set(op.registro.id, { ...(mapa.get(op.registro.id) ?? {}), ...op.registro } as unknown as T);
+      const base = mapa.get(op.registro.id);
+      mapa.set(op.registro.id, sobre(op, base, () => ({ ...(base ?? {}), ...op.registro }) as unknown as T));
     } else if (op.tipo === "atualizar") {
       const atual = mapa.get(op.id);
-      if (atual) mapa.set(op.id, { ...atual, ...op.campos } as T);
+      if (atual) mapa.set(op.id, sobre(op, atual, () => ({ ...atual, ...op.campos }) as T));
     } else {
       mapa.delete(op.id);
     }

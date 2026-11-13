@@ -78,4 +78,30 @@ describe("derivar (snapshot do servidor + fila)", () => {
   it("atualização de registro desconhecido não cria fantasma", () => {
     expect(derivar(new Map(), [op({ recurso: "checklist", tipo: "atualizar", id: "x", campos: { feito: true } })], "checklist")).toEqual([]);
   });
+
+  it("registro que não mudou mantém a mesma referência entre derivações (as linhas memoizadas não redesenham)", () => {
+    const servidor = new Map([["s", { id: "s", texto: "Do servidor", feito: false }]]);
+    const criarA = op({ recurso: "checklist", tipo: "criar", registro: { id: "a", texto: "A", feito: false } });
+    const criarB = op({ recurso: "checklist", tipo: "criar", registro: { id: "b", texto: "B", feito: false } });
+    const editarS = op({ recurso: "checklist", tipo: "atualizar", id: "s", campos: { feito: true } });
+    const antes = derivar(servidor, [criarA, criarB, editarS], "checklist");
+
+    // Uma tecla a mais no item "b": a fila combina e troca só a operação dele.
+    const fila = enfileirar([criarA, criarB, editarS], op({ recurso: "checklist", tipo: "atualizar", id: "b", campos: { texto: "Bo" } }), new Set(), () => false);
+    const depois = derivar(servidor, fila, "checklist");
+
+    const porId = (lista: { id: string }[]) => new Map(lista.map((r) => [r.id, r]));
+    expect(porId(depois).get("a")).toBe(porId(antes).get("a"));
+    expect(porId(depois).get("s")).toBe(porId(antes).get("s"));
+    expect(porId(depois).get("b")).not.toBe(porId(antes).get("b"));
+    expect(porId(depois).get("b")).toMatchObject({ texto: "Bo" });
+  });
+
+  it("base nova vinda do servidor (Realtime) recalcula a versão com a fila por cima", () => {
+    const editar = op({ recurso: "checklist", tipo: "atualizar", id: "s", campos: { feito: true } });
+    const v1 = derivar(new Map([["s", { id: "s", texto: "v1", feito: false }]]), [editar], "checklist");
+    const v2 = derivar(new Map([["s", { id: "s", texto: "v2", feito: false }]]), [editar], "checklist");
+    expect(v1[0]).toEqual({ id: "s", texto: "v1", feito: true });
+    expect(v2[0]).toEqual({ id: "s", texto: "v2", feito: true });
+  });
 });
