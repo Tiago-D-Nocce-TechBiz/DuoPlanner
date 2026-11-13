@@ -1,7 +1,9 @@
 import "server-only";
+import { SpanStatusCode, trace } from "@opentelemetry/api";
 import { unstable_rethrow } from "next/navigation";
 import type { z } from "zod";
 import { obterSessao, type Sessao } from "@/lib/auth/sessao";
+import { ATRIBUTO_ACAO } from "@/lib/observabilidade/lentidao";
 import { falha, sucesso, type CodigoErro, type Falha, type ResultadoAcao } from "./resultado";
 
 /**
@@ -44,16 +46,33 @@ function entradaInvalida(erro: z.ZodError): Falha {
   return falha("ENTRADA_INVALIDA", erro.issues[0]?.message ?? "Dados inválidos.");
 }
 
+/**
+ * Cada action num span do OpenTelemetry (`acao <nome>`): passando de 1,5 s,
+ * o `ProcessadorDeLentidao` registra um aviso com o nome dela. Sem
+ * TracerProvider registrado (testes, Edge), o span é um no-op barato.
+ */
+const rastreador = trace.getTracer("duoplanner");
+
 async function protegido<T>(nome: string, corpo: () => Promise<ResultadoAcao<T>>): Promise<ResultadoAcao<T>> {
-  try {
-    return await corpo();
-  } catch (erro) {
-    unstable_rethrow(erro);
-    if (erro instanceof ErroAcao) return falha(erro.code, erro.message);
-    const ref = referencia();
-    console.error(`[acao:${nome}] erro inesperado (ref ${ref}):`, erro);
-    return falha("ERRO_INTERNO", `Algo deu errado do nosso lado. Tente de novo em instantes (ref. ${ref}).`);
-  }
+  return rastreador.startActiveSpan(`acao ${nome}`, { attributes: { [ATRIBUTO_ACAO]: nome } }, async (span) => {
+    try {
+      const resultado = await corpo();
+      if (!resultado.success) span.setAttribute("duoplanner.codigo", resultado.code);
+      return resultado;
+    } catch (erro) {
+      unstable_rethrow(erro);
+      if (erro instanceof ErroAcao) {
+        span.setAttribute("duoplanner.codigo", erro.code);
+        return falha(erro.code, erro.message);
+      }
+      const ref = referencia();
+      span.setStatus({ code: SpanStatusCode.ERROR, message: `ref ${ref}` });
+      console.error(`[acao:${nome}] erro inesperado (ref ${ref}):`, erro);
+      return falha("ERRO_INTERNO", `Algo deu errado do nosso lado. Tente de novo em instantes (ref. ${ref}).`);
+    } finally {
+      span.end();
+    }
+  });
 }
 
 async function comSessao<T>(corpo: (ctx: ContextoAcao) => Promise<ResultadoAcao<T>>): Promise<ResultadoAcao<T>> {

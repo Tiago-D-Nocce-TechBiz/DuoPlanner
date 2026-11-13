@@ -1,18 +1,33 @@
 import type { Metadata, Viewport } from "next";
 import { Manrope, Playfair_Display } from "next/font/google";
+import { MonitorWebVitals } from "@/components/observabilidade/monitor-web-vitals";
 import { RegistrarServiceWorker } from "@/components/pwa/registrar-sw";
 import "./globals.css";
 
+/*
+ * Fontes auto-hospedadas pelo next/font (baixadas no build, servidas de
+ * /_next/static/media com cache imutável), com `swap` e preload do arquivo
+ * latin.
+ *
+ * Pesos usados no design system: corpo (Manrope) 400, 500, 600 e 700;
+ * títulos (Playfair) 600 e 700. Ficam como fontes VARIÁVEIS de propósito: um
+ * arquivo por família cobre esses pesos e é o menor download (Manrope 24 KB,
+ * Playfair 38 KB). Os mesmos pesos em arquivos estáticos somariam 57 KB e
+ * 46 KB, e o Google não recorta o eixo de peso do arquivo variável (pedir
+ * 400..700 devolve o mesmo arquivo de 200..800).
+ */
 const manrope = Manrope({
   subsets: ["latin"],
   variable: "--font-manrope",
   display: "swap",
+  preload: true,
 });
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
   variable: "--font-playfair",
   display: "swap",
+  preload: true,
 });
 
 export const metadata: Metadata = {
@@ -93,6 +108,7 @@ export default function RootLayout({
       <body className={`${manrope.variable} ${playfair.variable} antialiased`}>
         {children}
         <RegistrarServiceWorker />
+        <MonitorWebVitals />
       </body>
     </html>
   );

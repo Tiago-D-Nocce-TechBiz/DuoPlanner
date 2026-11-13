@@ -16,4 +16,8 @@ export async function register() {
   const resultado = analisarAmbiente(process.env);
   if (!resultado.ok) throw new ErroDeAmbiente(resultado.erros);
   console.info(descreverAmbiente(resultado));
+
+  // Aviso estruturado no log para requisição, rota de API ou Server Action
+  // que passar de 1,5 s (OpenTelemetry, sem coletor externo).
+  await import("./instrumentation.node");
 }
