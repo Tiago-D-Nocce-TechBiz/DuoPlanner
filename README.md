@@ -16,6 +16,9 @@ em `main` vai direto para produção; não há ambiente de homologação).
 - Google Gemini via LangChain (leitura de recibos, categorização de fatura,
   memória de preferências)
 - Resend (e-mails transacionais) e Vercel Cron (tarefas agendadas)
+- SheetJS (`xlsx` 0.20.3, do CDN oficial da SheetJS: a 0.18.5 do npm tem falhas
+  conhecidas) só para o modelo e a importação do Roteiro; carrega sob demanda,
+  nunca no pacote inicial
 - PWA: manifesto, Service Worker próprio (`public/sw.js`) e fila offline
 - OpenTelemetry só para o log (sem coletor externo): aviso de chamada lenta
   e Web Vitals de quem usa o app
@@ -44,6 +47,21 @@ Escuro com tokens CSS em `src/app/globals.css`.
   A lista mostra 50 gastos por vez ("Carregar mais") e tem busca sem acento.
 - **Acerto de Contas**: 50/50, proporcional à renda (ex.: 60/40) ou valor
   fixo, com Pix Copia e Cola (BR Code EMV).
+- **Roteiro com planilha**: o Roteiro é uma página de servidor com duas ilhas
+  cliente. "Baixar Planilha Modelo" gera `DuoPlanner-Modelo-Roteiro.xlsx`
+  (Destino, Data, Turno_ou_Horario, Atividade_ou_Lugar, Categoria,
+  Custo_Estimado, Observacoes, com 3 exemplos e instruções). "Importar
+  Planilha com a Nora" aceita .xlsx e .csv (arrastar e soltar), lê o arquivo
+  no próprio aparelho, organiza por dia e turno e mostra uma prévia dia a dia
+  antes de salvar. Com o toggle ligado (padrão), a Nora classifica o que a
+  planilha não deixou claro e sugere praias, passeios e restaurantes dos
+  destinos, cada um com o porquê e os botões "Incluir no Roteiro" ou
+  "Ignorar". Sem chave do Gemini, sem cota, com o prazo de 12 s estourado ou
+  offline, a planilha é organizada igual, sem sugestões e sem gastar cota.
+  Reimportar a mesma planilha não duplica (cada atividade tem uma impressão
+  digital, com índice único por espaço). O Roteiro agrupa por dia da viagem
+  (data, destino e custo estimado do dia) e filtra por Praia, Passeio,
+  Gastronomia e Transporte.
 - **Roteiro, Checklist, Alertas de Preço e Documentos**: sincronizados entre
   o casal (Realtime), com o que é pessoal visível só para quem lançou.
   Números de documentos são cifrados (AES-256-GCM). Remover um gasto ou um
@@ -60,6 +78,16 @@ Escuro com tokens CSS em `src/app/globals.css`.
   sincroniza as alterações quando a conexão volta.
 - **Nora**: assistente do painel (regras locais; o que ela propõe gravar
   passa por confirmação). A resposta aparece palavra por palavra.
+- **Nora Travel Hacks**: 9 ferramentas de economia e auditoria de viagem, por
+  chip ou pelo comando `/` na gaveta: `/datas-baratas`, `/aeroportos-proximos`
+  (até 240 km), `/conexoes-inteligentes` (self-transfer), `/auditar-voo` (nota
+  de 1 a 10), `/verificar-taxas`, `/escolher-bairro` (top 3),
+  `/comparar-hospedagem`, `/otimizar-roteiro` (corte de 20%) e
+  `/veredito-reserva` (reserve agora, espere ou mude de plano). O destino, as
+  datas, o roteiro e os gastos compartilhados vêm do espaço do casal (gastos
+  privados nunca vão à IA). Gemini em saída estruturada, prazo de 12 s e cota
+  "ia" por usuário; sem chave, sem cota ou offline, aparece uma lista de
+  conferência local. Os valores são sempre estimativas históricas.
 
 ## Estrutura
 
@@ -90,6 +118,8 @@ src/
                             importação, analisador de fatura, acerto, resumo
     cambio/                 cotações e VET
     email/ mail.ts          modelos de e-mail e envio pela Resend
+    ai/                     Nora (catálogo, contexto, advisor), curadoria do Roteiro e Gemini
+    roteiro/                planilha: parser, organização, impressão digital, modelo .xlsx
     cron/ alertas/          tarefas agendadas e regra de aviso dos alertas
     seguranca/              cotas por usuário e cifra de documentos
     supabase/               clientes (navegador, servidor, admin só p/ cron)
@@ -128,7 +158,7 @@ servidor):
 | `CRON_SECRET` | para os crons | 16+ caracteres; a Vercel envia como `Authorization: Bearer` |
 | `RESEND_API_KEY` / `EMAIL_REMETENTE` | para e-mails | sem a chave, nada é enviado (só registro no log) |
 | `DOCUMENTOS_CHAVE_CRIPTO` | recomendada | 32 bytes em base64; sem ela, só os 4 últimos dígitos dos documentos são guardados |
-| `GEMINI_API_KEY` (`GEMINI_MODEL`) | opcional | recibos e categorização por IA (sem ela, o catálogo local categoriza a fatura) |
+| `GEMINI_API_KEY` (`GEMINI_MODEL`) | opcional | recibos, categorização da fatura, Nora Travel Hacks e curadoria do Roteiro (sem ela, o catálogo local categoriza a fatura, as ferramentas da Nora mostram a lista de conferência e a planilha é organizada sem sugestões) |
 | `KIWI_API_KEY` / `RAPIDAPI_KEY` | opcionais | preços de voos e hospedagens (sem elas, só os links dos parceiros) |
 
 Gerar segredos:
@@ -168,6 +198,13 @@ nome. Todos são idempotentes (podem rodar de novo).
    redundantes estão listados no topo do arquivo e só saem numa migration de
    limpeza, depois de conferir `pg_stat_user_indexes` em produção.
 
+7. `20261119120000_roteiro_planilha.sql`: destino do dia e, na atividade,
+   turno, categoria, custo estimado, origem (manual, planilha ou sugestão da
+   Nora) e impressão digital, com CHECKs, índice único por espaço e gatilho
+   que congela origem e impressão digital. Na mescla de espaços do convite, a
+   cópia repetida de uma atividade importada é descartada, para o aceite não
+   quebrar. **Obrigatória para esta versão**: sem ela o Roteiro fica em "modo
+   local" (nada se perde, a fila espera no aparelho).
 `npm test` aplica todas as migrations, em ordem, num Postgres em WASM
 (`tests/sql/`) e confere a RLS, os CHECKs e os gatilhos.
 
@@ -177,7 +214,7 @@ vazadas.
 
 ## Publicar (ordem segura)
 
-1. Aplicar as migrations 2, 3, 5 e 6, nessa ordem (são aditivas: a versão
+1. Aplicar as migrations 2, 3, 5, 6 e 7, nessa ordem (são aditivas: a versão
    em produção continua funcionando com elas).
 2. Cadastrar as variáveis novas na Vercel (produção).
 3. Fazer o merge em `main` (deploy).
@@ -250,7 +287,10 @@ sobe `next dev` na porta 3200 sem Supabase, com as Server Actions cortadas
 (modo local/offline). Cobre o importador de fatura, o "Desfazer", o selo de
 sincronização, as respostas em fluxo (Experiências Ocultas e Nora) e o
 celular lento: CPU 4x mais lenta e rede "Slow 4G" pelo CDP
-(`celular-lento.spec.ts`).
+(`celular-lento.spec.ts`). O Roteiro com planilha (modelo, CSV e XLSX,
+prévia, reimportação sem duplicar, filtros e "Desfazer") e a gaveta da Nora com
+os 9 comandos têm specs próprios; a resposta da curadoria com IA é simulada na
+rede, e a chamada real ao Gemini é coberta por testes do Vitest com modelo falso.
 
 Tempo de resposta se mede com o React de produção, não no `next dev`:
 `importador-producao.spec.ts` e `painel-producao.spec.ts` empacotam as telas

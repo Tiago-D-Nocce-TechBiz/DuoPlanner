@@ -140,5 +140,41 @@ Código pronto na `feat/producao-saas`; falta aplicar
       linhas da fatura) e, depois de semanas de uso, remover os índices
       redundantes que `pg_stat_user_indexes` mostrar sem uso
 
+## Fase 8 — Nora Travel Hacks e Roteiro com planilha (rodada de 19/11/2026)
+Código pronto na `feat/producao-saas`; falta aplicar
+`20261119120000_roteiro_planilha.sql` e publicar.
+- [x] 8.1 Nora Travel Hacks: 9 ferramentas (`/datas-baratas`,
+      `/aeroportos-proximos`, `/conexoes-inteligentes`, `/auditar-voo`,
+      `/verificar-taxas`, `/escolher-bairro`, `/comparar-hospedagem`,
+      `/otimizar-roteiro`, `/veredito-reserva`) com chips e menu `/` na gaveta,
+      card de análise (nota 1 a 10, veredito, taxas ocultas, "Salvar Dica no
+      Roteiro", "Criar Alerta de Preço"). Contexto do casal automático (só
+      gastos compartilhados), Gemini estruturado com prazo de 12 s, cota "ia"
+      só quando a IA é chamada e lista de conferência local de reserva
+- [x] 8.2 React Compiler removido (custava +1,8 a +17 KB gzip por rota sem
+      ganho medido). Chunk da gaveta da Nora, gzip: 18.829 B na base
+      (`5a2a96d`), 22.477 B com compilador e Nora, 18.122 B sem compilador e
+      com os 9 comandos. JS total do app, gzip: 770.529 B (base) → 784.953 B
+      (+14,4 KB: Nora, importador fase 1 e remoção do compilador). Nenhum prompt,
+      schema de IA, LangChain nem chave em chunk de navegador (o zod do motor de
+      sincronização já estava no pacote antes)
+- [x] 8.3 Roteiro com planilha: página de servidor com ilhas cliente; modelo
+      `DuoPlanner-Modelo-Roteiro.xlsx`; importação .xlsx/.csv (leitura no
+      aparelho, `xlsx` 0.20.3 só sob demanda); prévia dia a dia; curadoria da
+      Nora (classificação e sugestões com "Incluir no Roteiro"/"Ignorar") com
+      fallback determinístico sem IA, sem cota e offline
+- [x] 8.4 Impressão digital por atividade (`r1:` + SHA-256) com índice único por
+      espaço: reimportar não duplica. Gravação em lote pela fila de
+      sincronização (um insert por grupo). Mescla de espaços do convite
+      descarta a cópia repetida (testado no PGlite)
+- [x] 8.5 Roteiro agrupado por dia (data, destino, custo estimado do dia),
+      filtros Praia/Passeio/Gastronomia/Transporte e "Desfazer" de 5 s
+- [x] 8.6 Medição da rota `/dashboard/roteiro`: 14 chunks iniciais, 212.156 B
+      gzip (Checklist, sem planilha: 210.467 B), sem `xlsx` nem zod; o `xlsx`
+      (159.876 B gzip) e o diálogo de importação (11.915 B) só baixam no clique
+- [ ] 8.7 SQL `20261119120000_roteiro_planilha.sql` aplicado no SQL Editor
+      (depois da 7.9) — aguardando o Tiago
+- [ ] 8.8 Em produção, medir o Gemini contra o prazo de 12 s (Nora Travel Hacks
+      e curadoria do Roteiro) e a qualidade das sugestões (lugares reais)
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.
