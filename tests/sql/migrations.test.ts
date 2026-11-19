@@ -86,10 +86,11 @@ describe("aplicação das migrations", () => {
     const ordem = migrationsEmOrdem();
     expect(ordem[0]).toBe("20261030000000_esquema_base.sql");
     expect(ordem.indexOf("20261104_duofinance_fatura.sql")).toBeLessThan(ordem.indexOf("20261104120000_endurecimento_seguranca.sql"));
-    expect(ordem.slice(-3)).toEqual([
+    expect(ordem.slice(-4)).toEqual([
       "20261105120000_fingerprint_fatura.sql",
       "20261112140000_indices_performance.sql",
       "20261119120000_roteiro_planilha.sql",
+      "20261120120000_historico_precos_alertas.sql",
     ]);
   });
 
@@ -438,5 +439,88 @@ describe("roteiro com planilha (colunas novas, CHECKs e impressão digital)", ()
     expect(rows.filter((r) => r.fingerprint === FPR("1"))).toHaveLength(1);
     const sobrou = await db.query("select 1 from public.roteiro_itens where workspace_id = $1", [solo]);
     expect(sobrou.rows).toHaveLength(0);
+  });
+});
+
+/* ------------------------- alertas: histórico de preços ------------------------- */
+
+async function novoAlerta(pessoa: Pessoa, ws: string): Promise<string> {
+  return comoPessoa(db, pessoa, async (tx) =>
+    (await tx.query<{ id: string }>(
+      "insert into public.alertas_preco (user_id, workspace_id, tipo, destino, ida) values ($1, $2, 'voo', 'Lisboa', '2030-09-10') returning id",
+      [pessoa.id, ws]
+    )).rows[0].id
+  );
+}
+
+/** O monitor usa a chave de serviço (ignora a RLS): aqui, o superusuário do banco de teste. */
+const registrarPreco = (alerta: string, ws: string, preco: number, dia = "2030-09-01") =>
+  db.query("insert into public.alertas_preco_historico (alerta_id, workspace_id, dia, preco) values ($1, $2, $3, $4)", [alerta, ws, dia, preco]);
+
+describe("histórico de preços dos alertas", () => {
+  it("o par enxerga a série do alerta do casal; quem é de fora não vê nada", async () => {
+    const { dono, parceiro, ws } = await casal("HistCasal");
+    const fora = await criarPessoa(db, "HistFora");
+    const alerta = await novoAlerta(dono, ws);
+    await registrarPreco(alerta, ws, 1900, "2030-09-01");
+    await registrarPreco(alerta, ws, 1800.5, "2030-09-02");
+    const ler = (p: Pessoa) =>
+      comoPessoa(db, p, async (tx) => (await tx.query<{ preco: string }>("select preco from public.alertas_preco_historico where alerta_id = $1 order by dia", [alerta])).rows.map((r) => r.preco));
+    expect(await ler(parceiro)).toEqual(["1900.00", "1800.50"]);
+    expect(await ler(dono)).toHaveLength(2);
+    expect(await ler(fora)).toEqual([]);
+  });
+
+  it("nenhum navegador grava: authenticated não insere, atualiza nem apaga; anon não lê", async () => {
+    const { dono, ws } = await casal("HistEscrita");
+    const alerta = await novoAlerta(dono, ws);
+    await registrarPreco(alerta, ws, 1000);
+    const tentar = (sql: string, params: unknown[] = []) => comoPessoa(db, dono, (tx) => tx.query(sql, params));
+    await expect(tentar("insert into public.alertas_preco_historico (alerta_id, workspace_id, preco) values ($1, $2, 1)", [alerta, ws])).rejects.toMatchObject({ code: "42501" });
+    await expect(tentar("update public.alertas_preco_historico set preco = 1")).rejects.toMatchObject({ code: "42501" });
+    await expect(tentar("delete from public.alertas_preco_historico")).rejects.toMatchObject({ code: "42501" });
+    await expect(
+      db.transaction(async (tx) => {
+        await tx.exec("set local role anon");
+        await tx.query("select 1 from public.alertas_preco_historico limit 1");
+      })
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+
+  it("um preço por alerta e dia: o monitor atualiza o do dia (upsert) em vez de criar outro", async () => {
+    const { dono, ws } = await casal("HistUpsert");
+    const alerta = await novoAlerta(dono, ws);
+    await registrarPreco(alerta, ws, 1000, "2030-09-05");
+    await expect(registrarPreco(alerta, ws, 900, "2030-09-05")).rejects.toMatchObject({ code: "23505" });
+    await db.query(
+      `insert into public.alertas_preco_historico (alerta_id, workspace_id, dia, preco) values ($1, $2, '2030-09-05', 900)
+       on conflict (alerta_id, dia) do update set preco = excluded.preco`,
+      [alerta, ws]
+    );
+    const { rows } = await db.query<{ preco: string }>("select preco from public.alertas_preco_historico where alerta_id = $1", [alerta]);
+    expect(rows).toEqual([{ preco: "900.00" }]);
+  });
+
+  it("CHECK do preço (positivo, até 10 milhões) e dia padrão no fuso de São Paulo", async () => {
+    const { dono, ws } = await casal("HistCheck");
+    const alerta = await novoAlerta(dono, ws);
+    await expect(registrarPreco(alerta, ws, 0)).rejects.toMatchObject({ code: "23514" });
+    await expect(registrarPreco(alerta, ws, -5, "2030-09-02")).rejects.toMatchObject({ code: "23514" });
+    await expect(registrarPreco(alerta, ws, 10_000_001, "2030-09-03")).rejects.toMatchObject({ code: "23514" });
+    await db.query("insert into public.alertas_preco_historico (alerta_id, workspace_id, preco) values ($1, $2, 10000000)", [alerta, ws]);
+    const { rows } = await db.query<{ ok: boolean }>(
+      "select dia = (now() at time zone 'America/Sao_Paulo')::date as ok from public.alertas_preco_historico where alerta_id = $1",
+      [alerta]
+    );
+    expect(rows[0].ok).toBe(true);
+  });
+
+  it("apagar o alerta apaga o histórico", async () => {
+    const { dono, ws } = await casal("HistCascata");
+    const alerta = await novoAlerta(dono, ws);
+    await registrarPreco(alerta, ws, 1000);
+    await comoPessoa(db, dono, (tx) => tx.query("delete from public.alertas_preco where id = $1", [alerta]));
+    const { rows } = await db.query("select 1 from public.alertas_preco_historico where alerta_id = $1", [alerta]);
+    expect(rows).toHaveLength(0);
   });
 });

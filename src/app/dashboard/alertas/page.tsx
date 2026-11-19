@@ -12,6 +12,7 @@ import { parseValorMonetario } from "@/lib/finance/importar";
 import { useHoje } from "@/lib/local-store";
 import type { AlertaPreco } from "@/lib/sync/modelos";
 import { atualizarRegistro, criarRegistro, removerRegistro, useContextoSync, useRegistros } from "@/lib/sync/motor";
+import { HistoricoSobDemanda } from "@/components/alertas/historico-sob-demanda";
 import { Bell, Plane, Hotel } from "@/components/ui/icons";
 
 /**
@@ -238,6 +239,9 @@ export default function AlertasPage() {
                       {a.ativo ? "Pausar" : "Retomar"}
                     </button>
                   )}
+                </div>
+                <div className="mt-3">
+                  <HistoricoSobDemanda alertaId={a.id} precoAlvo={a.precoAlvo} />
                 </div>
               </article>
             );

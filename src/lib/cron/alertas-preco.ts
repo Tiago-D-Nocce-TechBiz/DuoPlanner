@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decidirAviso } from "@/lib/alertas/avaliar";
-import { toCents } from "@/lib/finance/money";
+import { roundMoney, toCents } from "@/lib/finance/money";
 import { SITE_URL, tabelaAusente } from "@/lib/auth/seguranca";
 import { dateInSaoPaulo, daysBetween, todayInSaoPaulo } from "@/lib/dates";
 import { buildFlightLinks, buildStayLinks } from "@/lib/deep-links";
@@ -143,6 +143,41 @@ async function precoDaHospedagem(a: AlertaPreco): Promise<ResultadoBusca> {
   return { ok: true, preco: { valor: melhor.totalPrice, link: melhor.bookingUrl, detalhe: descreverHotel(melhor) } };
 }
 
+/** Uma linha de `alertas_preco_historico`: o preço do alerta no dia. */
+export interface LinhaDeHistorico {
+  alerta_id: string;
+  workspace_id: string;
+  dia: string;
+  preco: number;
+  verificado_em: string;
+}
+
+const PRECO_MAXIMO_DO_HISTORICO = 10_000_000;
+
+/** null quando o alerta não tem espaço (o histórico é por workspace) ou o preço não cabe na CHECK da tabela. */
+export function linhaDeHistorico(a: Pick<AlertaPreco, "id" | "workspaceId">, valor: number, dia: string, verificadoEm: string): LinhaDeHistorico | null {
+  // roundMoney lança com NaN/Infinity: o histórico nunca pode derrubar a gravação do alerta.
+  if (!a.id || !a.workspaceId || !Number.isFinite(valor) || valor <= 0 || valor > PRECO_MAXIMO_DO_HISTORICO) return null;
+  const preco = roundMoney(valor);
+  if (!(preco > 0)) return null;
+  return { alerta_id: a.id, workspace_id: a.workspaceId, dia, preco, verificado_em: verificadoEm };
+}
+
+/**
+ * Grava o preço do dia de todos os alertas verificados numa única chamada
+ * (upsert por alerta e dia: rodar o monitor de novo no mesmo dia atualiza a
+ * linha, não cria outra). Banco sem a migration do histórico não é erro: o
+ * monitor segue, só não guarda a série.
+ */
+export async function gravarHistoricoDePrecos(admin: SupabaseClient, linhas: readonly LinhaDeHistorico[]): Promise<"gravado" | "sem_tabela" | "falhou" | "vazio"> {
+  if (linhas.length === 0) return "vazio";
+  const { error } = await admin.from("alertas_preco_historico").upsert([...linhas], { onConflict: "alerta_id,dia" });
+  if (!error) return "gravado";
+  if (tabelaAusente(error)) return "sem_tabela";
+  console.error("[cron:alertas] falha ao gravar o histórico de preços:", error.message);
+  return "falhou";
+}
+
 function chaveDaBusca(a: AlertaPreco): string {
   return a.tipo === "voo"
     ? ["voo", a.origemIata, a.destinoIata, a.ida, a.volta, a.adultos].join("|")
@@ -191,6 +226,7 @@ export async function monitorarAlertas(
   // tem valores próprios).
   const vistosSemDados: string[] = [];
   const semOferta: string[] = [];
+  const historico: LinhaDeHistorico[] = [];
   const verificadoEm = new Date().toISOString();
 
   await emParalelo(pendentes, opcoes.paralelo ?? 3, async ({ alerta, ultimoPrecoNotificado }) => {
@@ -228,6 +264,8 @@ export async function monitorarAlertas(
       }
 
       const preco = resultado.preco;
+      const linhaDoDia = linhaDeHistorico(alerta, preco.valor, hoje, agora.toISOString());
+      if (linhaDoDia) historico.push(linhaDoDia);
       const link = linkGravavel(preco.link) ?? linkGravavel(linkReserva(alerta));
       const campos: Record<string, unknown> = {
         ultimo_preco: preco.valor,
@@ -300,6 +338,7 @@ export async function monitorarAlertas(
           .in("id", semOferta)
       : null,
   ]);
+  if ((await gravarHistoricoDePrecos(admin, historico)) === "falhou") resumo.erros++;
   for (const gravacao of gravacoesEmGrupo) {
     if (gravacao?.error) {
       console.error("[cron:alertas] falha ao gravar um grupo de alertas:", gravacao.error.message);
