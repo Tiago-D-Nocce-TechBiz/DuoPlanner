@@ -9,6 +9,7 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "test:integracao": "vitest run --config vitest.integracao.config.mts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

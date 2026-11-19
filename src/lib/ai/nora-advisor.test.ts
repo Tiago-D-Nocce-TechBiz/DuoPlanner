@@ -180,3 +180,23 @@ describe("schemas", () => {
     }
   });
 });
+
+describe("prazo de 12 s (AbortSignal.timeout)", () => {
+  it("a chamada ao modelo recebe AbortSignal.timeout(12000) e, ao abortar, cai na lista local", async () => {
+    const controle = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controle.signal);
+    const { base } = deps({
+      modelo: {
+        invoke: (_m, { signal }) =>
+          new Promise((_, rejeitar) => signal.addEventListener("abort", () => rejeitar(new DOMException("timeout", "TimeoutError")))),
+      },
+    });
+    const pendente = consultarAdvisor({ estrategia: "veredito_reserva", texto: "" }, sessao, base);
+    await vi.waitFor(() => expect(timeout).toHaveBeenCalledWith(12_000));
+    controle.abort();
+    const r = await pendente;
+    expect(r).toMatchObject({ tipo: "analise", origem: "local" });
+    expect(r.tipo === "analise" && r.aviso).toContain("12 segundos");
+    timeout.mockRestore();
+  });
+});

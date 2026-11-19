@@ -225,3 +225,23 @@ describe("schemas e prompt (zod e prompts só no servidor)", () => {
     expect(m).toContain("Dias (número | data | destino):");
   });
 });
+
+describe("prazo de 12 s (AbortSignal.timeout)", () => {
+  it("a chamada ao modelo recebe AbortSignal.timeout(12000) e, ao abortar, a planilha segue sem sugestões", async () => {
+    const controle = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, "timeout").mockReturnValue(controle.signal);
+    const { base } = deps({
+      modelo: {
+        invoke: (_m, { signal }) =>
+          new Promise((_, rejeitar) => signal.addEventListener("abort", () => rejeitar(new DOMException("timeout", "TimeoutError")))),
+      },
+    });
+    const pendente = curarRoteiro(ENTRADA, sessao, base);
+    await vi.waitFor(() => expect(timeout).toHaveBeenCalledWith(12_000));
+    controle.abort();
+    const r = await pendente;
+    expect(r).toMatchObject({ origem: "local", classificacoes: [], sugestoes: [] });
+    expect(r.aviso).toContain("12 segundos");
+    timeout.mockRestore();
+  });
+});
