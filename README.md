@@ -62,6 +62,20 @@ Escuro com tokens CSS em `src/app/globals.css`.
   digital, com índice único por espaço). O Roteiro agrupa por dia da viagem
   (data, destino e custo estimado do dia) e filtra por Praia, Passeio,
   Gastronomia e Transporte.
+- **Roteiro: ordem e Finanças**: os dias seguem o calendário (sem data por
+  último); no mesmo dia, ou quando nenhum tem data, vale a ordem manual
+  (botões subir e descer, também para as atividades de cada dia).
+  "Lançar nas Finanças" envia o custo estimado de uma atividade, ou do dia
+  inteiro (um gasto por atividade), para o DuoFinance, depois de confirmar
+  escopo (compartilhado ou só seu) e valor. O id de cada gasto é fixo (hash
+  da atividade e do escopo): reenviar, usar outro aparelho ou o par lançar a
+  mesma atividade não duplica, e a atividade passa a mostrar "Lançado nas
+  Finanças".
+- **Alertas de Preço: histórico**: o monitor diário agora guarda o preço de
+  cada dia por alerta (`alertas_preco_historico`, uma linha por alerta e dia,
+  só o monitor grava). "Ver histórico de preços" mostra o gráfico, o menor
+  preço já visto, a variação desde a primeira verificação, a tendência e os
+  dias no alvo. O gráfico só é baixado no clique.
 - **Roteiro, Checklist, Alertas de Preço e Documentos**: sincronizados entre
   o casal (Realtime), com o que é pessoal visível só para quem lançou.
   Números de documentos são cifrados (AES-256-GCM). Remover um gasto ou um
@@ -205,6 +219,10 @@ nome. Todos são idempotentes (podem rodar de novo).
    cópia repetida de uma atividade importada é descartada, para o aceite não
    quebrar. **Obrigatória para esta versão**: sem ela o Roteiro fica em "modo
    local" (nada se perde, a fila espera no aparelho).
+8. `20261120120000_historico_precos_alertas.sql`: tabela
+   `alertas_preco_historico` (preço por alerta e dia, RLS por espaço, só o
+   monitor grava, índice único por alerta e dia). Sem ela o monitor segue e a
+   tela avisa que o histórico está indisponível.
 `npm test` aplica todas as migrations, em ordem, num Postgres em WASM
 (`tests/sql/`) e confere a RLS, os CHECKs e os gatilhos.
 
@@ -212,9 +230,83 @@ No Supabase → Authentication: confirmação de e-mail ligada, Site URL e
 Redirect URL `https://<seu-domínio>/auth/callback`, e proteção contra senhas
 vazadas.
 
+## Aplicar as migrations 7 e 8 no Supabase (passo a passo)
+Vale para `20261119120000_roteiro_planilha.sql` (7) e
+`20261120120000_historico_precos_alertas.sql` (8). Ambas são aditivas e
+idempotentes: não apagam nem alteram dado existente, e rodar de novo não faz
+mal. Aplique **antes** de publicar o app (sem elas, o Roteiro fica em "modo
+local" e o histórico de preços não é gravado; nada se perde).
+
+1. Pré-requisito: a migration 3 (`20261104120100_sincronizacao_casal.sql`) já
+   aplicada. Em Database → Backups, confirme que há um backup recente.
+2. No Supabase: **SQL Editor → New query**. Cole o arquivo 7 inteiro e clique
+   em **Run**. Esperado: `Success. No rows returned`. Repita com o arquivo 8.
+3. Confira, uma consulta por vez (cada uma no SQL Editor):
+
+```sql
+-- a) Colunas novas: esperado 6 linhas (5 em roteiro_itens, 1 em roteiro_dias).
+select table_name, column_name, data_type, is_nullable, column_default
+from information_schema.columns
+where table_schema = 'public'
+  and ((table_name = 'roteiro_itens' and column_name in ('turno','categoria','custo_estimado','origem','fingerprint'))
+    or (table_name = 'roteiro_dias' and column_name = 'destino'))
+order by 1, 2;
+
+-- b) CHECKs: esperado 3 linhas, todas com convalidated = true.
+select conname, convalidated from pg_constraint
+where conname in ('roteiro_dias_destino_check','roteiro_itens_planilha_check','alertas_preco_historico_preco_check');
+
+-- c) Índices únicos: esperado 3 linhas. O do roteiro é UNIQUE e parcial
+--    (WHERE fingerprint IS NOT NULL); o do histórico é UNIQUE (alerta_id, dia).
+select indexname, indexdef from pg_indexes
+where schemaname = 'public'
+  and indexname in ('roteiro_itens_fingerprint_uidx','alertas_preco_historico_dia_uidx','alertas_preco_historico_ws_idx');
+
+-- d) RLS ligada nas três tabelas: esperado relrowsecurity = true em todas.
+select relname, relrowsecurity from pg_class
+where relname in ('roteiro_dias','roteiro_itens','alertas_preco_historico');
+
+-- e) Políticas: roteiro_* seguem as que já existiam; alertas_preco_historico
+--    deve ter UMA só, alertas_historico_select (cmd SELECT). Nenhuma de
+--    INSERT, UPDATE ou DELETE: só o monitor (chave de serviço) grava.
+select tablename, policyname, cmd, roles from pg_policies
+where tablename in ('roteiro_dias','roteiro_itens','alertas_preco_historico')
+order by tablename, policyname;
+
+-- f) Gatilhos do roteiro_itens: esperado trg_roteiro_itens_auditoria (já existia)
+--    e trg_roteiro_itens_origem (novo: congela origem e impressão digital).
+select tgname from pg_trigger
+where not tgisinternal and tgrelid = 'public.roteiro_itens'::regclass
+order by tgname;
+
+-- g) Privilégios do histórico: esperado só (authenticated, SELECT). anon não aparece.
+select grantee, privilege_type from information_schema.role_table_grants
+where table_schema = 'public' and table_name = 'alertas_preco_historico'
+  and grantee in ('anon','authenticated');
+```
+
+4. Se alguma consulta vier diferente do esperado, **não publique**: reaplique
+   o arquivo (é idempotente) e rode a consulta de novo. Se persistir, o
+   `npm test` reproduz o esquema inteiro num Postgres em WASM
+   (`tests/sql/`) e mostra qual regra diverge.
+5. Antes do merge em `main`: aplicar 7 e 8 em produção, publicar, rodar o
+   monitor à mão (comando abaixo) e conferir que o histórico começou:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://<seu-domínio>/api/cron/price-alerts
+```
+```sql
+select alerta_id, dia, preco, verificado_em from public.alertas_preco_historico
+order by verificado_em desc limit 5;
+```
+
+Desfazer (só se for preciso; **apaga os dados dessas colunas e do histórico**):
+`drop table public.alertas_preco_historico;` e, no roteiro, `drop trigger
+trg_roteiro_itens_origem` e as colunas novas. O app antigo continua
+funcionando sem elas.
 ## Publicar (ordem segura)
 
-1. Aplicar as migrations 2, 3, 5, 6 e 7, nessa ordem (são aditivas: a versão
+1. Aplicar as migrations 2, 3, 5, 6, 7 e 8, nessa ordem (são aditivas: a versão
    em produção continua funcionando com elas).
 2. Cadastrar as variáveis novas na Vercel (produção).
 3. Fazer o merge em `main` (deploy).
@@ -280,7 +372,15 @@ npm test          # Vitest: regras de negócio e migrations (PGlite)
 npm run lint      # ESLint
 npm run build     # valida o ambiente, compila e confere os tipos
 npm run test:e2e  # Playwright: fluxos de tela e medidas (~2,5 min)
+npm run test:integracao  # opt-in: Gemini REAL (só roda com GEMINI_API_KEY)
 ```
+`npm run test:integracao` chama o Gemini de verdade (cota e custo) e fica fora
+do `npm test`. Sem `GEMINI_API_KEY` no ambiente ou no `.env.local`, os testes
+são pulados e o comando termina com sucesso. Com a chave, valida que a
+resposta estruturada de `curarRoteiroImportado` e `consultarNora` passa nos
+schemas, que as sugestões ficam só nos destinos da planilha, sem links, e que
+o prazo de 12 s é pedido ao `AbortSignal.timeout` e interrompe a chamada. O
+prazo também é coberto sem rede, com modelo falso, no `npm test`.
 
 `npm run test:e2e` usa o Microsoft Edge instalado (não baixa navegadores) e
 sobe `next dev` na porta 3200 sem Supabase, com as Server Actions cortadas

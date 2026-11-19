@@ -176,5 +176,24 @@ Código pronto na `feat/producao-saas`; falta aplicar
       (depois da 7.9) — aguardando o Tiago
 - [ ] 8.8 Em produção, medir o Gemini contra o prazo de 12 s (Nora Travel Hacks
       e curadoria do Roteiro) e a qualidade das sugestões (lugares reais)
+## Fase 9 — Fechamento, Roteiro + Finanças e histórico de preços (rodada de 19/11/2026)
+Código pronto na `feat/producao-saas`; falta aplicar
+`20261120120000_historico_precos_alertas.sql` (e a 7, se ainda não) e publicar.
+Passo a passo e consultas de conferência: README, "Aplicar as migrations 7 e 8".
+- [x] 9.1 Lint com 0 avisos e teste de higiene do repositório (`.tmp-e2e/`,
+      `.tmp-*/`, `node_modules` em qualquer nível e `.env*` ignorados e fora do Git)
+- [x] 9.2 `npm run test:integracao`: Gemini real, opt-in (pulado sem
+      `GEMINI_API_KEY`); testes offline provam o `AbortSignal.timeout(12000)`
+      na Nora e na curadoria do Roteiro
+- [x] 9.3 Ordem híbrida do Roteiro: calendário primeiro; mesma data ou sem
+      data, ordem manual (subir e descer, para dias e atividades)
+- [x] 9.4 Roteiro → DuoFinance: lançar atividade ou dia, com confirmação de
+      escopo e valor; id determinístico, sem duplicar (sem migration)
+- [x] 9.5 Alertas de Preço: histórico por alerta e dia (RLS por espaço, só o
+      monitor grava, upsert em lote), gráfico e resumo sob demanda
+- [ ] 9.6 SQL `20261120120000_historico_precos_alertas.sql` aplicado no SQL
+      Editor (depois da 8.7) — aguardando o Tiago
+- [ ] 9.7 Rodar `npm run test:integracao` com a chave real e medir a latência do
+      Gemini contra os 12 s
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.
