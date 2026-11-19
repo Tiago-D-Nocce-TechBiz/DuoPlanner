@@ -28,8 +28,12 @@ import {
   ritmoPorPalavra,
 } from "./fluxo-de-texto";
 import { NoraAvatar } from "./nora-avatar";
+import { CardAnalise } from "./nora-card-analise";
+import { consultarComFallback } from "./nora-consulta";
+import { CarrosselDeAtalhos, MenuDeComandos } from "./nora-estrategias";
 import { useNora, type NoraMensagem } from "./nora-provider";
 import { responderNora, type NoraAcao, type GrupoIcone } from "@/lib/ai/nora-brain";
+import { ESTRATEGIAS, estrategiaPorId, filtrarComandos, interpretarComando, type Estrategia, type EstrategiaId } from "@/lib/ai/nora-strategies";
 import { adicionarDespesa, rotuloCategoria } from "@/lib/finance/store";
 import { writeLocal, STORAGE_KEYS } from "@/lib/local-store";
 import { getContexto } from "@/lib/sync/motor";
@@ -341,6 +345,9 @@ export function NoraDrawer() {
   const [ouvindo, setOuvindo] = useState(false);
   const [menuPrompts, setMenuPrompts] = useState(false);
   const [pensando, setPensando] = useState(false);
+  // Menu de comandos ("/"): índice do item ativo e o texto para o qual foi dispensado (Esc).
+  const [indiceComando, setIndiceComando] = useState(0);
+  const [menuDispensadoPara, setMenuDispensadoPara] = useState<string | null>(null);
   // Mensagem da Nora sendo escrita agora (só uma por vez; as demais, inteiras).
   const [emFluxo, setEmFluxo] = useState<string | null>(null);
 
@@ -354,6 +361,8 @@ export function NoraDrawer() {
   const respostaPendenteRef = useRef<{ timer: ReturnType<typeof setTimeout> | null }>({ timer: null });
   // Propostas já gravadas: evita lançar duas vezes com clique duplo.
   const propostasGravadasRef = useRef(new Set<string>());
+  // Conversa atual: respostas das ferramentas que chegam depois de "Nova conversa" são descartadas.
+  const conversaRef = useRef(0);
 
   useEffect(() => {
     const pendente = respostaPendenteRef.current;
@@ -396,6 +405,11 @@ export function NoraDrawer() {
   function enviar(mensagem?: string) {
     const conteudo = (mensagem ?? texto).trim();
     if (!conteudo || pensando) return;
+    const comando = interpretarComando(conteudo);
+    if (comando) {
+      executarEstrategia(comando.estrategia.id, comando.resto);
+      return;
+    }
     const msgUser: NoraMensagem = { id: idMsg(), papel: "user", texto: conteudo };
     setMensagens((prev) => [...prev, msgUser]);
     setTexto("");
@@ -420,7 +434,32 @@ export function NoraDrawer() {
     }, PAUSA_ANTES_DA_RESPOSTA_MS);
   }
 
+  /** Roda uma das ferramentas de viagem (chip ou "/comando"): a análise vem da Server Action, com lista local de reserva. */
+  function executarEstrategia(id: EstrategiaId, complemento: string) {
+    if (pensando) return;
+    const est = estrategiaPorId(id);
+    const pedido = complemento ? `${est.slashCommand} ${complemento}` : est.slashCommand;
+    setMensagens((prev) => [...prev, { id: idMsg(), papel: "user", texto: pedido }]);
+    setTexto("");
+    setMenuPrompts(false);
+    setEmFluxo(null);
+    setPensando(true);
+    const pendente = respostaPendenteRef.current;
+    if (pendente.timer !== null) {
+      clearTimeout(pendente.timer);
+      pendente.timer = null;
+    }
+    const conversa = conversaRef.current;
+    void consultarComFallback(id, complemento).then((advisor) => {
+      if (conversaRef.current !== conversa) return;
+      const texto = advisor.tipo === "pergunta" ? advisor.pergunta : advisor.analise.resumo;
+      setMensagens((prev) => [...prev, { id: idMsg(), papel: "nora", texto, advisor }]);
+      setPensando(false);
+    });
+  }
+
   function iniciarNovaConversa() {
+    conversaRef.current += 1;
     const pendente = respostaPendenteRef.current;
     if (pendente.timer !== null) {
       clearTimeout(pendente.timer);
@@ -485,6 +524,20 @@ export function NoraDrawer() {
   }
 
   const semMensagens = mensagens.length === 0;
+  // Menu de comandos: aberto enquanto o texto é só "/algo" (ainda sem espaço).
+  const consultaComando = /^\/([^\s]*)$/.exec(texto)?.[1] ?? null;
+  const comandos = consultaComando !== null && menuDispensadoPara !== texto ? filtrarComandos(consultaComando) : [];
+  const menuComandosAberto = comandos.length > 0;
+  const comandoAtivo = Math.min(indiceComando, Math.max(0, comandos.length - 1));
+  function escolherComando(e: Estrategia) {
+    if (interpretarComando(texto)?.estrategia.id === e.id) {
+      enviar();
+      return;
+    }
+    setTexto(`${e.slashCommand} `);
+    setIndiceComando(0);
+    inputRef.current?.focus();
+  }
 
   return (
     <>
@@ -600,7 +653,13 @@ export function NoraDrawer() {
                         data-em-fluxo={emFluxo === m.id || undefined}
                         className="rounded-2xl rounded-tl-sm border border-[var(--color-border)] bg-background px-4 py-2.5 text-sm leading-relaxed text-[var(--color-heading)]"
                       >
-                        {emFluxo === m.id ? (
+                        {m.advisor ? (
+                          m.advisor.tipo === "pergunta" ? (
+                            m.texto
+                          ) : (
+                            <span className="sr-only">{m.texto}</span>
+                          )
+                        ) : emFluxo === m.id ? (
                           <TextoEmFluxo
                             texto={m.texto}
                             aoTerminar={() => setEmFluxo((atual) => (atual === m.id ? null : atual))}
@@ -608,6 +667,7 @@ export function NoraDrawer() {
                         ) : (
                           m.texto
                         )}
+                        {m.advisor && m.advisor.tipo === "analise" ? <CardAnalise resultado={m.advisor} /> : null}
                         {/* Os cards ocupam o lugar desde já, mas só aparecem (e
                             aceitam clique) quando o texto termina. */}
                         {m.resposta?.acoes.length ? (
@@ -646,6 +706,14 @@ export function NoraDrawer() {
 
         {/* Caixa de pergunta flutuante */}
         <div className="px-4 pb-4 pt-2">
+          {menuComandosAberto && (
+            <MenuDeComandos
+              consulta={consultaComando ?? ""}
+              indiceAtivo={comandoAtivo}
+              onEscolher={escolherComando}
+              onPassar={setIndiceComando}
+            />
+          )}
           {menuPrompts && (
             <div className="mb-2 rounded-xl border border-blue-400/30 bg-background p-2 shadow-lg">
               {PROMPTS_RAPIDOS.map((p) => (
@@ -666,22 +734,43 @@ export function NoraDrawer() {
             </div>
           )}
 
+          <CarrosselDeAtalhos estrategias={ESTRATEGIAS} desativado={pensando} onEscolher={(id) => executarEstrategia(id, "")} />
           <div className="rounded-2xl border border-blue-400/30 bg-[var(--color-elevated)] p-2.5 shadow-lg">
             <textarea
               ref={inputRef}
               value={texto}
               onChange={(e) => {
                 setTexto(e.target.value);
+                setIndiceComando(0);
                 autoAjustar(e.target);
               }}
               onKeyDown={(e) => {
+                if (menuComandosAberto) {
+                  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+                    e.preventDefault();
+                    setIndiceComando((comandoAtivo + (e.key === "ArrowDown" ? 1 : comandos.length - 1)) % comandos.length);
+                    return;
+                  }
+                  if (e.key === "Escape") {
+                    // Fecha só o menu; a gaveta continua aberta.
+                    e.stopPropagation();
+                    setMenuDispensadoPara(texto);
+                    return;
+                  }
+                  if ((e.key === "Enter" && !e.shiftKey) || e.key === "Tab") {
+                    e.preventDefault();
+                    escolherComando(comandos[comandoAtivo]);
+                    return;
+                  }
+                }
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
                   enviar();
                 }
               }}
               rows={1}
-              placeholder="Insira sua pergunta"
+              placeholder="Insira sua pergunta ou digite / para ver as ferramentas"
+              aria-haspopup="listbox"
               className="w-full resize-none bg-transparent px-2 py-1.5 text-sm text-[var(--color-heading)] placeholder:text-[var(--color-subtle)] focus:outline-none"
             />
             <div className="mt-1 flex items-center justify-between">

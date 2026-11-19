@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { NoraResposta } from "@/lib/ai/nora-brain";
+import type { ResultadoAdvisor } from "@/lib/ai/nora-strategies";
 import { obterSupabase } from "@/lib/supabase/client-sob-demanda";
 import { getContexto } from "@/lib/sync/motor";
 
@@ -22,6 +23,7 @@ export interface NoraMensagem {
   papel: NoraPapel;
   texto: string;
   resposta?: NoraResposta; // presente nas mensagens da Nora (carrega as ações)
+  advisor?: ResultadoAdvisor; // análise das ferramentas de viagem (card estruturado)
 }
 
 interface NoraContextValue {

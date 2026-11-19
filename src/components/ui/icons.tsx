@@ -723,5 +723,35 @@ export function Undo(p: IconProps) {
   );
 }
 
+/** Calendário (datas flexíveis). */
+export function Calendar(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <rect x="3.5" y="5" width="17" height="15.5" rx="2.5" />
+      <path d="M8 3v4M16 3v4M3.5 10h17" />
+    </Icon>
+  );
+}
+
+/** Marcador de lugar (bairros). */
+export function MapPin(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M12 21s6.5-5.6 6.5-11a6.5 6.5 0 0 0-13 0c0 5.4 6.5 11 6.5 11z" />
+      <circle cx="12" cy="10" r="2.3" />
+    </Icon>
+  );
+}
+
+/** Tendência de queda (cortar custos). */
+export function TrendingDown(p: IconProps) {
+  return (
+    <Icon {...p}>
+      <path d="M3 7l6.5 6.5 4-4L21 17" />
+      <path d="M15 17h6v-6" />
+    </Icon>
+  );
+}
+
 /** Tipo compatível com o antigo `LucideIcon` (um componente de ícone). */
 export type AppIcon = (props: IconProps) => React.ReactElement;
