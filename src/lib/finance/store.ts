@@ -82,6 +82,8 @@ export function rotuloCategoria(item: { escopo: Escopo; categoria?: Categoria; c
 /* ------------------------------- gravação ------------------------------- */
 
 export interface NovaDespesa {
+  /** Id fixo (lançamentos que precisam ser idempotentes, como os do Roteiro); sem ele, um id novo. */
+  id?: string;
   descricao: string;
   valor: number;
   moeda?: string;
@@ -110,10 +112,13 @@ export interface NovaDespesa {
 export function criarDespesa(nova: NovaDespesa): Despesa | null {
   const ctx = getContexto();
   if (!ctx) return null;
+  // Id fixo já gravado: é o mesmo lançamento, não cria outro.
+  const existente = nova.id ? getDespesas().find((d) => d.id === nova.id) : undefined;
+  if (existente) return existente;
   const agora = new Date().toISOString();
   const moeda = (nova.moeda ?? "BRL").toUpperCase();
   const despesa: Despesa = {
-    id: idAleatorio(),
+    id: nova.id ?? idAleatorio(),
     userId: ctx.userId,
     workspaceId: ctx.workspace?.id ?? null,
     pagoPor: nova.pagoPor ?? ctx.userId,

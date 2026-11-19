@@ -1,8 +1,10 @@
 "use client";
 
-import { memo, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Map as IconeMapa, Sparkles } from "@/components/ui/icons";
 import { ToastDesfazer } from "@/components/ui/toast-desfazer";
+import { useDespesas } from "@/lib/finance/store";
 import {
   categoriaDoItem,
   custoEstimadoDoDia,
@@ -12,6 +14,8 @@ import {
   ordenarDias,
   passaNoFiltro,
 } from "@/lib/roteiro/apresentacao";
+import { itensLancaveis, jaLancado, type PedidoNaTela } from "@/lib/roteiro/lancamento";
+import { compararPorOrdem, diasDoMesmoGrupo, moverNoGrupo } from "@/lib/roteiro/ordem";
 import { CATEGORIAS_ROTEIRO, FILTROS_ROTEIRO, ROTULO_TURNO, TURNOS_ROTEIRO, type FiltroRoteiro, type TurnoRoteiro } from "@/lib/roteiro/tipos";
 import type { RoteiroDia, RoteiroItem } from "@/lib/sync/modelos";
 import { atualizarRegistro, getRegistros, removerRegistro, useContextoSync, useRegistros } from "@/lib/sync/motor";
@@ -54,6 +58,11 @@ function efetivarRemocao(r: Remocao) {
   else removerRegistro("roteiro_itens", r.id);
 }
 
+const ConfirmarLancamento = dynamic(() => import("./confirmar-lancamento").then((m) => m.ConfirmarLancamento), {
+  ssr: false,
+  loading: () => null,
+});
+
 const mesmosItens = (a: readonly RoteiroItem[], b: readonly RoteiroItem[]) =>
   a.length === b.length && a.every((item, i) => item === b[i]);
 
@@ -68,6 +77,10 @@ export function ListaDoRoteiro() {
   const remocao = useRemocaoAdiada<Remocao>("roteiro", efetivarRemocao);
   const oculto = remocao.pendente?.id ?? null;
   const [filtro, setFiltro] = useState<FiltroRoteiro>("Todos");
+  const [lancamento, setLancamento] = useState<PedidoNaTela | null>(null);
+  const despesas = useDespesas();
+  // Gastos que já existem (de qualquer um do casal): quem já foi lançado não lança de novo.
+  const idsDeGastos = useMemo(() => new Set(despesas.map((d) => d.id)), [despesas]);
 
   const diasOrdenados = useMemo(() => ordenarDias(dias.filter((d) => d.id !== oculto)), [dias, oculto]);
 
@@ -77,9 +90,20 @@ export function ListaDoRoteiro() {
       if (!item.diaId || item.id === oculto) continue;
       mapa.set(item.diaId, [...(mapa.get(item.diaId) ?? []), item]);
     }
-    for (const lista of mapa.values()) lista.sort((a, b) => a.ordem - b.ordem);
+    for (const lista of mapa.values()) lista.sort(compararPorOrdem);
     return mapa;
   }, [itens, oculto]);
+
+  const moverDia = useCallback(
+    (diaId: string, direcao: -1 | 1) => {
+      const dia = diasOrdenados.find((d) => d.id === diaId);
+      if (!dia) return;
+      for (const m of moverNoGrupo(diasDoMesmoGrupo(diasOrdenados, dia), diaId, direcao)) {
+        atualizarRegistro("roteiro_dias", m.id, { ordem: m.ordem });
+      }
+    },
+    [diasOrdenados]
+  );
 
   const semEspaco = !ws;
   const filtrando = filtro !== "Todos";
@@ -136,6 +160,9 @@ export function ListaDoRoteiro() {
             <div className="space-y-6">
               {diasVisiveis.map((dia) => {
                 const todos = itensPorDia.get(dia.id) ?? SEM_ITENS;
+                const grupo = diasDoMesmoGrupo(diasOrdenados, dia).sort(compararPorOrdem);
+                const posicao = grupo.findIndex((d) => d.id === dia.id);
+                const lancados = userId ? todos.filter((i) => jaLancado(i.id, userId, idsDeGastos)).map((i) => i.id) : [];
                 return (
                   <DiaDoRoteiro
                     key={dia.id}
@@ -144,6 +171,14 @@ export function ListaDoRoteiro() {
                     itens={filtrando ? todos.filter((i) => passaNoFiltro(i, filtro)) : todos}
                     totalDeAtividades={todos.length}
                     custoDoDia={custoEstimadoDoDia(todos)}
+                    lancadosChave={lancados.join(",")}
+                    lancaveisDoDia={userId ? itensLancaveis(todos, userId, idsDeGastos).length : 0}
+                    podeSubir={posicao > 0}
+                    podeDescer={posicao >= 0 && posicao < grupo.length - 1}
+                    podeMoverAtividades={!filtrando}
+                    idsDeGastos={idsDeGastos}
+                    onMoverDia={moverDia}
+                    onLancar={setLancamento}
                     userId={userId}
                     ws={ws}
                     onRemover={remocao.remover}
@@ -154,6 +189,7 @@ export function ListaDoRoteiro() {
           )}
         </>
       )}
+      {lancamento && <ConfirmarLancamento key={lancamento.itens.map((i) => i.id).join(",")} pedido={lancamento} aoFechar={() => setLancamento(null)} />}
       {remocao.pendente && (
         <ToastDesfazer
           key={remocao.pendente.id}
@@ -174,6 +210,15 @@ interface PropsDia {
   itens: RoteiroItem[];
   totalDeAtividades: number;
   custoDoDia: number;
+  /** Ids das atividades já lançadas nas Finanças (só para redesenhar quando mudar). */
+  lancadosChave: string;
+  lancaveisDoDia: number;
+  podeSubir: boolean;
+  podeDescer: boolean;
+  podeMoverAtividades: boolean;
+  idsDeGastos: ReadonlySet<string>;
+  onMoverDia: (diaId: string, direcao: -1 | 1) => void;
+  onLancar: (pedido: PedidoNaTela) => void;
   userId: string | null;
   ws: string | null;
   onRemover: (r: Remocao) => void;
@@ -185,7 +230,42 @@ interface PropsDia {
  * uma atividade DELE mudou.
  */
 const DiaDoRoteiro = memo(
-  function DiaDoRoteiro({ dia, numero, itens, totalDeAtividades, custoDoDia, userId, ws, onRemover }: PropsDia) {
+  function DiaDoRoteiro({
+    dia,
+    numero,
+    itens,
+    totalDeAtividades,
+    custoDoDia,
+    lancaveisDoDia,
+    podeSubir,
+    podeDescer,
+    podeMoverAtividades,
+    idsDeGastos,
+    onMoverDia,
+    onLancar,
+    userId,
+    ws,
+    onRemover,
+  }: PropsDia) {
+    const moverAtividade = (id: string, direcao: -1 | 1) => {
+      for (const m of moverNoGrupo(itens, id, direcao)) atualizarRegistro("roteiro_itens", m.id, { ordem: m.ordem });
+    };
+    const lancarDia = () =>
+      onLancar({
+        rotulo: `Dia ${numero}`,
+        dataDoDia: dia.data,
+        destino: dia.destino ?? null,
+        itens: itens
+          .filter((i) => (i.custoEstimado ?? 0) > 0 && userId && !jaLancado(i.id, userId, idsDeGastos))
+          .map((i) => ({ id: i.id, titulo: i.titulo, categoria: i.categoria ?? null, valor: i.custoEstimado ?? 0 })),
+      });
+    const lancarAtividade = (i: RoteiroItem) =>
+      onLancar({
+        rotulo: i.titulo || "Atividade sem título",
+        dataDoDia: dia.data,
+        destino: dia.destino ?? null,
+        itens: [{ id: i.id, titulo: i.titulo, categoria: i.categoria ?? null, valor: i.custoEstimado ?? 0 }],
+      });
     const removerDia = () =>
       onRemover({
         id: dia.id,
@@ -229,6 +309,17 @@ const DiaDoRoteiro = memo(
                 "Sem custo estimado"
               )}
             </p>
+            {(podeSubir || podeDescer) && (
+              <span className="flex gap-1" role="group" aria-label={`Mover o dia ${numero}`}>
+                <button type="button" disabled={!podeSubir} onClick={() => onMoverDia(dia.id, -1)} aria-label={`Mover o dia ${numero} para cima`} className="px-2 py-1.5 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-30">↑</button>
+                <button type="button" disabled={!podeDescer} onClick={() => onMoverDia(dia.id, 1)} aria-label={`Mover o dia ${numero} para baixo`} className="px-2 py-1.5 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer disabled:opacity-30">↓</button>
+              </span>
+            )}
+            {lancaveisDoDia > 0 && (
+              <button type="button" onClick={lancarDia} className="px-3 py-1.5 rounded-lg text-xs font-medium glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer">
+                Lançar o dia nas Finanças
+              </button>
+            )}
             <button
               type="button"
               onClick={removerDia}
@@ -240,7 +331,15 @@ const DiaDoRoteiro = memo(
         </div>
         <div className="space-y-2.5">
           {itens.map((item) => (
-            <LinhaAtividade key={item.id} item={item} onRemover={onRemover} />
+            <LinhaAtividade
+              key={item.id}
+              item={item}
+              onRemover={onRemover}
+              lancado={Boolean(userId && jaLancado(item.id, userId, idsDeGastos))}
+              podeMover={podeMoverAtividades}
+              onMover={moverAtividade}
+              onLancar={lancarAtividade}
+            />
           ))}
         </div>
         <button
@@ -258,9 +357,15 @@ const DiaDoRoteiro = memo(
     a.numero === b.numero &&
     a.totalDeAtividades === b.totalDeAtividades &&
     a.custoDoDia === b.custoDoDia &&
+    a.lancadosChave === b.lancadosChave &&
+    a.lancaveisDoDia === b.lancaveisDoDia &&
+    a.podeSubir === b.podeSubir &&
+    a.podeDescer === b.podeDescer &&
+    a.podeMoverAtividades === b.podeMoverAtividades &&
     a.userId === b.userId &&
     a.ws === b.ws &&
     a.onRemover === b.onRemover &&
+    a.onMoverDia === b.onMoverDia &&
     mesmosItens(a.itens, b.itens)
 );
 
@@ -269,9 +374,17 @@ const ROTULO_ORIGEM = { planilha: "Planilha", nora_sugestao: "Sugestão da Nora"
 const LinhaAtividade = memo(function LinhaAtividade({
   item,
   onRemover,
+  lancado,
+  podeMover,
+  onMover,
+  onLancar,
 }: {
   item: RoteiroItem;
   onRemover: (r: Remocao) => void;
+  lancado: boolean;
+  podeMover: boolean;
+  onMover: (id: string, direcao: -1 | 1) => void;
+  onLancar: (item: RoteiroItem) => void;
 }) {
   // Rascunho do custo enquanto a pessoa digita ("12," ainda não é um número).
   const [rascunho, setRascunho] = useState<string | null>(null);
@@ -304,6 +417,13 @@ const LinhaAtividade = memo(function LinhaAtividade({
           onChange={(e) => atualizarRegistro("roteiro_itens", item.id, { nota: e.target.value })}
           className="glass-input"
         />
+        <span className="flex justify-self-end">
+          {podeMover && (
+            <>
+              <button type="button" onClick={() => onMover(item.id, -1)} aria-label="Mover atividade para cima" className="px-2 py-2 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer">↑</button>
+              <button type="button" onClick={() => onMover(item.id, 1)} aria-label="Mover atividade para baixo" className="px-2 py-2 rounded-lg text-xs text-[var(--color-muted)] hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer">↓</button>
+            </>
+          )}
         <button
           type="button"
           onClick={() =>
@@ -314,6 +434,7 @@ const LinhaAtividade = memo(function LinhaAtividade({
         >
           ✕
         </button>
+        </span>
       </div>
       <div className="flex flex-wrap items-center gap-2.5">
         <select
@@ -358,6 +479,16 @@ const LinhaAtividade = memo(function LinhaAtividade({
           onBlur={() => setRascunho(null)}
           className="glass-input max-w-[170px]"
         />
+        {(item.custoEstimado ?? 0) > 0 &&
+          (lancado ? (
+            <span data-lancado-financas className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-medium text-emerald-700 dark:text-emerald-300">
+              Lançado nas Finanças
+            </span>
+          ) : (
+            <button type="button" onClick={() => onLancar(item)} className="rounded-full px-3 py-1 text-[11px] font-semibold glass-panel hover:bg-black/5 dark:hover:bg-white/10 cursor-pointer">
+              Lançar nas Finanças
+            </button>
+          ))}
         {origem && (
           <span
             data-origem-atividade={origem}

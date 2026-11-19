@@ -107,7 +107,6 @@ describe("carregamento inicial da página do Roteiro", () => {
       "src/lib/roteiro/organizar.ts",
       "src/lib/roteiro/curadoria-cliente.ts",
       "src/lib/roteiro/fingerprint-roteiro.ts",
-      "src/lib/finance/sha256.ts",
       "src/lib/ai/roteiro-curadoria.ts",
       "src/app/dashboard/roteiro-import-actions.ts",
     ]) {

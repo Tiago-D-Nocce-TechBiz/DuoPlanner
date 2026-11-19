@@ -1,4 +1,5 @@
 import type { RoteiroDia, RoteiroItem } from "@/lib/sync/modelos";
+import { compararPorOrdem } from "./ordem";
 import { CATEGORIAS_ROTEIRO, type FiltroRoteiro } from "./tipos";
 
 /** Regras de exibição do Roteiro (puras, testáveis sem tela). */
@@ -14,15 +15,15 @@ export function formatarDataDoDia(iso: string | null): string {
   return `${semana} ${d}/${m}/${y}`;
 }
 
-/** Dias com data em ordem cronológica (empate pela ordem do roteiro); dias sem data depois, pela ordem. */
-export function ordenarDias<T extends Pick<RoteiroDia, "data" | "ordem">>(dias: readonly T[]): T[] {
+/** Dias com data em ordem cronológica (mesma data: pela ordem manual); dias sem data depois, também pela ordem manual. */
+export function ordenarDias<T extends Pick<RoteiroDia, "id" | "data" | "ordem">>(dias: readonly T[]): T[] {
   return [...dias].sort((a, b) => {
     if (a.data !== b.data) {
       if (a.data === null) return 1;
       if (b.data === null) return -1;
       return a.data < b.data ? -1 : 1;
     }
-    return a.ordem - b.ordem;
+    return compararPorOrdem(a, b);
   });
 }
 
