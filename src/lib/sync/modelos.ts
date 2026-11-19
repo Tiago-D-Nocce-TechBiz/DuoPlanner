@@ -1,6 +1,13 @@
 import { CATEGORIAS, ESCOPOS, type Categoria, type Escopo } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE, type CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
 import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint-formato";
+import {
+  FORMATO_FINGERPRINT_ROTEIRO,
+  ORIGENS_ROTEIRO,
+  TURNOS_ROTEIRO,
+  type OrigemRoteiro,
+  type TurnoRoteiro,
+} from "@/lib/roteiro/tipos";
 
 /**
  * Modelos sincronizados entre o casal (puro: usado no navegador e no servidor).
@@ -29,8 +36,9 @@ export const RECURSO_POR_TABELA: Record<string, Recurso> = Object.fromEntries(
 export const COLUNAS: Record<Recurso, string> = {
   despesas:
     "id, user_id, workspace_id, pago_por, tipo, descricao, valor, moeda, cotacao_brl, data, categoria, escopo, proporcao_divisao, origem, o_que_foi_gasto, categoria_detalhada, parcela_atual, total_parcelas, fatura_referencia, transaction_fingerprint, criado_em, atualizado_em, atualizado_por",
-  roteiro_dias: "id, workspace_id, user_id, data, ordem, atualizado_em, atualizado_por",
-  roteiro_itens: "id, workspace_id, dia_id, horario, titulo, descricao, ordem, atualizado_em, atualizado_por",
+  roteiro_dias: "id, workspace_id, user_id, data, destino, ordem, atualizado_em, atualizado_por",
+  roteiro_itens:
+    "id, workspace_id, dia_id, horario, turno, titulo, descricao, categoria, custo_estimado, origem, fingerprint, ordem, atualizado_em, atualizado_por",
   checklist: "id, workspace_id, user_id, texto, categoria, feito, ordem, atualizado_em, atualizado_por",
   alertas:
     "id, user_id, workspace_id, tipo, origem, origem_iata, destino, destino_iata, ida, volta, adultos, preco_alvo, ativo, ultimo_preco, ultimo_link, ultima_verificacao_em, ultimo_disparo_em, atualizado_em, atualizado_por",
@@ -82,6 +90,8 @@ export interface RoteiroDia {
   workspaceId: string | null;
   userId: string | null;
   data: string | null;
+  /** Para onde o dia vai (ex.: "Lisboa"); ausente nos dias criados à mão. */
+  destino?: string | null;
   ordem: number;
   atualizadoEm: string;
   atualizadoPor: string | null;
@@ -94,6 +104,15 @@ export interface RoteiroItem {
   horario: string;
   titulo: string;
   nota: string;
+  /* Planilha e curadoria da Nora; ausentes nas atividades digitadas à mão. */
+  /** Período do dia, quando não há horário exato. */
+  turno?: TurnoRoteiro | null;
+  categoria?: string | null;
+  /** Estimativa em reais (não é gasto lançado). */
+  custoEstimado?: number | null;
+  origem?: OrigemRoteiro;
+  /** Impressão digital da linha importada (`@/lib/roteiro/fingerprint-roteiro`); imutável. */
+  fingerprint?: string | null;
   ordem: number;
   atualizadoEm: string;
   atualizadoPor: string | null;
@@ -203,6 +222,7 @@ export function roteiroDiaDaLinha(l: Linha): RoteiroDia {
     workspaceId: txtOuNull(l.workspace_id),
     userId: txtOuNull(l.user_id),
     data: dataIso(l.data),
+    destino: txtOuNull(l.destino),
     ordem: num(l.ordem),
     atualizadoEm: txt(l.atualizado_em),
     atualizadoPor: txtOuNull(l.atualizado_por),
@@ -217,6 +237,12 @@ export function roteiroItemDaLinha(l: Linha): RoteiroItem {
     horario: txt(l.horario),
     titulo: txt(l.titulo),
     nota: txt(l.descricao),
+    turno: umDe<TurnoRoteiro | "">(l.turno, [...TURNOS_ROTEIRO, ""], "") || null,
+    categoria: txtOuNull(l.categoria),
+    custoEstimado: numOuNull(l.custo_estimado),
+    origem: umDe(l.origem, ORIGENS_ROTEIRO, "manual"),
+    fingerprint:
+      typeof l.fingerprint === "string" && FORMATO_FINGERPRINT_ROTEIRO.test(l.fingerprint) ? l.fingerprint : null,
     ordem: num(l.ordem),
     atualizadoEm: txt(l.atualizado_em),
     atualizadoPor: txtOuNull(l.atualizado_por),

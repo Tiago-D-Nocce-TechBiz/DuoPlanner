@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import ChecklistPage from "@/app/dashboard/checklist/page";
-import RoteiroPage from "@/app/dashboard/roteiro/page";
 import { ListaGastos } from "@/components/finance/lista-gastos";
+import { ListaDoRoteiro } from "@/components/roteiro/lista-do-roteiro";
 import type { ContextoSincronizacao } from "@/lib/sync/contexto";
 import { iniciarSincronizacao } from "@/lib/sync/motor";
 
@@ -13,7 +13,7 @@ import { iniciarSincronizacao } from "@/lib/sync/motor";
 const contexto = (window as unknown as { __contexto: ContextoSincronizacao }).__contexto;
 iniciarSincronizacao(contexto, { enviar: () => new Promise(() => {}) });
 
-const TELAS = { financas: ListaGastos, checklist: ChecklistPage, roteiro: RoteiroPage };
+const TELAS = { financas: ListaGastos, checklist: ChecklistPage, roteiro: ListaDoRoteiro };
 const tela = new URLSearchParams(location.search).get("tela");
 const Tela = TELAS[tela as keyof typeof TELAS] ?? ListaGastos;
 createRoot(document.getElementById("raiz")!).render(<Tela />);

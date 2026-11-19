@@ -86,7 +86,11 @@ describe("aplicação das migrations", () => {
     const ordem = migrationsEmOrdem();
     expect(ordem[0]).toBe("20261030000000_esquema_base.sql");
     expect(ordem.indexOf("20261104_duofinance_fatura.sql")).toBeLessThan(ordem.indexOf("20261104120000_endurecimento_seguranca.sql"));
-    expect(ordem.slice(-2)).toEqual(["20261105120000_fingerprint_fatura.sql", "20261112140000_indices_performance.sql"]);
+    expect(ordem.slice(-3)).toEqual([
+      "20261105120000_fingerprint_fatura.sql",
+      "20261112140000_indices_performance.sql",
+      "20261119120000_roteiro_planilha.sql",
+    ]);
   });
 
   it("é idempotente: aplicar de novo não falha nem duplica políticas, índices ou gatilhos", async () => {
@@ -310,5 +314,129 @@ describe("cotas de uso e roteiro", () => {
         tx.query("insert into public.roteiro_itens (workspace_id, dia_id, titulo, ordem) values ($1, $2, 'Passeio', 0)", [a.ws, diaDeB])
       )
     ).rejects.toMatchObject({ code: "23503" });
+  });
+});
+
+/* ------------------------- roteiro: planilha e fingerprint ------------------------- */
+
+const FPR = (c: string) => `r1:${c.repeat(64)}`;
+
+async function novoDia(tx: Transaction, ws: string, campos: Record<string, unknown> = {}): Promise<string> {
+  const linha = { workspace_id: ws, ordem: 0, ...campos };
+  const colunas = Object.keys(linha);
+  const { rows } = await tx.query<{ id: string }>(
+    `insert into public.roteiro_dias (${colunas.join(", ")}) values (${colunas.map((_, i) => `$${i + 1}`).join(", ")}) returning id`,
+    Object.values(linha)
+  );
+  return rows[0].id;
+}
+
+async function novoItem(tx: Transaction, ws: string, dia: string, campos: Record<string, unknown> = {}): Promise<string> {
+  const linha = { workspace_id: ws, dia_id: dia, titulo: "Passeio", ordem: 0, ...campos };
+  const colunas = Object.keys(linha);
+  const { rows } = await tx.query<{ id: string }>(
+    `insert into public.roteiro_itens (${colunas.join(", ")}) values (${colunas.map((_, i) => `$${i + 1}`).join(", ")}) returning id`,
+    Object.values(linha)
+  );
+  return rows[0].id;
+}
+
+describe("roteiro com planilha (colunas novas, CHECKs e impressão digital)", () => {
+  it("atividade antiga continua valendo: origem 'manual' por padrão e os campos novos nulos", async () => {
+    const { dono, ws } = await casal("RotPadrao");
+    const linha = await comoPessoa(db, dono, async (tx) => {
+      const dia = await novoDia(tx, ws);
+      const id = await novoItem(tx, ws, dia);
+      return (await tx.query<Record<string, unknown>>("select turno, categoria, custo_estimado, origem, fingerprint from public.roteiro_itens where id = $1", [id])).rows[0];
+    });
+    expect(linha).toEqual({ turno: null, categoria: null, custo_estimado: null, origem: "manual", fingerprint: null });
+  });
+
+  it("grava dia com destino e atividade importada completa; o par enxerga os dois", async () => {
+    const { dono, parceiro, ws } = await casal("RotCompleto");
+    await comoPessoa(db, dono, async (tx) => {
+      const dia = await novoDia(tx, ws, { destino: "Lisboa", data: "2026-09-10" });
+      await novoItem(tx, ws, dia, { titulo: "Bondinho 28", turno: "manha", categoria: "Passeio", custo_estimado: 25.5, origem: "planilha", fingerprint: FPR("a") });
+    });
+    const vistas = await comoPessoa(db, parceiro, async (tx) =>
+      (await tx.query<{ destino: string; categoria: string; custo_estimado: string; origem: string }>(
+        "select d.destino, i.categoria, i.custo_estimado, i.origem from public.roteiro_itens i join public.roteiro_dias d on d.id = i.dia_id"
+      )).rows
+    );
+    expect(vistas).toEqual([{ destino: "Lisboa", categoria: "Passeio", custo_estimado: "25.50", origem: "planilha" }]);
+  });
+
+  it("CHECKs: turno, custo, origem, formato da impressão digital e tamanho do destino", async () => {
+    const { dono, ws } = await casal("RotChecks");
+    const tentar = (campos: Record<string, unknown>) =>
+      comoPessoa(db, dono, async (tx) => novoItem(tx, ws, await novoDia(tx, ws), campos));
+    await expect(tentar({ turno: "madrugada" })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ custo_estimado: -1 })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ custo_estimado: 1_000_001 })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ origem: "robo" })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ categoria: "x".repeat(41) })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ origem: "planilha", fingerprint: "r1:abc" })).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ origem: "planilha", fingerprint: `v1:${"a".repeat(64)}` })).rejects.toMatchObject({ code: "23514" });
+    // Atividade digitada à mão não tem impressão digital.
+    await expect(tentar({ origem: "manual", fingerprint: FPR("a") })).rejects.toMatchObject({ code: "23514" });
+    await expect(comoPessoa(db, dono, (tx) => novoDia(tx, ws, { destino: "x".repeat(81) }))).rejects.toMatchObject({ code: "23514" });
+    await expect(tentar({ turno: "noite", categoria: "Praia", custo_estimado: 0, origem: "nora_sugestao", fingerprint: FPR("b") })).resolves.toBeTruthy();
+  });
+
+  it("a mesma impressão digital não entra duas vezes no espaço (23505), mas o outro casal pode ter a sua", async () => {
+    const a = await casal("RotUnicoA");
+    const b = await casal("RotUnicoB");
+    const importar = (c: { dono: Pessoa; ws: string }, fp: string) =>
+      comoPessoa(db, c.dono, async (tx) => novoItem(tx, c.ws, await novoDia(tx, c.ws), { origem: "planilha", fingerprint: fp }));
+    await importar(a, FPR("c"));
+    await expect(importar(a, FPR("c"))).rejects.toMatchObject({ code: "23505" });
+    await expect(importar(b, FPR("c"))).resolves.toBeTruthy();
+  });
+
+  it("atividades sem impressão digital não colidem entre si; apagar libera a impressão digital", async () => {
+    const { dono, ws } = await casal("RotLivre");
+    const id = await comoPessoa(db, dono, async (tx) => {
+      const dia = await novoDia(tx, ws);
+      await novoItem(tx, ws, dia);
+      await novoItem(tx, ws, dia);
+      return novoItem(tx, ws, dia, { origem: "planilha", fingerprint: FPR("d") });
+    });
+    await comoPessoa(db, dono, (tx) => tx.query("delete from public.roteiro_itens where id = $1", [id]));
+    await expect(comoPessoa(db, dono, async (tx) => novoItem(tx, ws, await novoDia(tx, ws), { origem: "planilha", fingerprint: FPR("d") }))).resolves.toBeTruthy();
+  });
+
+  it("origem e impressão digital são imutáveis; custo, categoria e turno continuam editáveis", async () => {
+    const { dono, ws } = await casal("RotImutavel");
+    const linha = await comoPessoa(db, dono, async (tx) => {
+      const id = await novoItem(tx, ws, await novoDia(tx, ws), { origem: "planilha", fingerprint: FPR("e"), custo_estimado: 10 });
+      await tx.query("update public.roteiro_itens set fingerprint = $2, origem = 'manual', custo_estimado = 99, categoria = 'Praia', turno = 'tarde' where id = $1", [id, FPR("f")]);
+      return (await tx.query<Record<string, unknown>>("select fingerprint, origem, custo_estimado, categoria, turno from public.roteiro_itens where id = $1", [id])).rows[0];
+    });
+    expect(linha).toEqual({ fingerprint: FPR("e"), origem: "planilha", custo_estimado: "99.00", categoria: "Praia", turno: "tarde" });
+  });
+
+  it("aceitar um convite não quebra quando os dois já tinham importado a mesma planilha: a cópia repetida é descartada", async () => {
+    const dono = await criarPessoa(db, "RotMescDono");
+    const par = await criarPessoa(db, "RotMescPar");
+    const ws = await criarEspaco(dono);
+    const solo = await criarEspaco(par, "Só meu");
+    await comoPessoa(db, dono, async (tx) => novoItem(tx, ws, await novoDia(tx, ws), { titulo: "Bondinho 28", origem: "planilha", fingerprint: FPR("1") }));
+    await comoPessoa(db, par, async (tx) => {
+      const dia = await novoDia(tx, solo);
+      await novoItem(tx, solo, dia, { titulo: "Bondinho 28", origem: "planilha", fingerprint: FPR("1") }); // repetida
+      await novoItem(tx, solo, dia, { titulo: "Alfama", origem: "planilha", fingerprint: FPR("2") });
+      await novoItem(tx, solo, dia, { titulo: "Anotação minha" });
+    });
+
+    expect(await aceitar(par, await convidar(dono, ws))).toEqual({ ok: true, mensagem: "Conta vinculada ao espaço compartilhado!" });
+
+    const { rows } = await db.query<{ titulo: string; fingerprint: string | null }>(
+      "select titulo, fingerprint from public.roteiro_itens where workspace_id = $1 order by titulo",
+      [ws]
+    );
+    expect(rows.map((r) => r.titulo)).toEqual(["Alfama", "Anotação minha", "Bondinho 28"]);
+    expect(rows.filter((r) => r.fingerprint === FPR("1"))).toHaveLength(1);
+    const sobrou = await db.query("select 1 from public.roteiro_itens where workspace_id = $1", [solo]);
+    expect(sobrou.rows).toHaveLength(0);
   });
 });

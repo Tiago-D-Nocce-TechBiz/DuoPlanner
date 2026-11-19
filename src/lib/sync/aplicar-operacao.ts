@@ -20,7 +20,8 @@ export type ResultadoOperacao =
       status: "rejeitada";
       /**
        * "duplicado": a mesma compra da fatura já está gravada por esta pessoa
-       * (índice único do `transaction_fingerprint`). O aparelho descarta a
+       * (índice único do `transaction_fingerprint`) ou a mesma atividade da
+       * planilha já está no roteiro (`fingerprint`). O aparelho descarta a
        * cópia em silêncio: não há o que corrigir.
        */
       motivo: "validacao" | "permissao" | "nao_encontrado" | "sem_espaco" | "duplicado";
@@ -116,6 +117,10 @@ export async function aplicarOperacao(
   // Outro id com a mesma compra da fatura (outra aba, outro aparelho).
   if (op.recurso === "despesas" && campos.transactionFingerprint) {
     return { opId: op.opId, status: "rejeitada", motivo: "duplicado", mensagem: "Esta compra da fatura já estava salva." };
+  }
+  // Idem para a atividade importada da planilha (mesma impressão digital no espaço).
+  if (op.recurso === "roteiro_itens" && campos.fingerprint) {
+    return { opId: op.opId, status: "rejeitada", motivo: "duplicado", mensagem: "Esta atividade já estava no roteiro." };
   }
   // Duplicidade sem registro visível: repetir não resolve (não é falha temporária).
   return { opId: op.opId, status: "rejeitada", motivo: "validacao", mensagem: "Este item já existe no servidor." };

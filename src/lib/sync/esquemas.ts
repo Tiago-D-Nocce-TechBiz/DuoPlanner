@@ -3,6 +3,7 @@ import { CATEGORIAS, ESCOPOS } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE } from "@/lib/finance/categorias-duofinance";
 import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint-formato";
 import { roundMoney } from "@/lib/finance/money";
+import { FORMATO_FINGERPRINT_ROTEIRO, LIMITES_ROTEIRO, ORIGENS_ROTEIRO, TURNOS_ROTEIRO } from "@/lib/roteiro/tipos";
 import { ORIGENS_DESPESA, RECURSOS, type Recurso } from "./modelos";
 
 /**
@@ -81,20 +82,34 @@ export const despesaAtualizar = despesaCampos.partial();
 export const roteiroDiaCriar = z.object({
   id: uuid,
   data: dataIso.nullable(),
+  destino: z.string().trim().max(LIMITES_ROTEIRO.destino).nullable().optional(),
   ordem: z.number().int().min(0).max(10_000),
 });
 export const roteiroDiaAtualizar = roteiroDiaCriar.omit({ id: true }).partial();
-
-export const roteiroItemCriar = z.object({
-  id: uuid,
-  diaId: uuid,
+/** Campos que a tela edita depois de criada a atividade. */
+const roteiroItemCampos = z.object({
   horario,
-  titulo: z.string().max(120),
-  nota: z.string().max(500),
+  titulo: z.string().max(LIMITES_ROTEIRO.titulo),
+  nota: z.string().max(LIMITES_ROTEIRO.nota),
   ordem: z.number().int().min(0).max(10_000),
+  turno: z.enum(TURNOS_ROTEIRO).nullable().optional(),
+  categoria: z.string().trim().max(LIMITES_ROTEIRO.categoria).nullable().optional(),
+  custoEstimado: z.number().min(0).max(LIMITES_ROTEIRO.custoMaximo).transform(centavos).nullable().optional(),
 });
-export const roteiroItemAtualizar = roteiroItemCriar.omit({ id: true, diaId: true }).partial();
-
+export const roteiroItemCriar = roteiroItemCampos
+  .extend({
+    id: uuid,
+    diaId: uuid,
+    // Só na criação (a atualização nem os conhece); o banco os congela.
+    origem: z.enum(ORIGENS_ROTEIRO).optional(),
+    fingerprint: z.string().regex(FORMATO_FINGERPRINT_ROTEIRO, "Impressão digital inválida.").nullable().optional(),
+  })
+  .superRefine((i, ctx) => {
+    if (i.fingerprint && (i.origem ?? "manual") === "manual") {
+      ctx.addIssue({ code: "custom", path: ["fingerprint"], message: "Só atividades da planilha ou da Nora têm impressão digital." });
+    }
+  });
+export const roteiroItemAtualizar = roteiroItemCampos.partial();
 /* -------------------------------- checklist ------------------------------- */
 
 export const checklistCriar = z.object({
@@ -191,8 +206,20 @@ const COLUNA_DO_CAMPO: Record<Recurso, Record<string, string>> = {
     faturaReferencia: "fatura_referencia",
     transactionFingerprint: "transaction_fingerprint",
   },
-  roteiro_dias: { id: "id", data: "data", ordem: "ordem" },
-  roteiro_itens: { id: "id", diaId: "dia_id", horario: "horario", titulo: "titulo", nota: "descricao", ordem: "ordem" },
+  roteiro_dias: { id: "id", data: "data", destino: "destino", ordem: "ordem" },
+  roteiro_itens: {
+    id: "id",
+    diaId: "dia_id",
+    horario: "horario",
+    turno: "turno",
+    titulo: "titulo",
+    nota: "descricao",
+    categoria: "categoria",
+    custoEstimado: "custo_estimado",
+    origem: "origem",
+    fingerprint: "fingerprint",
+    ordem: "ordem",
+  },
   checklist: { id: "id", texto: "texto", categoria: "categoria", feito: "feito", ordem: "ordem" },
   alertas: {
     id: "id",
