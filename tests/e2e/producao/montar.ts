@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
-import { build, type Plugin } from "rolldown";
+import { build } from "rolldown";
 
 /**
  * Pacotes de navegador com o React de PRODUÇÃO, para cronometrar telas fora
