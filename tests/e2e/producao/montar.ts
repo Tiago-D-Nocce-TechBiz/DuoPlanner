@@ -74,9 +74,10 @@ export async function montarPacote(raiz: string, entrada: string, substitutos: R
       },
     },
     output: { format: "iife", minify: true },
-    // "use client" não significa nada num pacote só de navegador.
+    // "use client" não significa nada num pacote só de navegador; PLUGIN_TIMINGS é só
+    // o relatório de tempo do React Compiler (informativo). Qualquer outro aviso é erro.
     onLog: (nivel, log) => {
-      if (log.code !== "MODULE_LEVEL_DIRECTIVE") throw new Error(`[rolldown] ${nivel}: ${log.message}`);
+      if (log.code !== "MODULE_LEVEL_DIRECTIVE" && log.code !== "PLUGIN_TIMINGS") throw new Error(`[rolldown] ${nivel}: ${log.message}`);
     },
   });
   return output[0].code;

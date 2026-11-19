@@ -65,15 +65,21 @@ export type Medida = { mediana: number; pior: number; todas: number[] };
 /**
  * Repete a interação `vezes` vezes depois de uma rodada de aquecimento (a
  * primeira vez de cada caminho paga a compilação do JavaScript sob a CPU
- * freada: entra no "pior", mas não decide a mediana).
+ * freada: entra no "pior", mas não decide a mediana). `aquecimentos` > 1 para
+ * o `next dev`, que compila e otimiza aos poucos e tem picos nas primeiras vezes.
  */
-export async function medir(page: Page, vezes: number, acao: (i: number) => Promise<void>): Promise<Medida> {
+export async function medir(
+  page: Page,
+  vezes: number,
+  acao: (i: number) => Promise<void>,
+  aquecimentos = 1
+): Promise<Medida> {
   const todas: number[] = [];
-  for (let i = -1; i < vezes; i++) {
+  for (let i = -aquecimentos; i < vezes; i++) {
     await acao(i);
     todas.push(await piorInteracao(page));
   }
-  const quentes = todas.slice(1).sort((a, b) => a - b);
+  const quentes = todas.slice(aquecimentos).sort((a, b) => a - b);
   return { mediana: quentes[Math.floor(quentes.length / 2)], pior: Math.max(...todas), todas };
 }
 

@@ -30,7 +30,7 @@ import {
   LOTES_SIMULTANEOS_IA,
   type TransacaoParaEnriquecer,
 } from "@/lib/finance/enriquecimento";
-import { fingerprintsDoLote, proximoFingerprintLivre } from "@/lib/finance/fingerprint";
+import { fingerprintsDoLote, proximoFingerprintLivre, type CompraParaFingerprint } from "@/lib/finance/fingerprint";
 import {
   analisarFatura,
   calcularRaioX,
@@ -69,10 +69,14 @@ const TAMANHO_MAXIMO_ARQUIVO = 2 * 1024 * 1024;
 /** User Timing da fase 1 (texto pronto → tabela na tela); os testes de navegador leem. */
 const MARCA_FASE1 = "duofinance:fase1";
 /**
- * Linhas da primeira pintura: mais que o suficiente para a tela (a lista
- * começa abaixo do Raio-X).
+ * Linhas da primeira pintura. A lista começa abaixo do Raio-X: no celular
+ * nenhuma linha aparece sem rolar; num notebook (1280 × 800 a 1440 × 900)
+ * aparecem 2 a 3 e num monitor 1920 × 1080, 6 (medido com o CSS real). Cada
+ * linha custa de 3 a 6 ms na fase 1 de um celular médio (CPU 4x): montar 20
+ * de cara deixava a fase 1 ~70 ms mais lenta sem mostrar nada a mais. As
+ * demais entram em levas, uma por quadro.
  */
-const LINHAS_IMEDIATAS = 20;
+const LINHAS_IMEDIATAS = 4;
 /** Linhas montadas por quadro depois disso (cada leva custa poucos ms de estilo e layout). */
 const LINHAS_POR_QUADRO = 20;
 /** Altura reservada por linha ainda não montada: estimativa da linha + espaçamento. */
@@ -92,6 +96,24 @@ async function lerArquivoComoTexto(file: File): Promise<string> {
 }
 
 const temArquivos = (dados: DataTransfer | null) => Boolean(dados && Array.from(dados.types).includes("Files"));
+
+/** Fingerprints do lote; null se algo inesperado falhar (aí vale só a checagem por data e valor). */
+function fingerprintsOuNada(compras: CompraParaFingerprint[]): string[] | null {
+  try {
+    return fingerprintsDoLote(compras);
+  } catch {
+    return null;
+  }
+}
+
+/** "Importar mesmo assim": a próxima ocorrência livre; null se esgotar (a linha sai sem fingerprint). */
+function proximoLivreOuNada(compra: CompraParaFingerprint, ocupados: ReadonlySet<string>): string | null {
+  try {
+    return proximoFingerprintLivre(compra, ocupados);
+  } catch {
+    return null;
+  }
+}
 
 function marcar(nome: string) {
   try {
@@ -136,7 +158,6 @@ export function SmartInvoiceImporter() {
   const [aba, setAba] = useState<Aba>("todos");
   const [filtroCategoria, setFiltroCategoria] = useState<CategoriaDuoFinance | null>(null);
   const [selecionados, setSelecionados] = useState<ReadonlySet<string>>(() => new Set());
-  const [salvando, setSalvando] = useState(false);
   /** Quantos gastos entraram na fila, em qual espaço (null = sem casal ainda) e quantos já existiam. */
   const [salvo, setSalvo] = useState<{ quantidade: number; espaco: string | null; pulados: number } | null>(null);
   const [erroSalvar, setErroSalvar] = useState<string | null>(null);
@@ -190,7 +211,7 @@ export function SmartInvoiceImporter() {
 
   /* ---- Fase 1: análise local ---- */
 
-  async function processar(texto: string) {
+  function processar(texto: string) {
     const geracao = ++geracaoRef.current;
     marcar(`${MARCA_FASE1}:${geracao}`);
     const base = analisarFatura(texto, todayInSaoPaulo());
@@ -203,10 +224,9 @@ export function SmartInvoiceImporter() {
       return;
     }
     const compras = base.transacoes.map(compraDaTransacao);
-    // SHA-256 via Web Crypto: milissegundos para centenas de linhas. Sem ela
-    // (http fora de localhost), vale só a checagem por data e valor.
-    const fps = await fingerprintsDoLote(compras).catch(() => null);
-    if (geracaoRef.current !== geracao) return; // outra importação começou
+    // SHA-256 síncrono (`@/lib/finance/sha256`): a fase 1 inteira roda num
+    // passo só, sem esperar uma promessa por compra no laço de eventos.
+    const fps = fingerprintsOuNada(compras);
 
     const novasLinhas: LinhaImportada[] = base.transacoes.map((t, i) => ({
       id: t.id,
@@ -257,7 +277,7 @@ export function SmartInvoiceImporter() {
         }
         // Qualquer falha encerra a etapa: sem chave, sem cota, sem sessão ou
         // IA fora do ar (cada novo lote gastaria cota à toa).
-        interrupcao ??= r.error;
+        if (interrupcao === null) interrupcao = r.error;
         despachar({ tipo: "liberar", geracao, ids });
       },
       () => !atual() || interrupcao !== null
@@ -280,7 +300,7 @@ export function SmartInvoiceImporter() {
       return;
     }
     try {
-      await processar(await lerArquivoComoTexto(file));
+      processar(await lerArquivoComoTexto(file));
     } catch {
       setAviso("Não foi possível ler o arquivo. Tente de novo ou cole o texto da fatura.");
     }
@@ -344,8 +364,9 @@ export function SmartInvoiceImporter() {
   // Mesmo caminho dos demais gastos: fila persistida (sobrevive a ficar
   // offline), RLS por espaço e escopo, Realtime para o par e entrada no
   // acerto. O servidor valida cada linha e tira user_id/workspace_id da sessão.
-  async function confirmar() {
-    if (salvando) return;
+  // Síncrono: grava na fila e troca para a tela de sucesso no mesmo clique
+  // (não há "Salvando…" a mostrar, nem segundo clique possível).
+  function confirmar() {
     const validas = transacoes.filter((t) => !t.ignorarNoCalculo);
     const aSalvar = validas.filter((t) => !estaPulada(t.id));
     if (aSalvar.length === 0) return;
@@ -353,61 +374,56 @@ export function SmartInvoiceImporter() {
       setErroSalvar("O painel ainda está carregando. Tente de novo em instantes.");
       return;
     }
-    setSalvando(true);
     // Respostas da IA que chegarem depois daqui não mexem em nada.
     geracaoRef.current++;
-    try {
-      // Fingerprints já usados por esta pessoa (salvos ou na fila). Linhas
-      // novas ficam com a ocorrência natural (a próxima reimportação as
-      // reconhece igual); só a linha salva "mesmo assim" recebe a próxima
-      // ocorrência livre, que o índice único do banco aceita.
-      const ocupados = new Set<string>();
-      for (const d of despesas) {
-        if (d.userId === ctx.userId && d.transactionFingerprint) ocupados.add(d.transactionFingerprint);
-      }
-      const finais = new Map<string, string | null>();
-      const repetidas: TransacaoAnalisada[] = [];
-      for (const t of aSalvar) {
-        const fp = fingerprints?.get(t.id) ?? null;
-        if (fp && ocupados.has(fp)) {
-          repetidas.push(t);
-          continue;
-        }
-        if (fp) ocupados.add(fp);
-        finais.set(t.id, fp);
-      }
-      for (const t of repetidas) {
-        const fp = await proximoFingerprintLivre(compraDaTransacao(t), ocupados).catch(() => null);
-        if (fp) ocupados.add(fp);
-        finais.set(t.id, fp);
-      }
-
-      let quantidade = 0;
-      for (const t of aSalvar) {
-        const parcela = t.installmentInfo;
-        const criado = criarDespesa({
-          descricao: t.cleanMerchantName,
-          valor: t.valor,
-          moeda: t.moeda,
-          data: /^\d{4}-\d{2}-\d{2}$/.test(t.dataIso) ? t.dataIso : undefined,
-          categoria: categoriaParaStore(t.category),
-          escopo: escopoParaStore(t.suggestedScope),
-          origem: "importacao",
-          fatura: {
-            oQueFoiGasto: t.whatWasBought,
-            categoriaDetalhada: t.category,
-            parcela: parcela.isInstallment ? { atual: parcela.currentInstallment, total: parcela.totalInstallments } : null,
-            referencia: faturaReferencia,
-            fingerprint: finais.get(t.id) ?? null,
-          },
-        });
-        if (criado) quantidade++;
-      }
-      setErroSalvar(null);
-      setSalvo({ quantidade, espaco: ctx.workspace?.nome ?? null, pulados: validas.length - aSalvar.length });
-    } finally {
-      setSalvando(false);
+    // Fingerprints já usados por esta pessoa (salvos ou na fila). Linhas
+    // novas ficam com a ocorrência natural (a próxima reimportação as
+    // reconhece igual); só a linha salva "mesmo assim" recebe a próxima
+    // ocorrência livre, que o índice único do banco aceita.
+    const ocupados = new Set<string>();
+    for (const d of despesas) {
+      if (d.userId === ctx.userId && d.transactionFingerprint) ocupados.add(d.transactionFingerprint);
     }
+    const finais = new Map<string, string | null>();
+    const repetidas: TransacaoAnalisada[] = [];
+    for (const t of aSalvar) {
+      const fp = fingerprints?.get(t.id) ?? null;
+      if (fp && ocupados.has(fp)) {
+        repetidas.push(t);
+        continue;
+      }
+      if (fp) ocupados.add(fp);
+      finais.set(t.id, fp);
+    }
+    for (const t of repetidas) {
+      const fp = proximoLivreOuNada(compraDaTransacao(t), ocupados);
+      if (fp) ocupados.add(fp);
+      finais.set(t.id, fp);
+    }
+
+    let quantidade = 0;
+    for (const t of aSalvar) {
+      const parcela = t.installmentInfo;
+      const criado = criarDespesa({
+        descricao: t.cleanMerchantName,
+        valor: t.valor,
+        moeda: t.moeda,
+        data: /^\d{4}-\d{2}-\d{2}$/.test(t.dataIso) ? t.dataIso : undefined,
+        categoria: categoriaParaStore(t.category),
+        escopo: escopoParaStore(t.suggestedScope),
+        origem: "importacao",
+        fatura: {
+          oQueFoiGasto: t.whatWasBought,
+          categoriaDetalhada: t.category,
+          parcela: parcela.isInstallment ? { atual: parcela.currentInstallment, total: parcela.totalInstallments } : null,
+          referencia: faturaReferencia,
+          fingerprint: finais.get(t.id) ?? null,
+        },
+      });
+      if (criado) quantidade++;
+    }
+    setErroSalvar(null);
+    setSalvo({ quantidade, espaco: ctx.workspace?.nome ?? null, pulados: validas.length - aSalvar.length });
   }
 
   /* ---- Render ---- */
@@ -532,7 +548,7 @@ export function SmartInvoiceImporter() {
           />
           <button
             type="button"
-            onClick={() => void processar(textoColado)}
+            onClick={() => processar(textoColado)}
             disabled={!textoColado.trim()}
             className="mt-2 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold glass-panel cursor-pointer disabled:opacity-50"
           >
@@ -587,12 +603,12 @@ export function SmartInvoiceImporter() {
           </button>
           <button
             type="button"
-            onClick={() => void confirmar()}
-            disabled={!ctx || qtdASalvar === 0 || salvando}
+            onClick={() => confirmar()}
+            disabled={!ctx || qtdASalvar === 0}
             className="inline-flex items-center gap-1.5 rounded-xl bg-[var(--color-accent)] px-4 py-2 text-xs font-semibold text-[var(--color-accent-foreground)] cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
           >
             <CheckCircle2 className="h-4 w-4" />
-            {salvando ? "Salvando…" : qtdASalvar === 0 ? "Nada novo para salvar" : `Salvar ${qtdASalvar} no DuoFinance`}
+            {qtdASalvar === 0 ? "Nada novo para salvar" : `Salvar ${qtdASalvar} no DuoFinance`}
           </button>
         </div>
       </div>

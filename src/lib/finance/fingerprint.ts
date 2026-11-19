@@ -1,8 +1,10 @@
+import { FORMATO_FINGERPRINT, VERSAO_FINGERPRINT } from "./fingerprint-formato";
 import { toCents } from "./money";
+import { sha256HexDoTexto } from "./sha256";
 
 /**
  * `transaction_fingerprint`: impressão digital de uma compra importada da
- * fatura (puro; roda no navegador e no Node, via Web Crypto).
+ * fatura (puro e síncrono; roda no navegador e no Node).
  *
  * Entrada canônica, versão 1:
  *
@@ -20,12 +22,16 @@ import { toCents } from "./money";
  * para o índice e sem repetir a descrição em claro. O banco garante a
  * unicidade por pessoa (índice único parcial em user_id + fingerprint).
  *
+ * O SHA-256 é o de `./sha256` (JavaScript, síncrono), com resultado idêntico
+ * ao do Web Crypto: os fingerprints já gravados continuam batendo. Síncrono
+ * para a fatura aparecer na hora (ver o comentário em `./sha256`) e para
+ * funcionar também fora de contexto seguro.
+ *
  * Trocar qualquer regra acima exige um novo prefixo (v2): fingerprints de
  * versões diferentes nunca se comparam.
  */
 
-export const VERSAO_FINGERPRINT = "v1";
-export const FORMATO_FINGERPRINT = /^v1:[0-9a-f]{64}$/;
+export { FORMATO_FINGERPRINT, VERSAO_FINGERPRINT };
 
 export interface CompraParaFingerprint {
   /** Data do lançamento, AAAA-MM-DD. */
@@ -60,35 +66,24 @@ export function entradaDoFingerprint(c: CompraParaFingerprint, ocorrencia: numbe
   return `${baseDoFingerprint(c)}|#${ocorrencia}`;
 }
 
-/** Web Crypto só existe em contexto seguro (https ou localhost). */
-export function fingerprintDisponivel(): boolean {
-  return typeof globalThis.crypto?.subtle?.digest === "function";
-}
-
-async function sha256Hex(texto: string): Promise<string> {
-  const resumo = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(texto));
-  return Array.from(new Uint8Array(resumo), (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-export async function calcularFingerprint(c: CompraParaFingerprint, ocorrencia: number): Promise<string> {
-  return `${VERSAO_FINGERPRINT}:${await sha256Hex(entradaDoFingerprint(c, ocorrencia))}`;
+export function calcularFingerprint(c: CompraParaFingerprint, ocorrencia: number): string {
+  return `${VERSAO_FINGERPRINT}:${sha256HexDoTexto(entradaDoFingerprint(c, ocorrencia))}`;
 }
 
 /**
  * Fingerprints de um arquivo inteiro, na ordem das linhas (cada linha
- * idêntica recebe a próxima ocorrência). null quando o navegador não tem Web
- * Crypto: a importação segue só com a checagem por data e valor.
+ * idêntica recebe a próxima ocorrência). Numa fatura de 200 compras: 1 a 2 ms
+ * na CPU de um computador, ~15 ms com a CPU 4x mais lenta (celular médio).
  */
-export async function fingerprintsDoLote(compras: readonly CompraParaFingerprint[]): Promise<string[] | null> {
-  if (!fingerprintDisponivel()) return null;
+export function fingerprintsDoLote(compras: readonly CompraParaFingerprint[]): string[] {
   const vistas = new Map<string, number>();
-  const ocorrencias = compras.map((c) => {
+  return compras.map((c) => {
     const base = baseDoFingerprint(c);
     const n = (vistas.get(base) ?? 0) + 1;
     vistas.set(base, n);
-    return n;
+    // A mesma entrada de `entradaDoFingerprint(c, n)`, sem montar a base de novo.
+    return `${VERSAO_FINGERPRINT}:${sha256HexDoTexto(`${base}|#${n}`)}`;
   });
-  return Promise.all(compras.map((c, i) => calcularFingerprint(c, ocorrencias[i])));
 }
 
 /**
@@ -96,13 +91,9 @@ export async function fingerprintsDoLote(compras: readonly CompraParaFingerprint
  * não está gravada nem reservada neste lote. Sem isso o índice único do
  * banco recusaria a linha.
  */
-export async function proximoFingerprintLivre(
-  c: CompraParaFingerprint,
-  ocupados: ReadonlySet<string>,
-  limite = 1000
-): Promise<string> {
+export function proximoFingerprintLivre(c: CompraParaFingerprint, ocupados: ReadonlySet<string>, limite = 1000): string {
   for (let n = 1; n <= limite; n++) {
-    const candidato = await calcularFingerprint(c, n);
+    const candidato = calcularFingerprint(c, n);
     if (!ocupados.has(candidato)) return candidato;
   }
   throw new RangeError("Ocorrências demais para a mesma compra.");

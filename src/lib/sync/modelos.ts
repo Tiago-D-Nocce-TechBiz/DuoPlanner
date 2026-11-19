@@ -1,6 +1,6 @@
 import { CATEGORIAS, ESCOPOS, type Categoria, type Escopo } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE, type CategoriaDuoFinance } from "@/lib/finance/categorias-duofinance";
-import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint";
+import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint-formato";
 
 /**
  * Modelos sincronizados entre o casal (puro: usado no navegador e no servidor).

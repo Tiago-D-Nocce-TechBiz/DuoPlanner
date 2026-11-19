@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { CATEGORIAS, ESCOPOS } from "@/lib/finance/classificar";
 import { CATEGORIAS_DUOFINANCE } from "@/lib/finance/categorias-duofinance";
-import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint";
+import { FORMATO_FINGERPRINT } from "@/lib/finance/fingerprint-formato";
 import { roundMoney } from "@/lib/finance/money";
 import { ORIGENS_DESPESA, RECURSOS, type Recurso } from "./modelos";
 

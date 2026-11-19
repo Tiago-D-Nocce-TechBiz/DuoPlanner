@@ -205,10 +205,17 @@ function contarForaDeAspas(linha: string, caractere: string): number {
   return total;
 }
 
+/** Há `caractere` fora de aspas? Sem aspas na linha, basta achar um. */
+function temForaDeAspas(linha: string, caractere: string): boolean {
+  if (!linha.includes(caractere)) return false;
+  if (!linha.includes('"')) return true;
+  return contarForaDeAspas(linha, caractere) > 0;
+}
+
 /** Bancos brasileiros usam ";" (a vírgula é decimal); depois tab; depois ",". */
 function detectarSeparador(linha: string): string | null {
   for (const sep of [";", "\t", ","]) {
-    if (contarForaDeAspas(linha, sep) > 0) return sep;
+    if (temForaDeAspas(linha, sep)) return sep;
   }
   return null;
 }
@@ -314,6 +321,8 @@ interface Candidato {
   /** Com sinal, como veio no arquivo. */
   valor: number;
   categoriaBanco?: string;
+  /** `normalizarTexto(titulo)`, calculado uma vez. */
+  tituloNormalizado: string;
 }
 
 type Leitura =
@@ -460,7 +469,7 @@ function lerTextoLivre(linha: string, hojeIso: string): Leitura {
 
 /* ------------------------- Pagamentos e estornos ------------------------- */
 
-const IGNORAR: { motivo: string; termos: string[] }[] = [
+const IGNORAR_TERMOS: { motivo: string; termos: string[] }[] = [
   {
     motivo: "pagamento da fatura (não é gasto novo)",
     termos: [
@@ -479,17 +488,22 @@ const IGNORAR: { motivo: string; termos: string[] }[] = [
   },
 ];
 
-const ENTRADAS = [
+/** Termo como palavra inteira no texto normalizado (" palavra palavra "). */
+const comEspacos = (termos: string[]) => termos.map((t) => ` ${t} `);
+
+const IGNORAR = IGNORAR_TERMOS.map((r) => ({ motivo: r.motivo, termos: comEspacos(r.termos) }));
+
+const ENTRADAS = comEspacos([
   "pix recebido", "transferencia recebida", "ted recebida", "doc recebido",
   "deposito", "salario", "rendimento", "resgate", "credito em conta",
-];
+]);
 
 function contemTermo(textoNormalizado: string, termos: string[]): boolean {
-  return termos.some((t) => textoNormalizado.includes(` ${t} `));
+  return termos.some((t) => textoNormalizado.includes(t));
 }
 
-function motivoParaIgnorar(titulo: string): string | null {
-  const t = normalizarTexto(titulo);
+/** `t` = título já normalizado (`normalizarTexto`). */
+function motivoParaIgnorar(t: string): string | null {
   if (t.trim() === "total") return "linha de saldo ou total";
   for (const regra of IGNORAR) {
     if (contemTermo(t, regra.termos)) return regra.motivo;
@@ -543,7 +557,8 @@ export function importarExtrato(texto: string, hojeIso: string): ResultadoImport
       ignoradas.push({ linha: numero, texto: textoCurto, motivo: leitura.motivo });
       continue;
     }
-    const motivo = motivoParaIgnorar(leitura.titulo);
+    const tituloNormalizado = normalizarTexto(leitura.titulo);
+    const motivo = motivoParaIgnorar(tituloNormalizado);
     if (motivo) {
       ignoradas.push({ linha: numero, texto: textoCurto, motivo });
       continue;
@@ -559,6 +574,7 @@ export function importarExtrato(texto: string, hojeIso: string): ResultadoImport
       titulo: leitura.titulo,
       valor: leitura.valor,
       categoriaBanco: leitura.categoriaBanco,
+      tituloNormalizado,
     });
   }
 
@@ -567,7 +583,7 @@ export function importarExtrato(texto: string, hojeIso: string): ResultadoImport
   const negativos = candidatos.filter((c) => c.valor < 0).length;
   const positivos = candidatos.length - negativos;
   const temEntrada = candidatos.some(
-    (c) => c.valor > 0 && contemTermo(normalizarTexto(c.titulo), ENTRADAS)
+    (c) => c.valor > 0 && contemTermo(c.tituloNormalizado, ENTRADAS)
   );
   const conta = negativos > 0 && (negativos > positivos || cabecalhoComSaldo || temEntrada);
   const formato: FormatoExtrato = conta ? "conta" : algumCsv ? "cartao" : "texto";

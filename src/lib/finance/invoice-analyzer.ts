@@ -19,6 +19,7 @@
  */
 
 import { isoToBR } from "@/lib/dates";
+import { criarBuscaDeTermos } from "./busca-de-termos";
 import { CATEGORIAS_DUOFINANCE, ICONE_POR_CATEGORIA, type CategoriaDuoFinance } from "./categorias-duofinance";
 import type { CompraParaFingerprint } from "./fingerprint";
 import { importarExtrato, type FormatoExtrato, type LinhaIgnorada } from "./importar";
@@ -383,6 +384,13 @@ const DICIONARIO_NORMALIZADO = DICIONARIO.map((e) => ({
   termos: e.termos.map(normalizar),
 }));
 
+/**
+ * Primeira entrada do dicionário com algum termo no texto (normalizado), por
+ * índice da primeira palavra de cada termo: mesmo resultado da varredura em
+ * ordem, sem testar os 238 termos em cada linha da fatura.
+ */
+const buscarNoDicionario = criarBuscaDeTermos(DICIONARIO_NORMALIZADO.map((e) => e.termos));
+
 export interface EnriquecimentoLocal {
   cleanMerchantName: string;
   whatWasBought: string;
@@ -399,18 +407,17 @@ export interface EnriquecimentoLocal {
 
 /** Enriquecimento semântico 100% local (fallback que nunca falha). */
 export function enriquecerPeloDicionario(descricaoOriginal: string, cleanMerchantName: string): EnriquecimentoLocal {
-  const alvo = normalizar(`${descricaoOriginal} ${cleanMerchantName}`);
-  for (const entrada of DICIONARIO_NORMALIZADO) {
-    if (entrada.termos.some((t) => alvo.includes(t))) {
-      return {
-        cleanMerchantName: entrada.generico ? cleanMerchantName : entrada.nome,
-        whatWasBought: entrada.oque,
-        category: entrada.categoria,
-        categoryIcon: ICONE_POR_CATEGORIA[entrada.categoria],
-        suggestedScope: entrada.escopo,
-        reconhecido: !entrada.generico,
-      };
-    }
+  const posicao = buscarNoDicionario(normalizar(`${descricaoOriginal} ${cleanMerchantName}`));
+  if (posicao >= 0) {
+    const entrada = DICIONARIO_NORMALIZADO[posicao];
+    return {
+      cleanMerchantName: entrada.generico ? cleanMerchantName : entrada.nome,
+      whatWasBought: entrada.oque,
+      category: entrada.categoria,
+      categoryIcon: ICONE_POR_CATEGORIA[entrada.categoria],
+      suggestedScope: entrada.escopo,
+      reconhecido: !entrada.generico,
+    };
   }
   // Sem correspondência: mantém o nome limpo e usa o padrão seguro (privado).
   return {

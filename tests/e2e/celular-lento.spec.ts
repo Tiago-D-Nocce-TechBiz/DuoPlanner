@@ -50,10 +50,16 @@ test("DuoFinance com 230 gastos: paginação, abas, busca e categoria sem espera
   await observarInteracoes(page);
   const medidas: Record<string, Medida> = {};
 
-  medidas["carregar mais"] = await medir(page, 2, async (i) => {
-    await tocar(page.getByRole("button", { name: /^Carregar mais/ }));
-    await esperarLinhas(page, Math.min(198, 50 * (i + 3)));
-  });
+  // 198 gastos: 3 cliques (100, 150, 198 linhas). No `next dev` os 2 primeiros aquecem.
+  medidas["carregar mais"] = await medir(
+    page,
+    1,
+    async (i) => {
+      await tocar(page.getByRole("button", { name: /^Carregar mais/ }));
+      await esperarLinhas(page, Math.min(198, 50 * (i + 4)));
+    },
+    2
+  );
 
   medidas["trocar de aba"] = await medir(page, 2, async (i) => {
     const pessoais = i % 2 !== 0;

@@ -1,7 +1,7 @@
 import path from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 import { arquivoFatura, faturaComCompras } from "./apoio";
-import { alturasDasLinhas, frearCpu, rolarAteOFim } from "./medicao";
+import { alturasDasLinhas, frearCpu, INP_BOM_MS, rolarAteOFim } from "./medicao";
 import { montarCss, montarPacote, paginaDoPacote } from "./producao/montar";
 
 /**
@@ -101,17 +101,17 @@ test("fatura longa: a primeira pintura leva só as primeiras linhas; o resto ent
 test.describe("celular lento (390 × 844, CPU 4x)", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
 
-  // O teto de 100 ms com a CPU normal, escalado pela CPU 4x mais lenta.
-  // Medido (React de produção, Edge): medianas de 190 a 270 ms entre
-  // execuções; o código da fase 1 roda pouco e ainda sem otimização do JIT,
-  // então cai para ~130 ms depois de várias importações na mesma página.
-  test("fase 1 com 200 compras com a CPU 4x mais lenta: mediana abaixo de 400 ms", async ({ page }) => {
+  // Teto do INP "bom" do Google. Medido (React de produção, Edge): medianas
+  // de 100 a 153 ms em 8 execuções. Antes de a fase 1 ficar síncrona (SHA-256
+  // em JS), do dicionário indexado e de montar só 4 linhas na 1ª pintura, de
+  // 190 a 270 ms.
+  test("fase 1 com 200 compras com a CPU 4x mais lenta: mediana abaixo de 200 ms (INP bom)", async ({ page }) => {
     await abrirImportador(page);
     await medirFase1(page, 8, 1); // aquecimento: a 1ª importação compila o caminho todo
     await frearCpu(page);
     const medidas = await medirFase1(page, 200, 5);
     test.info().annotations.push({ type: "fase 1, CPU 4x (ms)", description: texto(medidas) });
-    expect(mediana(medidas), `medidas: ${texto(medidas)} ms`).toBeLessThan(400);
+    expect(mediana(medidas), `medidas: ${texto(medidas)} ms`).toBeLessThan(INP_BOM_MS);
   });
 
   test("revisão com 200 compras: rolagem no ritmo da tela, sem tarefa longa", async ({ page }) => {
