@@ -1,7 +1,5 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
-import { transformAsync } from "@babel/core";
-import pluginReactCompiler from "babel-plugin-react-compiler";
 import { compile, optimize } from "@tailwindcss/node";
 import { Scanner } from "@tailwindcss/oxide";
 import { build, type Plugin } from "rolldown";
@@ -11,38 +9,9 @@ import { build, type Plugin } from "rolldown";
  * do `next dev` (React de desenvolvimento é várias vezes mais lento: serve
  * para o fluxo, não para medir). Usados por `importador-producao.spec.ts` e
  * `painel-producao.spec.ts`, servidos pelo próprio teste com `page.route`.
- *
- * O código do app passa pelo React Compiler como no build (`reactCompiler:
- * true` no `next.config.ts`). Para medir sem ele (comparação antes/depois):
- * `PD_SEM_REACT_COMPILER=1 npx playwright test ...`.
  */
 
 const VAZIO = '""';
-
-/**
- * React Compiler no pacote, com as opções que o Next usa no build de
- * produção (`get-babel-loader-config.js`): só o código do app (nada de
- * `node_modules`), padrão "infer" (componentes e hooks) e erro de compilação
- * deixando a função como está, sem quebrar o build.
- */
-function reactCompiler(raiz: string): Plugin {
-  const src = path.join(raiz, "src") + path.sep;
-  return {
-    name: "react-compiler",
-    async transform(codigo, id) {
-      if (!id.startsWith(src) || !/\.tsx?$/.test(id) || !/use[A-Z]|<[A-Za-z]/.test(codigo)) return null;
-      const r = await transformAsync(codigo, {
-        filename: id,
-        babelrc: false,
-        configFile: false,
-        sourceMaps: false,
-        parserOpts: { plugins: id.endsWith(".tsx") ? ["typescript", "jsx"] : ["typescript"] },
-        plugins: [[pluginReactCompiler, { environment: { enableNameAnonymousFunctions: false } }]],
-      });
-      return r?.code ?? null;
-    },
-  };
-}
 
 /**
  * Empacota `entrada` (caminho relativo à raiz) com o alias `@` do app.
@@ -59,7 +28,6 @@ export async function montarPacote(raiz: string, entrada: string, substitutos: R
         name: "substitutos",
         resolveId: (id) => (Object.hasOwn(substitutos, id) ? path.join(raiz, substitutos[id]) : null),
       },
-      process.env.PD_SEM_REACT_COMPILER === "1" ? null : reactCompiler(raiz),
     ],
     resolve: { alias: { "@": path.join(raiz, "src") } },
     transform: {

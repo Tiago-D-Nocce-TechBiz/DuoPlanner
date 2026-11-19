@@ -22,11 +22,6 @@ function validarAmbiente(fase: string): void {
 }
 
 const nextConfig: NextConfig = {
-  // React Compiler (babel-plugin-react-compiler): memoiza componentes e
-  // hooks no build, sem useMemo/useCallback à mão. No Next 16 a opção fica na
-  // raiz (não em `experimental`). Vale só para o código do navegador; função
-  // que o compilador não consegue provar segura fica como está.
-  reactCompiler: true,
   cacheComponents: true,
   partialPrefetching: true,
   // gzip no `next start` (na Vercel, a borda comprime com brotli por conta
