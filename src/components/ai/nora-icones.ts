@@ -8,6 +8,7 @@ import {
   ReceiptText,
   ShieldCheck,
   TrendingDown,
+  Wallet,
   type AppIcon,
 } from "@/components/ui/icons";
 import type { NomeIcone } from "@/lib/ai/nora-strategies";
@@ -23,4 +24,5 @@ export const ICONES_DA_NORA: Record<NomeIcone, AppIcon> = {
   Hotel,
   TrendingDown,
   CheckCircle2,
+  Wallet,
 };

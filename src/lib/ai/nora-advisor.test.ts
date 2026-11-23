@@ -139,7 +139,8 @@ describe("consultarAdvisor", () => {
     expect(r).toMatchObject({ tipo: "analise", origem: "ia" });
   });
 
-  it.each(ESTRATEGIA_IDS)("%s: cai no local quando a análise não cumpre a exigência da estratégia", async (id: EstrategiaId) => {
+  // A gestão de custos não exige nada do modelo: os números são do app (testada em `nora-custos.test.ts`).
+  it.each(ESTRATEGIA_IDS.filter((id) => id !== "gestao_custos"))("%s: cai no local quando a análise não cumpre a exigência da estratégia", async (id: EstrategiaId) => {
     const vazia: AnaliseNora = {
       ...analiseCompleta,
       vereditoBadge: null,

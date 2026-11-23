@@ -1,3 +1,5 @@
+import { isoToBR } from "@/lib/dates";
+import { CUSTOS_VAZIOS, reais, temDadosDeCusto, type IdDoSinal, type ResumoDeCustos, type SinalDeCusto } from "./cost-agent-metrics";
 import type { AnaliseNora, ContextoUsado, EstrategiaId, OpcaoAnalise, PontoDeAtencao } from "./nora-strategies";
 
 /**
@@ -7,7 +9,8 @@ import type { AnaliseNora, ContextoUsado, EstrategiaId, OpcaoAnalise, PontoDeAte
  * casal (sem nota e sem veredito): ensina o método e aponta o que conferir,
  * usando o destino e as datas da viagem quando já se sabe.
  *
- * Sem dependências: roda no navegador (offline) e no servidor.
+ * Sem dependências de servidor: roda no navegador (offline) e no servidor.
+ * A gestão de custos usa só aritmética pronta de `cost-agent-metrics`.
  */
 
 interface Roteiro {
@@ -165,10 +168,83 @@ const ROTEIROS: Record<EstrategiaId, Roteiro> = {
         : "Informe destino e datas na busca de passagens para o alerta de preço acompanhar por vocês.",
     acao: podeAlertar,
   },
+  // Sem gastos nem custos para analisar: o método para ter a visão de custos.
+  gestao_custos: {
+    resumo: () => "Ainda não há gastos compartilhados lançados nem custos estimados no Roteiro para analisar.",
+    opcoes: [
+      opcao("Lance os gastos da viagem como compartilhados", "No DuoFinance, o que for dos dois entra na conta do casal; o que é pessoal fica privado e nunca é analisado.", "Comece aqui"),
+      opcao("Preencha o custo estimado das atividades", "No Roteiro, cada atividade aceita uma estimativa em reais; ela entra na previsão do casal."),
+    ],
+    pontos: [ponto("info", "Gastos privados ficam de fora", "A Nora só olha os gastos compartilhados do casal; os pessoais de cada um não entram em nenhuma conta.")],
+    recomendacao: () => "Lancem o primeiro gasto compartilhado no DuoFinance e voltem aqui para ver o resumo.",
+    acao: () => "nenhuma",
+  },
+};
+
+/** Os sinais de custo no formato dos pontos de atenção do card. */
+export function pontosDosSinais(sinais: readonly SinalDeCusto[]): PontoDeAtencao[] {
+  return sinais.map((s) => ({ gravidade: s.gravidade, titulo: s.titulo, detalhe: s.detalhe }));
+}
+
+const RECOMENDACAO_DO_SINAL: Record<IdDoSinal, string> = {
+  concentracao_categoria: "Antes de novas reservas, confiram se a categoria que mais pesa tem espaço para economizar e distribuam o resto do orçamento.",
+  ritmo_acelerado: "Combinem um limite por dia para os próximos dias e acompanhem os lançamentos no DuoFinance.",
+  parcelas_comprometem: "Evitem novas compras parceladas até as atuais terminarem e confiram o total que ainda vai ser cobrado.",
+  roteiro_a_lancar: "Lancem os custos do Roteiro no DuoFinance conforme forem pagando (botão \"Lançar nas Finanças\") para a previsão ficar fiel.",
+  sem_cotacao: "Informem a cotação dos gastos em moeda estrangeira no DuoFinance para eles entrarem nos totais.",
+  dados_truncados: "Os totais cobrem só os lançamentos mais recentes; para o histórico completo, vejam o DuoFinance.",
+};
+
+/**
+ * Gestão de custos 100% local: sem IA, os números e os sinais são os do app,
+ * a leitura é a regra fixa do primeiro sinal. As categorias ficam no painel
+ * do card (não repetidas como opções).
+ */
+function analiseDeCustos(c: ResumoDeCustos): AnaliseNora {
+  const base = { vereditoBadge: null, notaCustoBeneficio: null, economiaEstimada: null, precoAlvoSugeridoBrl: null, acaoSugerida: "nenhuma" } as const;
+  if (!temDadosDeCusto(c)) {
+    const r = ROTEIROS.gestao_custos;
+    return { ...base, resumo: r.resumo(CONTEXTO_SEM_VIAGEM), opcoes: r.opcoes, pontosDeAtencao: r.pontos, recomendacaoPratica: r.recomendacao(CONTEXTO_SEM_VIAGEM) };
+  }
+  return {
+    ...base,
+    resumo: resumoDeCustos(c),
+    opcoes: [],
+    pontosDeAtencao: c.sinais.length
+      ? pontosDosSinais(c.sinais)
+      : [ponto("info", "Sem alertas de custo agora", "Nada fora do normal em concentração por categoria, ritmo de gasto ou parcelas, com o que foi lançado até aqui.")],
+    recomendacaoPratica: recomendacaoDeCustos(c),
+  };
+}
+
+/** O resumo em uma ou duas frases, só com números do app. */
+export function resumoDeCustos(c: ResumoDeCustos): string {
+  if (c.quantidade === 0) return `Ainda não há gastos compartilhados lançados; o Roteiro estima ${reais(c.roteiro.estimadoCentavos)} em custos.`;
+  const periodo = c.periodo ? `, em média ${reais(c.mediaDiariaCentavos)} por dia entre ${isoToBR(c.periodo.inicio)} e ${isoToBR(c.periodo.fim)}` : "";
+  const parcelas = c.parcelas.abertas > 0 ? ` Ainda há ${reais(c.parcelas.restantesCentavos)} em parcelas a pagar.` : "";
+  return `Vocês já lançaram ${reais(c.totalCentavos)} em ${c.quantidade} ${c.quantidade === 1 ? "gasto compartilhado" : "gastos compartilhados"}${periodo}.${parcelas}`;
+}
+
+export function recomendacaoDeCustos(c: ResumoDeCustos): string {
+  const primeiro = c.sinais[0];
+  return primeiro ? RECOMENDACAO_DO_SINAL[primeiro.id] : "Sem alertas agora. Continuem lançando os gastos compartilhados para manter o resumo em dia.";
+}
+
+const CONTEXTO_SEM_VIAGEM: ContextoUsado = {
+  destino: null,
+  origem: null,
+  ida: null,
+  volta: null,
+  adultos: null,
+  diasNoRoteiro: 0,
+  atividadesNoRoteiro: 0,
+  gastoCompartilhadoBrl: 0,
+  quantidadeDePreferencias: 0,
 };
 
 /** A lista de conferência da estratégia, no mesmo formato da análise da IA (sem nota nem veredito). */
-export function analiseLocal(id: EstrategiaId, contexto: ContextoUsado): AnaliseNora {
+export function analiseLocal(id: EstrategiaId, contexto: ContextoUsado, custos: ResumoDeCustos = CUSTOS_VAZIOS): AnaliseNora {
+  if (id === "gestao_custos") return analiseDeCustos(custos);
   const r = ROTEIROS[id];
   return {
     resumo: r.resumo(contexto),

@@ -8,7 +8,9 @@ import { describePreferences } from "@/lib/memory/preferences";
 import { consumirCota, type ResultadoCota } from "@/lib/seguranca/cotas";
 import { getWorkspaceAtual } from "@/lib/supabase/workspace";
 import { createGeminiModel } from "./model";
+import { soCitaValoresConhecidos, valoresEmReaisDoTexto, type ResumoDeCustos } from "./cost-agent-metrics";
 import {
+  blocoDeCustos,
   carregarDadosBrutos,
   DADOS_VAZIOS,
   mensagemParaOModelo,
@@ -17,8 +19,8 @@ import {
   resumirContexto,
   type DadosBrutos,
 } from "./nora-contexto";
-import type { EstrategiaId, ResultadoAdvisor } from "./nora-strategies";
-import { analiseLocal } from "./nora-strategies-local";
+import { ESTRATEGIAS_COM_PAINEL_DE_CUSTOS, type AnaliseNora, type EstrategiaId, type ResultadoAdvisor } from "./nora-strategies";
+import { analiseLocal, pontosDosSinais, recomendacaoDeCustos, resumoDeCustos } from "./nora-strategies-local";
 import { analiseBaseSchema, esquemaDaEstrategia, promptDaEstrategia } from "./nora-strategies-servidor";
 
 /**
@@ -70,6 +72,42 @@ function foiPrazo(erro: unknown): boolean {
   return nome === "TimeoutError" || nome === "AbortError";
 }
 
+/**
+ * Estratégias com painel de custos: os números são do app, não do modelo.
+ * O que a IA devolve passa por aqui antes de ir para a tela:
+ *  - nada de opções, nota, veredito, economia nem alerta (o painel do app mostra o detalhe);
+ *  - os sinais calculados vêm primeiro, depois as leituras complementares da IA;
+ *  - texto da IA que cita um valor em reais que o app não calculou é trocado
+ *    pelo texto determinístico (e o card avisa).
+ */
+export function aplicarRegrasDeCustos(analise: AnaliseNora, custos: ResumoDeCustos): { analise: AnaliseNora; aviso: string | null } {
+  const permitidos = new Set(valoresEmReaisDoTexto(blocoDeCustos(custos)));
+  const confere = (texto: string) => soCitaValoresConhecidos(texto, permitidos);
+  let trocou = false;
+  const resumo = confere(analise.resumo) ? analise.resumo : ((trocou = true), resumoDeCustos(custos));
+  const recomendacao = confere(analise.recomendacaoPratica) ? analise.recomendacaoPratica : ((trocou = true), recomendacaoDeCustos(custos));
+  const complementares = analise.pontosDeAtencao.filter((p) => {
+    const ok = confere(`${p.titulo} ${p.detalhe}`);
+    if (!ok) trocou = true;
+    return ok;
+  });
+  return {
+    analise: {
+      ...analise,
+      resumo,
+      recomendacaoPratica: recomendacao,
+      vereditoBadge: null,
+      notaCustoBeneficio: null,
+      economiaEstimada: null,
+      precoAlvoSugeridoBrl: null,
+      acaoSugerida: "nenhuma",
+      opcoes: [],
+      pontosDeAtencao: [...pontosDosSinais(custos.sinais), ...complementares].slice(0, 8),
+    },
+    aviso: trocou ? "Alguns trechos da IA citavam valores que o DuoPlanner não calculou e foram trocados pelos números do app." : null,
+  };
+}
+
 export async function consultarAdvisor(
   entrada: { estrategia: EstrategiaId; texto: string },
   sessao: Sessao,
@@ -84,11 +122,14 @@ export async function consultarAdvisor(
   const pergunta = perguntaDeLacuna(entrada.estrategia, viagem, entrada.texto);
   if (pergunta) return { tipo: "pergunta", estrategia: entrada.estrategia, pergunta, contexto };
 
+  const comPainel = ESTRATEGIAS_COM_PAINEL_DE_CUSTOS.includes(entrada.estrategia);
+  const custos = comPainel ? viagem.custos : null;
   const local = (aviso: string): ResultadoAdvisor => ({
     tipo: "analise",
     estrategia: entrada.estrategia,
     origem: "local",
-    analise: analiseLocal(entrada.estrategia, contexto),
+    analise: analiseLocal(entrada.estrategia, contexto, viagem.custos),
+    custos,
     contexto,
     aviso,
   });
@@ -113,7 +154,11 @@ export async function consultarAdvisor(
       console.error("[nora-advisor] resposta fora do formato:", entrada.estrategia, lida.error.issues.map((i) => i.message).join("; "));
       return local("A IA devolveu uma resposta incompleta. Aqui vai a lista de conferência.");
     }
-    return { tipo: "analise", estrategia: entrada.estrategia, origem: "ia", analise: lida.data, contexto, aviso: null };
+    if (comPainel) {
+      const conferida = aplicarRegrasDeCustos(lida.data, viagem.custos);
+      return { tipo: "analise", estrategia: entrada.estrategia, origem: "ia", analise: conferida.analise, custos, contexto, aviso: conferida.aviso };
+    }
+    return { tipo: "analise", estrategia: entrada.estrategia, origem: "ia", analise: lida.data, custos, contexto, aviso: null };
   } catch (erro) {
     if (foiPrazo(erro)) {
       return local(`A IA demorou mais de ${PRAZO_ADVISOR_MS / 1000} segundos. Aqui vai a lista de conferência; tente de novo em instantes.`);

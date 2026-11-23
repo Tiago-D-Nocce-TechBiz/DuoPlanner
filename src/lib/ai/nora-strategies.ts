@@ -1,5 +1,5 @@
 /**
- * Catálogo das 9 estratégias de economia e auditoria de viagem da Nora
+ * Catálogo das 10 estratégias de economia, auditoria e gestão de custos da Nora
  * ("Nora Travel Hacks"): comandos, rótulos, ícones, o que cada uma precisa
  * saber da viagem e o formato (tipos) da análise que ela devolve.
  *
@@ -9,6 +9,8 @@
  * resposta da IA); as listas de conferência locais (sem IA), em
  * `nora-strategies-local.ts`.
  */
+
+import type { ResumoDeCustos } from "./cost-agent-metrics";
 
 export const ESTRATEGIA_IDS = [
   "matriz_datas",
@@ -20,19 +22,22 @@ export const ESTRATEGIA_IDS = [
   "comparativo_hospedagem",
   "otimizacao_orcamento",
   "veredito_reserva",
+  "gestao_custos",
 ] as const;
 export type EstrategiaId = (typeof ESTRATEGIA_IDS)[number];
 
 /** Nomes dos ícones (`@/components/ui/icons`); o mapa para componentes fica em `nora-icones.ts`. */
-export type NomeIcone = "Calendar" | "PlaneTakeoff" | "Layers" | "ShieldCheck" | "ReceiptText" | "MapPin" | "Hotel" | "TrendingDown" | "CheckCircle2";
+export type NomeIcone = "Calendar" | "PlaneTakeoff" | "Layers" | "ShieldCheck" | "ReceiptText" | "MapPin" | "Hotel" | "TrendingDown" | "CheckCircle2" | "Wallet";
 
 /**
  * O que a estratégia precisa saber para valer a pena chamar a IA:
  *  - "destino": para onde a dupla vai (vem da última busca, de um alerta ou do pedido);
  *  - "destino_ou_roteiro": basta saber o destino OU já haver atividades no roteiro;
- *  - "roteiro_ou_gastos": há roteiro ou gastos lançados para analisar.
+ *  - "roteiro_ou_gastos": há roteiro ou gastos lançados para analisar;
+ *  - "gastos_ou_custos": há gastos compartilhados lançados ou custos estimados no
+ *    Roteiro (a gestão de custos trabalha sobre números, não sobre texto livre).
  */
-export type Requisito = "destino" | "destino_ou_roteiro" | "roteiro_ou_gastos";
+export type Requisito = "destino" | "destino_ou_roteiro" | "roteiro_ou_gastos" | "gastos_ou_custos";
 
 export interface Estrategia {
   id: EstrategiaId;
@@ -129,6 +134,15 @@ export const ESTRATEGIAS: readonly Estrategia[] = [
     iconName: "CheckCircle2",
     requer: "destino",
   },
+  {
+    id: "gestao_custos",
+    slashCommand: "/gestao-de-custos",
+    apelidos: ["/custos", "/meus-gastos", "/orcamento"],
+    label: "Gestão de Custos",
+    shortDescription: "O que já gastaram, ritmo, parcelas a pagar e alertas de custo do casal",
+    iconName: "Wallet",
+    requer: "gastos_ou_custos",
+  },
 ];
 
 const PORID = new Map(ESTRATEGIAS.map((e) => [e.id, e]));
@@ -179,6 +193,9 @@ export function interpretarComando(texto: string): { estrategia: Estrategia; res
   const estrategia = ESTRATEGIAS.find((e) => [e.slashCommand, ...e.apelidos].some((c) => normalizar(c) === digitado));
   return estrategia ? { estrategia, resto: (m[2] ?? "").trim() } : null;
 }
+
+/** Estratégias cujo card mostra o painel de custos (números calculados pelo app). */
+export const ESTRATEGIAS_COM_PAINEL_DE_CUSTOS: readonly EstrategiaId[] = ["gestao_custos"];
 
 /* --------------------------- A análise devolvida --------------------------- */
 
@@ -255,6 +272,8 @@ export type ResultadoAdvisor =
       /** "ia": Gemini; "local": lista de conferência (sem chave, cota, prazo ou sem conexão). */
       origem: "ia" | "local";
       analise: AnaliseNora;
+      /** Números de custo calculados pelo app (só nas estratégias com painel de custos). */
+      custos: ResumoDeCustos | null;
       contexto: ContextoUsado;
       /** Por que caiu na lista local (ou aviso extra), em PT-BR. */
       aviso: string | null;

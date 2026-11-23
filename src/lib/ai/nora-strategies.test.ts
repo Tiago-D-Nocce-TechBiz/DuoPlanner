@@ -16,13 +16,13 @@ import { analiseLocal } from "./nora-strategies-local";
 
 vi.mock("server-only", () => ({}));
 
-describe("catálogo das 9 estratégias", () => {
-  it("tem as 9 estratégias, com comandos, apelidos e rótulos únicos", () => {
-    expect(ESTRATEGIAS).toHaveLength(9);
+describe("catálogo das 10 estratégias", () => {
+  it("tem as 10 estratégias, com comandos, apelidos e rótulos únicos", () => {
+    expect(ESTRATEGIAS).toHaveLength(10);
     expect(ESTRATEGIAS.map((e) => e.id).sort()).toEqual([...ESTRATEGIA_IDS].sort());
     const comandos = ESTRATEGIAS.flatMap((e) => [e.slashCommand, ...e.apelidos]);
     expect(new Set(comandos).size).toBe(comandos.length);
-    expect(new Set(ESTRATEGIAS.map((e) => e.label)).size).toBe(9);
+    expect(new Set(ESTRATEGIAS.map((e) => e.label)).size).toBe(10);
     for (const e of ESTRATEGIAS) {
       expect(e.slashCommand).toMatch(/^\/[a-z0-9-]+$/);
       expect(e.shortDescription.length).toBeGreaterThan(10);
@@ -39,8 +39,8 @@ describe("catálogo das 9 estratégias", () => {
 });
 
 describe("filtrarComandos", () => {
-  it("sem texto, mostra os 9", () => {
-    expect(filtrarComandos("")).toHaveLength(9);
+  it("sem texto, mostra as 10", () => {
+    expect(filtrarComandos("")).toHaveLength(10);
   });
 
   it("filtra pelo começo do comando, sem acento e sem diferenciar maiúsculas", () => {
@@ -58,6 +58,14 @@ describe("filtrarComandos", () => {
   it("acha pelo apelido e pelo rótulo", () => {
     expect(filtrarComandos("cortar-20").map((e) => e.id)).toContain("otimizacao_orcamento");
     expect(filtrarComandos("onde ficar").map((e) => e.id)).toContain("escolha_bairros");
+  });
+
+  it("a gestão de custos responde por /gestao-de-custos e pelos apelidos", () => {
+    expect(filtrarComandos("custos")[0].id).toBe("gestao_custos");
+    expect(interpretarComando("/gestao-de-custos")?.estrategia.id).toBe("gestao_custos");
+    expect(interpretarComando("/custos")?.estrategia.id).toBe("gestao_custos");
+    expect(interpretarComando("/orcamento")?.estrategia.id).toBe("gestao_custos");
+    expect(estrategiaPorId("gestao_custos")).toMatchObject({ iconName: "Wallet", requer: "gastos_ou_custos" });
   });
 
   it("texto sem correspondência devolve vazio", () => {
@@ -89,6 +97,9 @@ describe("módulos do navegador", () => {
   const arquivos = [
     "src/lib/ai/nora-strategies.ts",
     "src/lib/ai/nora-strategies-local.ts",
+    "src/lib/ai/cost-agent-metrics.ts",
+    "src/components/ai/nora-painel-custos.tsx",
+    "src/components/ai/nora-custos-local.ts",
     "src/components/ai/nora-estrategias.tsx",
     "src/components/ai/nora-card-analise.tsx",
     "src/components/ai/nora-consulta.ts",

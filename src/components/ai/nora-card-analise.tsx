@@ -1,10 +1,12 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, Bell, CheckCircle2, Lightbulb, ShieldCheck } from "@/components/ui/icons";
 import { todayInSaoPaulo } from "@/lib/dates";
 import {
+  ESTRATEGIAS_COM_PAINEL_DE_CUSTOS,
   estrategiaPorId,
   temEstimativaEmReais,
   type Gravidade,
@@ -16,6 +18,9 @@ import type { RoteiroDia, RoteiroItem } from "@/lib/sync/modelos";
 import { cn } from "@/lib/utils";
 import { alertaDaAnalise, dicaParaRoteiro } from "./nora-acoes-analise";
 import { ICONES_DA_NORA } from "./nora-icones";
+
+/** Painel de custos: só baixa quando a gestão de custos devolve um resultado. */
+const PainelDeCustos = dynamic(() => import("./nora-painel-custos").then((m) => m.PainelDeCustos), { ssr: false, loading: () => null });
 
 const brl = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 
@@ -136,7 +141,8 @@ export function CardAnalise({ resultado }: { resultado: ResultadoAdvisor }) {
   const est = estrategiaPorId(id);
   const Icone = ICONES_DA_NORA[est.iconName];
   const veredito = analise.vereditoBadge ? VEREDITO_VISUAL[analise.vereditoBadge] : null;
-  const mostrarRodapeHistorico = origem === "ia" || temEstimativaEmReais(analise);
+  const comPainel = ESTRATEGIAS_COM_PAINEL_DE_CUSTOS.includes(id);
+  const mostrarRodapeHistorico = !comPainel && (origem === "ia" || temEstimativaEmReais(analise));
   const executar = (acao: string, fn: (r: ResultadoDeAnalise) => Estado) => {
     const novo = fn(resultado);
     setEstado(novo);
@@ -172,13 +178,15 @@ export function CardAnalise({ resultado }: { resultado: ResultadoAdvisor }) {
         </div>
         {origem === "local" && (
           <span className="shrink-0 rounded-full border border-[var(--color-border)] px-2 py-0.5 text-[10px] text-[var(--color-muted)]">
-            Lista de conferência
+            {comPainel ? "Cálculo do app" : "Lista de conferência"}
           </span>
         )}
       </header>
 
       {resultado.aviso && <p className="text-xs text-[var(--color-muted)]">{resultado.aviso}</p>}
       <p className="leading-relaxed">{analise.resumo}</p>
+
+      {comPainel && resultado.custos && <PainelDeCustos custos={resultado.custos} />}
 
       {analise.economiaEstimada && (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2">
@@ -245,6 +253,7 @@ export function CardAnalise({ resultado }: { resultado: ResultadoAdvisor }) {
           <Lightbulb className="h-3.5 w-3.5 text-blue-500" />
           Salvar Dica no Roteiro
         </button>
+        {!comPainel && (
         <button
           type="button"
           onClick={() => executar("alerta", criarAlertaDePreco)}
@@ -254,6 +263,7 @@ export function CardAnalise({ resultado }: { resultado: ResultadoAdvisor }) {
           <Bell className="h-3.5 w-3.5 text-blue-500" />
           Criar Alerta de Preço
         </button>
+        )}
       </div>
 
       <div aria-live="polite">
@@ -270,7 +280,9 @@ export function CardAnalise({ resultado }: { resultado: ResultadoAdvisor }) {
       </div>
 
       <footer className="border-t border-[var(--color-border)] pt-2 text-[10px] leading-snug text-[var(--color-subtle)]">
-        {mostrarRodapeHistorico
+        {comPainel
+          ? "Totais calculados pelo DuoPlanner com os gastos compartilhados lançados (os pessoais de cada um ficam de fora). Custos do Roteiro são estimativas."
+          : mostrarRodapeHistorico
           ? "Valores são estimativas históricas e podem variar: confira o preço final na emissão da passagem ou da reserva."
           : "Lista de conferência geral, sem preços. Confira as regras da companhia ou da hospedagem antes de pagar."}
       </footer>

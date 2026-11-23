@@ -1,6 +1,18 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { colunaAusente } from "@/lib/auth/seguranca";
 import { valorEmReais } from "@/lib/finance/acerto";
-import { sumMoney } from "@/lib/finance/money";
+import { sumMoney, toCents } from "@/lib/finance/money";
+import { idDoLancamento } from "@/lib/roteiro/lancamento";
+import {
+  calcularCustos,
+  chaveDaCompraParcelada,
+  percentualTexto,
+  reais,
+  temDadosDeCusto,
+  type GastoParaCusto,
+  type ItemDeRoteiroParaCusto,
+  type ResumoDeCustos,
+} from "./cost-agent-metrics";
 import {
   estrategiaPorId,
   type ContextoUsado,
@@ -26,8 +38,34 @@ import {
 export interface DadosBrutos {
   buscas: { tipo: string | null; origem: string | null; destino: string | null; dados: unknown; created_at: string }[];
   dias: { id: string; data: string | null; ordem: number }[];
-  itens: { dia_id: string | null; horario: string | null; titulo: string | null; ordem: number }[];
-  despesas: { valor: number | string; moeda: string; cotacao_brl: number | string | null; categoria: string }[];
+  itens: {
+    id?: string;
+    dia_id: string | null;
+    horario: string | null;
+    titulo: string | null;
+    ordem: number;
+    /** Estimativa em reais (coluna da migration do Roteiro com planilha; ausente em bancos antigos). */
+    custo_estimado?: number | string | null;
+  }[];
+  /**
+   * Só gastos COMPARTILHADOS (filtro na consulta). `descricao` serve apenas
+   * para reconhecer a mesma compra parcelada em faturas diferentes: nunca
+   * entra no prompt nem no resultado.
+   */
+  despesas: {
+    id?: string;
+    valor: number | string;
+    moeda: string;
+    cotacao_brl: number | string | null;
+    categoria: string;
+    /** Lidos só para conferir o filtro da consulta: o que não for gasto compartilhado é descartado. */
+    escopo?: string;
+    tipo?: string;
+    data?: string | null;
+    descricao?: string | null;
+    parcela_atual?: number | null;
+    total_parcelas?: number | null;
+  }[];
   alertas: { tipo: string; origem: string | null; destino: string; ida: string; volta: string | null; adultos: number | null }[];
 }
 
@@ -35,6 +73,21 @@ export const DADOS_VAZIOS: DadosBrutos = { buscas: [], dias: [], itens: [], desp
 
 /** Tetos de leitura: o contexto é um resumo, não um espelho do banco. */
 export const LIMITES_CONTEXTO = { buscas: 5, dias: 60, itens: 300, despesas: 500, alertas: 10 } as const;
+
+const COLUNAS_DOS_ITENS = "id, dia_id, horario, titulo, ordem";
+
+/**
+ * Atividades do roteiro, com o custo estimado quando o banco já tem a coluna
+ * (migration do Roteiro com planilha). Sem ela, lê sem o custo: o roteiro não
+ * pode sumir do contexto só porque a migration ainda não foi aplicada.
+ */
+async function lerItensDoRoteiro(supabase: SupabaseClient, workspaceId: string) {
+  const consultar = (colunas: string) =>
+    Promise.resolve(supabase.from("roteiro_itens").select(colunas).eq("workspace_id", workspaceId).order("ordem").limit(LIMITES_CONTEXTO.itens));
+  const completa = await consultar(`${COLUNAS_DOS_ITENS}, custo_estimado`);
+  if (completa.error && colunaAusente(completa.error)) return consultar(COLUNAS_DOS_ITENS);
+  return completa;
+}
 
 /**
  * Lê do workspace só o que a Nora usa, com colunas explícitas (sem
@@ -55,18 +108,11 @@ export async function carregarDadosBrutos(supabase: SupabaseClient, workspaceId:
     Promise.resolve(
       supabase.from("roteiro_dias").select("id, data, ordem").eq("workspace_id", workspaceId).order("ordem").limit(LIMITES_CONTEXTO.dias)
     ),
-    Promise.resolve(
-      supabase
-        .from("roteiro_itens")
-        .select("dia_id, horario, titulo, ordem")
-        .eq("workspace_id", workspaceId)
-        .order("ordem")
-        .limit(LIMITES_CONTEXTO.itens)
-    ),
+    lerItensDoRoteiro(supabase, workspaceId),
     Promise.resolve(
       supabase
         .from("despesas_viagem")
-        .select("valor, moeda, cotacao_brl, categoria")
+        .select("id, valor, moeda, cotacao_brl, categoria, escopo, tipo, data, descricao, parcela_atual, total_parcelas")
         .eq("workspace_id", workspaceId)
         .eq("escopo", "viagem_compartilhado")
         .eq("tipo", "gasto")
@@ -108,6 +154,8 @@ export interface ContextoViagem {
   roteiro: { numero: number; data: string | null; atividades: string[] }[];
   totalAtividades: number;
   gastos: { totalBrl: number; quantidade: number; semCotacao: number; porCategoria: { categoria: string; totalBrl: number }[] };
+  /** Métricas de custo calculadas pelo app (centavos exatos); a IA só as interpreta. */
+  custos: ResumoDeCustos;
   preferencias: string[];
 }
 
@@ -197,7 +245,11 @@ export function resumirContexto(dados: DadosBrutos, preferencias: readonly strin
   const porCategoria = new Map<string, number[]>();
   let semCotacao = 0;
   const todos: number[] = [];
-  for (const d of dados.despesas) {
+  const gastosParaCusto: GastoParaCusto[] = [];
+  // Defesa em profundidade: a consulta já filtra, e o que não é gasto compartilhado
+  // nunca chega à soma nem ao prompt, mesmo que o filtro falhe um dia.
+  const despesasDoCasal = dados.despesas.filter((d) => (d.escopo === undefined || d.escopo === "viagem_compartilhado") && (d.tipo === undefined || d.tipo === "gasto"));
+  for (const d of despesasDoCasal) {
     const emReais = valorEmReais({ valor: Number(d.valor), moeda: d.moeda, cotacaoBrl: d.cotacao_brl === null ? null : Number(d.cotacao_brl) });
     if (emReais === null) {
       semCotacao++;
@@ -206,7 +258,41 @@ export function resumirContexto(dados: DadosBrutos, preferencias: readonly strin
     todos.push(emReais);
     const categoria = limparTexto(d.categoria, 40) || "Outros";
     porCategoria.set(categoria, [...(porCategoria.get(categoria) ?? []), emReais]);
+    // Entrada das métricas de custo (centavos exatos, sem texto livre).
+    const centavos = Number.isFinite(emReais) ? toCents(emReais) : 0;
+    const parcelaAtual = inteiro(d.parcela_atual, 1, 72);
+    const totalParcelas = inteiro(d.total_parcelas, 2, 72);
+    gastosParaCusto.push({
+      centavos,
+      categoria,
+      dia: dataIso(d.data),
+      parcelaAtual,
+      totalParcelas,
+      compra: parcelaAtual !== null && totalParcelas !== null ? chaveDaCompraParcelada(limparTexto(d.descricao, 120), centavos, totalParcelas) : null,
+    });
   }
+
+  // Custos estimados do Roteiro, e quais já viraram gasto compartilhado
+  // (o gasto de uma atividade tem id fixo: ver `@/lib/roteiro/lancamento`).
+  // Atividade lançada só como gasto PRIVADO não aparece aqui (a IA nunca vê o
+  // que é privado) e entra como "a lançar".
+  const idsDeGastos = new Set(despesasDoCasal.map((d) => d.id).filter((id): id is string => typeof id === "string"));
+  const itensDeCusto: ItemDeRoteiroParaCusto[] = [];
+  for (const item of dados.itens) {
+    const valor = item.custo_estimado === null || item.custo_estimado === undefined ? NaN : Number(item.custo_estimado);
+    if (!Number.isFinite(valor) || valor <= 0) continue;
+    itensDeCusto.push({
+      custoCentavos: toCents(valor),
+      lancado: typeof item.id === "string" && idsDeGastos.has(idDoLancamento(item.id, "compartilhado", "")),
+    });
+  }
+  const custos = calcularCustos({
+    gastos: gastosParaCusto,
+    roteiro: itensDeCusto,
+    semCotacao,
+    truncado: dados.despesas.length >= LIMITES_CONTEXTO.despesas,
+    hojeIso,
+  });
 
   return {
     destino: viagem?.destino ?? null,
@@ -225,6 +311,7 @@ export function resumirContexto(dados: DadosBrutos, preferencias: readonly strin
         .map(([categoria, valores]) => ({ categoria, totalBrl: sumMoney(valores) }))
         .sort((a, b) => b.totalBrl - a.totalBrl),
     },
+    custos,
     preferencias: preferencias.map((p) => limparTexto(p, 120)).filter(Boolean),
   };
 }
@@ -270,6 +357,10 @@ export function perguntaDeLacuna(id: EstrategiaId, c: ContextoViagem, texto: str
       return c.totalAtividades > 0 || c.gastos.quantidade > 0 || t >= TEXTO_MINIMO.roteiro
         ? null
         : "O roteiro e os gastos da viagem ainda estão vazios, então não há o que cortar. Adicione atividades no Roteiro ou lance os gastos no DuoFinance, ou me conte aqui o que vocês planejam (hospedagem, passeios, valores).";
+    case "gastos_ou_custos":
+      return temDadosDeCusto(c.custos)
+        ? null
+        : "Ainda não há gastos compartilhados lançados nem custos estimados no Roteiro. Lancem os gastos da viagem no DuoFinance (como compartilhados) ou preencham o custo estimado das atividades no Roteiro, que eu analiso o orçamento do casal.";
   }
 }
 
@@ -279,6 +370,43 @@ const brl = (v: number) => `R$ ${v.toFixed(2).replace(".", ",")}`;
 
 function noites(ida: string, volta: string): number {
   return Math.round((Date.parse(`${volta}T00:00:00Z`) - Date.parse(`${ida}T00:00:00Z`)) / 86_400_000);
+}
+
+/**
+ * Números de custo já calculados pelo app, em linhas curtas. Só valores,
+ * nomes de categoria (validados no banco) e textos fixos do próprio app:
+ * nenhuma descrição de gasto, nenhum nome de atividade.
+ */
+export function blocoDeCustos(c: ResumoDeCustos): string {
+  const linhas = [
+    "<custos_calculados>",
+    "Calculado pelo aplicativo, em centavos exatos. Cite estes números; não refaça as contas nem os contradiga.",
+  ];
+  if (c.quantidade > 0) {
+    const p = c.periodo;
+    linhas.push(
+      `Gastos compartilhados: ${reais(c.totalCentavos)} em ${c.quantidade} lançamentos${p ? `, de ${p.inicio} a ${p.fim} (média de ${reais(c.mediaDiariaCentavos)} por dia)` : ""}`
+    );
+    linhas.push(`Por categoria: ${c.porCategoria.slice(0, 6).map((k) => `${k.categoria} ${reais(k.centavos)} (${percentualTexto(k.permil)})`).join("; ")}`);
+    linhas.push(`Últimos 7 dias: ${reais(c.ultimos7Dias.totalCentavos)} (média de ${reais(c.ultimos7Dias.mediaDiariaCentavos)} por dia)`);
+  } else {
+    linhas.push("Gastos compartilhados: nenhum lançado");
+  }
+  if (c.parcelas.abertas > 0) {
+    linhas.push(`Parcelas de cartão ainda a pagar: ${reais(c.parcelas.restantesCentavos)} em ${c.parcelas.abertas} parcelas de ${c.parcelas.compras} compras`);
+  }
+  if (c.roteiro.itensComCusto > 0) {
+    linhas.push(
+      `Custos estimados do Roteiro: ${reais(c.roteiro.estimadoCentavos)} (${reais(c.roteiro.lancadoCentavos)} já lançados; ${reais(c.roteiro.aLancarCentavos)} a lançar)`
+    );
+  }
+  linhas.push(`Previsão comprometida (gasto + parcelas + Roteiro a lançar): ${reais(c.previsaoCentavos)}`);
+  if (c.sinais.length > 0) {
+    linhas.push("Sinais:");
+    for (const s of c.sinais) linhas.push(`- [${s.gravidade}] ${s.titulo}: ${s.detalhe}`);
+  }
+  linhas.push("</custos_calculados>");
+  return linhas.join("\n");
 }
 
 /** Bloco de dados da viagem no prompt (delimitado: a IA o trata como dado, não como instrução). */
@@ -309,6 +437,7 @@ export function blocoDoContexto(c: ContextoViagem, hojeIso: string): string {
     const cats = c.gastos.porCategoria.slice(0, 6).map((g) => `${g.categoria} ${brl(g.totalBrl)}`).join(", ");
     linhas.push(`Gastos compartilhados lançados: ${brl(c.gastos.totalBrl)} em ${c.gastos.quantidade} lançamentos (${cats})`);
   }
+  if (temDadosDeCusto(c.custos)) linhas.push(blocoDeCustos(c.custos));
   linhas.push(c.preferencias.length > 0 ? `Preferências do casal: ${c.preferencias.join("; ")}` : "Preferências do casal: nenhuma registrada");
   return `<contexto_da_viagem>\n${linhas.join("\n")}\n</contexto_da_viagem>`;
 }
