@@ -223,19 +223,28 @@ export function SmartInvoiceImporter() {
       );
       return;
     }
-    const compras = base.transacoes.map(compraDaTransacao);
+    // Um laço por etapa, sem arrays e tuplas intermediários (200 compras:
+    // antes eram três `map` e 200 pares só para montar o Map de fingerprints).
+    const transacoes = base.transacoes;
+    const compras: CompraParaFingerprint[] = new Array(transacoes.length);
+    for (let i = 0; i < transacoes.length; i++) compras[i] = compraDaTransacao(transacoes[i]);
     // SHA-256 síncrono (`@/lib/finance/sha256`): a fase 1 inteira roda num
     // passo só, sem esperar uma promessa por compra no laço de eventos.
     const fps = fingerprintsOuNada(compras);
-
-    const novasLinhas: LinhaImportada[] = base.transacoes.map((t, i) => ({
-      id: t.id,
-      dataIso: t.dataIso,
-      valor: t.valor,
-      moeda: t.moeda,
-      fingerprint: fps?.[i] ?? null,
-      parcela: compras[i].parcela,
-    }));
+    const novasLinhas: LinhaImportada[] = new Array(transacoes.length);
+    const fingerprintsPorId = fps ? new Map<string, string>() : null;
+    for (let i = 0; i < transacoes.length; i++) {
+      const t = transacoes[i];
+      novasLinhas[i] = {
+        id: t.id,
+        dataIso: t.dataIso,
+        valor: t.valor,
+        moeda: t.moeda,
+        fingerprint: fps?.[i] ?? null,
+        parcela: compras[i].parcela,
+      };
+      if (fps && fingerprintsPorId) fingerprintsPorId.set(t.id, fps[i]);
+    }
     // Já importadas ou já lançadas começam fora do salvamento e não vão para
     // a IA (não gastam cota). Com a IA desligada no servidor, nem tenta.
     const jaExistentes = meuId ? reconciliarImportacao(novasLinhas, despesas, meuId) : SEM_DUPLICADOS;
@@ -243,7 +252,7 @@ export function SmartInvoiceImporter() {
 
     despachar({ tipo: "carregar", geracao, transacoes: base.transacoes, aguardandoIa: paraIa.map((l) => l.id) });
     setLinhas(novasLinhas);
-    setFingerprints(fps ? new Map(base.transacoes.map((t, i) => [t.id, fps[i]])) : null);
+    setFingerprints(fingerprintsPorId);
     setDecisoes(new Map());
     setSelecionados(new Set());
     setIgnoradas(base.ignoradas);

@@ -536,23 +536,42 @@ function percentualDe(parteCentavos: number, totalCentavos: number): number {
 
 export function calcularRaioX(transacoes: TransacaoAnalisada[]): RaioXFatura {
   // Tudo em centavos: o total da fatura fecha com a soma das linhas e das
-  // categorias, ao centavo, mesmo com centenas de compras.
-  const ativas = transacoes.filter((t) => !t.ignorarNoCalculo);
-  const aVista = ativas.filter((t) => !t.installmentInfo.isInstallment);
-  const parceladas = ativas.filter((t) => t.installmentInfo.isInstallment);
-
-  const totalFatura = sumCents(ativas.map((t) => toCents(t.valor)));
-  const totalAVista = sumCents(aVista.map((t) => toCents(t.valor)));
-  const totalParceladoMes = sumCents(parceladas.map((t) => toCents(t.valor)));
-  const comprometimentoFuturo = sumCents(parceladas.map((t) => toCents(t.installmentInfo.remainingAmount)));
-
+  // categorias, ao centavo, mesmo com centenas de compras. Uma passada só, e
+  // cada valor vira centavos uma única vez (antes eram cinco conversões por
+  // compra, em cinco passadas).
+  let totalFatura = 0;
+  let totalAVista = 0;
+  let totalParceladoMes = 0;
+  let comprometimentoFuturo = 0;
+  let qtdAVista = 0;
+  let qtdParcelada = 0;
   const mapa = new Map<CategoriaDuoFinance, { total: number; quantidade: number }>();
-  for (const t of ativas) {
-    const atual = mapa.get(t.category) ?? { total: 0, quantidade: 0 };
-    atual.total += toCents(t.valor);
-    atual.quantidade += 1;
-    mapa.set(t.category, atual);
+  for (const t of transacoes) {
+    if (t.ignorarNoCalculo) continue;
+    const centavos = toCents(t.valor);
+    totalFatura += centavos;
+    if (t.installmentInfo.isInstallment) {
+      totalParceladoMes += centavos;
+      comprometimentoFuturo += toCents(t.installmentInfo.remainingAmount);
+      qtdParcelada++;
+    } else {
+      totalAVista += centavos;
+      qtdAVista++;
+    }
+    const atual = mapa.get(t.category);
+    if (atual) {
+      atual.total += centavos;
+      atual.quantidade += 1;
+    } else {
+      mapa.set(t.category, { total: centavos, quantidade: 1 });
+    }
   }
+  // As somas passam pela mesma checagem de inteiro seguro de antes.
+  totalFatura = sumCents([totalFatura]);
+  totalAVista = sumCents([totalAVista]);
+  totalParceladoMes = sumCents([totalParceladoMes]);
+  comprometimentoFuturo = sumCents([comprometimentoFuturo]);
+
   const porCategoria: ResumoCategoria[] = [...mapa.entries()]
     .map(([category, { total, quantidade }]) => ({
       category,
@@ -566,10 +585,10 @@ export function calcularRaioX(transacoes: TransacaoAnalisada[]): RaioXFatura {
   return {
     totalFatura: fromCents(totalFatura),
     totalAVista: fromCents(totalAVista),
-    qtdAVista: aVista.length,
+    qtdAVista,
     percentualAVista: percentualDe(totalAVista, totalFatura),
     totalParceladoMes: fromCents(totalParceladoMes),
-    qtdParcelada: parceladas.length,
+    qtdParcelada,
     comprometimentoFuturo: fromCents(comprometimentoFuturo),
     porCategoria,
   };

@@ -19,7 +19,7 @@
  */
 
 import { isoFromParts } from "@/lib/dates";
-import { normalizarTexto } from "./classificar";
+import { normalizarTexto, soAscii } from "./classificar";
 import { roundMoney } from "./money";
 
 export type FormatoExtrato = "cartao" | "conta" | "texto";
@@ -51,7 +51,7 @@ export interface ResultadoImportacao {
 const LETRA = /[A-Za-zÀ-ÖØ-öø-ÿ]/;
 
 function semAcentos(texto: string): string {
-  return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return soAscii(texto) ? texto : texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
 
 /* -------------------------------- Valores -------------------------------- */
@@ -173,6 +173,28 @@ function semAnoNoPassado(dia: number, mes: number, hojeIso: string): string | nu
  * recente que não esteja no futuro.
  */
 export function parseDataLancamento(texto: string, hojeIso: string): string | null {
+  // Memo: a mesma data aparece em várias compras e cada linha era lida duas
+  // vezes (ao procurar o cabeçalho e ao ler a compra). O resultado só depende
+  // do texto e de "hoje", então vale por "hoje"; tem teto de tamanho (entrada
+  // vem de arquivo da pessoa) e só guarda textos curtos.
+  if (texto.length > TAMANHO_MAXIMO_DO_MEMO) return lerDataLancamento(texto, hojeIso);
+  if (hojeIso !== memoDatasHoje) {
+    memoDatas.clear();
+    memoDatasHoje = hojeIso;
+  }
+  const guardado = memoDatas.get(texto);
+  if (guardado !== undefined) return guardado;
+  const iso = lerDataLancamento(texto, hojeIso);
+  if (memoDatas.size >= ENTRADAS_MAXIMAS_DO_MEMO) memoDatas.clear();
+  memoDatas.set(texto, iso);
+  return iso;
+}
+const ENTRADAS_MAXIMAS_DO_MEMO = 512;
+const TAMANHO_MAXIMO_DO_MEMO = 40;
+const memoDatas = new Map<string, string | null>();
+let memoDatasHoje = "";
+/** A leitura em si (sem memo); `parseDataLancamento` só a guarda. */
+export function lerDataLancamento(texto: string, hojeIso: string): string | null {
   const s = semAcentos(texto).toLowerCase().trim().replace(/\s+/g, " ");
   let m = RE_ISO.exec(s);
   if (m) return montarIso(Number(m[1]), Number(m[2]), Number(m[3]));
@@ -264,6 +286,8 @@ interface Cabecalho {
   titulos: number[];
   categoria: number;
   temSaldo: boolean;
+  /** Maior índice de coluna que a leitura usa (calculado uma vez, não por linha). */
+  maiorIndice: number;
 }
 
 /** Reconhece a linha de títulos das colunas (date/title/amount, Data;Valor…). */
@@ -308,7 +332,15 @@ function detectarCabecalho(campos: string[], hojeIso: string): Cabecalho | null 
 
   if (valores.length === 0 || (data < 0 && titulos.length === 0)) return null;
   const melhor = valores.reduce((a, b) => (b.nota > a.nota ? b : a));
-  return { colunas: campos.length, data, valor: melhor.indice, titulos, categoria, temSaldo };
+  return {
+    colunas: campos.length,
+    data,
+    valor: melhor.indice,
+    titulos,
+    categoria,
+    temSaldo,
+    maiorIndice: Math.max(data, melhor.indice, categoria, ...titulos),
+  };
 }
 
 /* ------------------------------- Leitura ------------------------------- */
@@ -357,8 +389,7 @@ function lerComCabecalho(
       ...campos.slice(cab.valor + 2),
     ];
   }
-  const maiorIndice = Math.max(cab.data, cab.valor, cab.categoria, ...cab.titulos);
-  if (campos.length <= maiorIndice) return null;
+  if (campos.length <= cab.maiorIndice) return null;
 
   const valor = parseValorMonetario(campos[cab.valor]);
   if (valor === null) return { tipo: "erro", motivo: "valor não reconhecido" };

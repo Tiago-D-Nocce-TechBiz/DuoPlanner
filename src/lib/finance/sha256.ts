@@ -34,13 +34,44 @@ const codificador = new TextEncoder();
 /** Palavra de 32 bits em 8 dígitos hexadecimais. */
 const hex8 = (x: number) => HEX[(x >>> 24) & 0xff] + HEX[(x >>> 16) & 0xff] + HEX[(x >>> 8) & 0xff] + HEX[x & 0xff];
 
+/**
+ * Mensagem + preenchimento, em blocos de 64 bytes. Um buffer só, reaproveitado
+ * entre chamadas (200 compras = 200 hashes seguidos): antes eram dois
+ * `Uint8Array` novos por hash, o tamanho exato do texto e o bloco preenchido.
+ * Tudo é síncrono, então não há chamadas intercaladas usando o mesmo buffer.
+ */
+let rascunho = new Uint8Array(512);
+/** Mensagens maiores que isto usam um buffer descartável: o reaproveitado nunca fica grande. */
+const MAXIMO_RETIDO = 64 * 1024;
+const bytesNecessarios = (n: number) => Math.ceil((n + 9) / 64) * 64;
+
+function garantirRascunho(total: number) {
+  if (rascunho.length >= total) return;
+  let tamanho = rascunho.length;
+  while (tamanho < total) tamanho *= 2;
+  rascunho = new Uint8Array(tamanho);
+}
+
 /** SHA-256 dos bytes, em hexadecimal minúsculo (64 caracteres). */
 export function sha256Hex(bytes: Uint8Array): string {
-  const n = bytes.length;
-  // Mensagem + 0x80 + zeros + 8 bytes de tamanho (em bits), em blocos de 64 bytes.
-  const total = Math.ceil((n + 9) / 64) * 64;
-  const m = new Uint8Array(total);
+  const total = bytesNecessarios(bytes.length);
+  let m: Uint8Array;
+  if (total <= MAXIMO_RETIDO) {
+    garantirRascunho(total);
+    m = rascunho;
+  } else {
+    m = new Uint8Array(total);
+  }
   m.set(bytes);
+  return hashDaMensagem(m, bytes.length);
+}
+
+/** SHA-256 da mensagem que já está nos `n` primeiros bytes de `m` (com espaço para o preenchimento). */
+function hashDaMensagem(m: Uint8Array, n: number): string {
+  // Mensagem + 0x80 + zeros + 8 bytes de tamanho (em bits). Os zeros precisam
+  // ser escritos: o buffer guarda a mensagem anterior.
+  const total = bytesNecessarios(n);
+  m.fill(0, n, total);
   m[n] = 0x80;
   const altoBits = Math.floor(n / 0x20000000); // n * 8 / 2^32
   const baixoBits = (n * 8) >>> 0;
@@ -52,7 +83,6 @@ export function sha256Hex(bytes: Uint8Array): string {
   m[total - 3] = baixoBits >>> 16;
   m[total - 2] = baixoBits >>> 8;
   m[total - 1] = baixoBits;
-
   let h0 = 0x6a09e667 | 0, h1 = 0xbb67ae85 | 0, h2 = 0x3c6ef372 | 0, h3 = 0xa54ff53a | 0;
   let h4 = 0x510e527f | 0, h5 = 0x9b05688c | 0, h6 = 0x1f83d9ab | 0, h7 = 0x5be0cd19 | 0;
 
@@ -97,5 +127,11 @@ export function sha256Hex(bytes: Uint8Array): string {
 
 /** SHA-256 do texto em UTF-8, em hexadecimal minúsculo. */
 export function sha256HexDoTexto(texto: string): string {
-  return sha256Hex(codificador.encode(texto));
+  const pior = bytesNecessarios(texto.length * 3);
+  if (pior > MAXIMO_RETIDO) return sha256Hex(codificador.encode(texto));
+  // UTF-8 direto no rascunho (até 3 bytes por unidade de UTF-16), sem o
+  // `Uint8Array` intermediário de `encode`.
+  garantirRascunho(pior);
+  const { written } = codificador.encodeInto(texto, rascunho);
+  return hashDaMensagem(rascunho, written);
 }

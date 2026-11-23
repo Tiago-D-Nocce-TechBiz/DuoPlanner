@@ -46,10 +46,14 @@ interface Regra extends Classificacao {
  * seja letra/dígito vira espaço. Fica com espaços nas pontas para que
  * `includes(" termo ")` signifique "palavra inteira".
  */
+/** Só caracteres ASCII? Nesse caso não há acento a tirar: `normalize("NFD")` devolveria o mesmo texto. */
+export function soAscii(texto: string): boolean {
+  for (let i = 0; i < texto.length; i++) if (texto.charCodeAt(i) > 127) return false;
+  return true;
+}
+
 export function normalizarTexto(texto: string): string {
-  const base = texto
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
+  const base = (soAscii(texto) ? texto : texto.normalize("NFD").replace(/[\u0300-\u036f]/g, ""))
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
     .trim();

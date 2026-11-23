@@ -40,7 +40,18 @@ const semZeroNegativo = (n: number) => (n === 0 ? 0 : n);
  */
 function arredondarInteiro(x: number): number {
   if (!Number.isFinite(x)) falhar(`Valor monetário inválido: ${x}.`);
-  const absoluto = Math.round(Number(Math.abs(x).toPrecision(15)));
+  const modulo = Math.abs(x);
+  // Caminho rápido, com o MESMO resultado: `toPrecision(15)` só muda o valor
+  // na 15ª casa significativa (erro < 1e-6 abaixo de 1e9), então só decide
+  // algo quando a fração está colada em ".5". Longe disso (a imensa maioria:
+  // 1234.56 * 100 = 123456.00000000001), `Math.round` já dá a resposta, sem
+  // criar a string de `toPrecision` e sem reler o número. Equivalência
+  // conferida em `money.test.ts` contra a versão com `toPrecision`.
+  if (modulo < 1e9 && Math.abs(modulo - Math.floor(modulo) - 0.5) > 1e-5) {
+    const r = Math.round(modulo);
+    return semZeroNegativo(x < 0 ? -r : r);
+  }
+  const absoluto = Math.round(Number(modulo.toPrecision(15)));
   if (absoluto > Number.MAX_SAFE_INTEGER) falhar(`Valor monetário grande demais: ${x}.`);
   return semZeroNegativo(x < 0 ? -absoluto : absoluto);
 }
