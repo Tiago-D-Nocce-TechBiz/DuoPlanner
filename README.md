@@ -92,7 +92,7 @@ Escuro com tokens CSS em `src/app/globals.css`.
   sincroniza as alterações quando a conexão volta.
 - **Nora**: assistente do painel (regras locais; o que ela propõe gravar
   passa por confirmação). A resposta aparece palavra por palavra.
-- **Nora Travel Hacks**: 9 ferramentas de economia e auditoria de viagem, por
+- **Nora Travel Hacks**: 10 ferramentas de economia, auditoria e gestão de custos, por
   chip ou pelo comando `/` na gaveta: `/datas-baratas`, `/aeroportos-proximos`
   (até 240 km), `/conexoes-inteligentes` (self-transfer), `/auditar-voo` (nota
   de 1 a 10), `/verificar-taxas`, `/escolher-bairro` (top 3),
@@ -101,7 +101,21 @@ Escuro com tokens CSS em `src/app/globals.css`.
   datas, o roteiro e os gastos compartilhados vêm do espaço do casal (gastos
   privados nunca vão à IA). Gemini em saída estruturada, prazo de 12 s e cota
   "ia" por usuário; sem chave, sem cota ou offline, aparece uma lista de
-  conferência local. Os valores são sempre estimativas históricas.
+  conferência local. Os valores das ferramentas de viagem são sempre
+  estimativas históricas.
+- **Nora como agente de custos** (`/gestao-de-custos`, apelidos `/custos` e
+  `/orcamento`): a aritmética é do app, não da IA. Em centavos exatos, sobre os
+  gastos COMPARTILHADOS do casal: total, média por dia, concentração por
+  categoria, parcelas de cartão ainda a pagar (a mesma compra em várias
+  faturas conta uma vez), custos estimados do Roteiro que ainda não viraram
+  gasto e a previsão comprometida, com sinais objetivos (categoria acima de
+  60% ou 80%, ritmo dos últimos 7 dias 1,5x ou 2,5x o anterior, parcelas
+  restantes acima de 50% ou 100% do gasto; limiares em
+  `LIMIARES_DE_CUSTO`). Os números vão ao Gemini já calculados, num bloco
+  próprio do prompt; se o texto da IA citar um valor em reais que o app não
+  calculou, ele é trocado pelo texto determinístico. Sem chave, sem cota ou
+  sem conexão, o painel e os sinais aparecem do mesmo jeito (offline, a partir
+  dos dados guardados no aparelho). Gasto pessoal privado nunca entra.
 
 ## Estrutura
 

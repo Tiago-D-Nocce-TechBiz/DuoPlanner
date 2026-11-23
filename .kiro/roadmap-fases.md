@@ -195,5 +195,21 @@ Passo a passo e consultas de conferência: README, "Aplicar as migrations 7 e 8"
       Editor (depois da 8.7) — aguardando o Tiago
 - [ ] 9.7 Rodar `npm run test:integracao` com a chave real e medir a latência do
       Gemini contra os 12 s
+## Fase 10 — Fase 1 do importador mais folgada e Nora agente de custos (rodada de 19/11/2026)
+Código pronto na `feat/producao-saas`; sem migration nova. O contexto de custos
+do Roteiro usa a coluna `custo_estimado` (migration 7); sem ela, a Nora segue
+lendo o roteiro, só sem os custos.
+- [x] 10.1 Fase 1 do importador (200 compras, CPU 4x, mesmo teto de 200 ms):
+      arredondamento em centavos com caminho rápido exato, Raio-X numa passada,
+      memo de datas, ASCII sem `normalize`, SHA-256 com buffer reaproveitado e
+      um laço só em `processar`. Medido em A/B intercalado: mediana ~138 → ~110 ms
+      e P90 ~205 → ~150 ms. Equivalência provada contra a versão anterior
+      (600 mil valores e 70 faturas)
+- [x] 10.2 `cost-agent-metrics`: métricas e sinais de custo determinísticos
+      (centavos, sem IA), testados nas fronteiras de cada limiar
+- [x] 10.3 `/gestao-de-custos` (10ª ferramenta): bloco `<custos_calculados>` no
+      contexto de todas as ferramentas, guarda contra valores inventados pela
+      IA, análise local completa sem chave, sem cota e offline, e painel de
+      custos na gaveta (carregado sob demanda)
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.
