@@ -17,7 +17,7 @@ export const CONTEXTO = {
   membros: [
     { userId: EU, nome: "Ana", papel: "dono", pix: null },
     { userId: PAR, nome: "Beto", papel: "parceiro", pix: null },
-  ],
+  ] as { userId: string; nome: string; papel: string; pix: { tipo: string; chave: string; nomeRecebedor: string; cidade: string } | null }[],
   perfil: { nome: "Ana", cidadeBase: "", iataBase: "", pix: null, emailAlertas: true, emailResumoSemanal: true },
   acordo: { regra: "igual", percentualDono: 50, valorFixo: null, quemCobreFixo: "dono", atualizadoEm: null, atualizadoPor: null },
   // Sem as tabelas no "servidor": modo local (a fila espera no aparelho).
@@ -54,7 +54,7 @@ export const COMPRAS_NA_FATURA = 8;
 export async function abrirPainel(
   page: Page,
   caminho: string,
-  opcoes: { atrasoMs?: number; armazenamento?: Record<string, string> } = {}
+  opcoes: { atrasoMs?: number; armazenamento?: Record<string, string>; contexto?: typeof CONTEXTO } = {}
 ) {
   await page.addInitScript(
     ({ contexto, armazenamento }) => {
@@ -65,7 +65,7 @@ export async function abrirPainel(
       }
       localStorage.setItem("pd-sessao-contexto", JSON.stringify(contexto));
     },
-    { contexto: CONTEXTO, armazenamento: opcoes.armazenamento ?? {} }
+    { contexto: opcoes.contexto ?? CONTEXTO, armazenamento: opcoes.armazenamento ?? {} }
   );
   await page.route("**/*", async (route) => {
     const req = route.request();
@@ -174,6 +174,37 @@ function roteiroDaViagem(dias: number, porDia: number) {
 export function copiaDoMotor({ gastos = 0, roteiro }: { gastos?: number; roteiro?: { dias: number; porDia: number } }): Record<string, string> {
   const servidor = { despesas: gastosDaViagem(gastos), ...(roteiro ? roteiroDaViagem(roteiro.dias, roteiro.porDia) : {}) };
   const copia = { v: 1, workspaceId: ESPACO, servidor, fila: [], ultimaSincronizacao: null };
+  return { [`pd-sync:${EU}`]: JSON.stringify(copia) };
+}
+
+/** Gasto compartilhado da viagem, no formato do motor, para cenários com valores exatos. */
+export function gastoCompartilhado(id: number, pagoPor: string, valor: number, extra: Record<string, unknown> = {}) {
+  const quando = "2026-10-05T12:00:00.000Z";
+  return {
+    id: `00000000-0000-4000-8000-${String(900 + id).padStart(12, "0")}`,
+    userId: pagoPor,
+    workspaceId: ESPACO,
+    pagoPor,
+    tipo: "gasto",
+    descricao: `Gasto ${id}`,
+    valor,
+    moeda: "BRL",
+    cotacaoBrl: null,
+    data: "2026-10-05",
+    categoria: "Hospedagem",
+    escopo: "viagem_compartilhado",
+    proporcaoDivisao: null,
+    origem: "manual",
+    criadoEm: quando,
+    atualizadoEm: quando,
+    atualizadoPor: pagoPor,
+    ...extra,
+  };
+}
+
+/** Cópia do motor com exatamente estes gastos (chave `pd-sync:<usuário>`). */
+export function copiaDoMotorComDespesas(despesas: unknown[]): Record<string, string> {
+  const copia = { v: 1, workspaceId: ESPACO, servidor: { despesas }, fila: [], ultimaSincronizacao: null };
   return { [`pd-sync:${EU}`]: JSON.stringify(copia) };
 }
 
