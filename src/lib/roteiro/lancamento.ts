@@ -1,4 +1,4 @@
-import { sha256HexDoTexto } from "@/lib/finance/sha256";
+import { uuidDeterministico } from "@/lib/id-deterministico";
 import type { Categoria } from "@/lib/finance/classificar";
 import type { NovaDespesa } from "@/lib/finance/store";
 import type { RoteiroItem } from "@/lib/sync/modelos";
@@ -22,12 +22,7 @@ import { LIMITES_ROTEIRO } from "./tipos";
 
 export type EscopoLancamento = "compartilhado" | "privado";
 
-/** UUID estável a partir de um texto (versão 5 e variante RFC, aceitos por `z.uuid()`). */
-export function uuidDeterministico(texto: string): string {
-  const h = sha256HexDoTexto(texto);
-  const variante = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
-  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variante}${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
+export { uuidDeterministico };
 
 // A lista recalcula os ids a cada mudança do roteiro (uma tecla, por exemplo): o cache evita refazer o hash.
 const CACHE_DE_IDS = new Map<string, string>();

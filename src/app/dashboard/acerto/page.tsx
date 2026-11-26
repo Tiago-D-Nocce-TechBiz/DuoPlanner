@@ -5,9 +5,11 @@ import Link from "next/link";
 import { CheckCircle2, Handshake, Users, AlertTriangle, Coins } from "@/components/ui/icons";
 import { salvarAcordoDivisao } from "@/app/dashboard/sincronizacao-actions";
 import { calcularAcerto, descreverRegra, normalizarPercentual, valorEmReais, type Papel } from "@/lib/finance/acerto";
+import { contarAcertos, idDoAcerto, txidDoAcerto, type PagamentoDeAcerto } from "@/lib/finance/acerto-registro";
+import { toCents } from "@/lib/finance/money";
 import { criarDespesa, atualizarDespesa, lancamentosDoAcerto, removerDespesa, useDespesas, type Despesa } from "@/lib/finance/store";
 import { formatarMoeda } from "@/lib/cambio/use-cotacoes";
-import { isoToBR, todayInSaoPaulo } from "@/lib/dates";
+import { isoToBR } from "@/lib/dates";
 import { gerarPixCopiaECola } from "@/lib/pix/brcode";
 import { papeisDoCasal, regraDoAcordo, type AcordoDivisao, type Membro } from "@/lib/sync/contexto";
 import { atualizarContexto, useContextoSync } from "@/lib/sync/motor";
@@ -75,7 +77,16 @@ export default function AcertoPage() {
     );
   }
 
-  return <AcertoDoCasal despesas={despesas} meuId={ctx.userId} dono={casal.dono} parceiro={casal.parceiro} acordo={ctx.acordo} />;
+  return (
+    <AcertoDoCasal
+      despesas={despesas}
+      meuId={ctx.userId}
+      workspaceId={ctx.workspace?.id ?? "sem-espaco"}
+      dono={casal.dono}
+      parceiro={casal.parceiro}
+      acordo={ctx.acordo}
+    />
+  );
 }
 
 function Cabecalho() {
@@ -92,12 +103,14 @@ function Cabecalho() {
 function AcertoDoCasal({
   despesas,
   meuId,
+  workspaceId,
   dono,
   parceiro,
   acordo,
 }: {
   despesas: Despesa[];
   meuId: string;
+  workspaceId: string;
   dono: Membro;
   parceiro: Membro;
   acordo: AcordoDivisao;
@@ -171,7 +184,19 @@ function AcertoDoCasal({
       </section>
 
       {devedor && credor && (
-        <PagamentoPix valor={r.valorAcerto} devedor={devedor} credor={credor} meuId={meuId} />
+        <PagamentoPix
+          valor={r.valorAcerto}
+          devedor={devedor}
+          credor={credor}
+          meuId={meuId}
+          identidade={{
+            workspaceId,
+            devedorId: devedor.userId,
+            credorId: credor.userId,
+            valorCentavos: toCents(r.valorAcerto),
+            acertosJaRegistrados: contarAcertos(despesas),
+          }}
+        />
       )}
 
       <EditorRegra acordo={acordo} nomes={nomes} meuPapel={meuPapel} aoSalvar={mostrarAcordo} />
@@ -258,15 +283,21 @@ function PagamentoPix({
   devedor,
   credor,
   meuId,
+  identidade,
 }: {
   valor: number;
   devedor: Membro;
   credor: Membro;
   meuId: string;
+  /** O que identifica este pagamento: o id do registro e o txid do Pix saem daqui. */
+  identidade: PagamentoDeAcerto;
 }) {
   const [copiado, setCopiado] = useState(false);
   const [registrado, setRegistrado] = useState(false);
+  const [erroRegistro, setErroRegistro] = useState<string | null>(null);
   const souDevedor = devedor.userId === meuId;
+  // Um hash curto: barato o bastante para não precisar de memo, e uma string estável para os efeitos abaixo.
+  const txid = txidDoAcerto(identidade);
 
   const pix = useMemo(() => {
     if (!credor.pix) return { payload: null, erro: null };
@@ -277,7 +308,8 @@ function PagamentoPix({
           nomeRecebedor: credor.pix.nomeRecebedor || credor.nome,
           cidade: credor.pix.cidade || "BRASIL",
           valor,
-          txid: `DUOPLANNER${todayInSaoPaulo().replace(/-/g, "")}`,
+          // O mesmo acerto gera sempre o mesmo txid (para conciliar no extrato) e acertos diferentes, txids diferentes.
+          txid,
           descricao: "Acerto da viagem DuoPlanner",
         }),
         erro: null,
@@ -285,7 +317,7 @@ function PagamentoPix({
     } catch (e) {
       return { payload: null, erro: e instanceof Error ? e.message : "Não foi possível gerar o Pix." };
     }
-  }, [credor, valor]);
+  }, [credor, valor, txid]);
 
   async function copiar() {
     if (!pix.payload) return;
@@ -299,7 +331,10 @@ function PagamentoPix({
   }
 
   function registrarPagamento() {
-    criarDespesa({
+    // Id do pagamento: o mesmo para quem paga e para quem recebe. Registrar nos
+    // dois aparelhos (ou clicar duas vezes) não cria um segundo lançamento.
+    const registro = criarDespesa({
+      id: idDoAcerto(identidade),
       tipo: "acerto",
       descricao: `Acerto via Pix: ${devedor.nome} → ${credor.nome}`,
       valor,
@@ -309,6 +344,11 @@ function PagamentoPix({
       pagoPor: devedor.userId,
       origem: "manual",
     });
+    if (!registro) {
+      setErroRegistro("O espaço do casal ainda está carregando. Tente de novo em instantes.");
+      return;
+    }
+    setErroRegistro(null);
     setRegistrado(true);
   }
 
@@ -363,6 +403,11 @@ function PagamentoPix({
       )}
 
       <div className="pt-1">
+        {erroRegistro && (
+          <p role="alert" className="mb-2 text-xs text-red-600 dark:text-red-400">
+            {erroRegistro}
+          </p>
+        )}
         {registrado ? (
           <p role="status" className="inline-flex items-center gap-2 text-xs text-[var(--color-heading)]">
             <CheckCircle2 className="h-4 w-4" /> Acerto registrado para os dois.
