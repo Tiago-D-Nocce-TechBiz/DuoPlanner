@@ -18,6 +18,8 @@
  * "12" num código estático. O exemplo oficial do BCB também o omite.
  */
 
+import { toCents } from "@/lib/finance/money";
+
 export type TipoChavePix = "cpf" | "cnpj" | "telefone" | "email" | "aleatoria";
 
 export const TIPOS_CHAVE_PIX: readonly TipoChavePix[] = ["cpf", "cnpj", "telefone", "email", "aleatoria"];
@@ -160,7 +162,11 @@ export function gerarPixCopiaECola(dados: DadosPix): string {
     if (!Number.isFinite(dados.valor) || dados.valor <= 0 || dados.valor > 9_999_999_999.99) {
       throw new Error("Valor do Pix inválido.");
     }
-    valor = campo("54", dados.valor.toFixed(2));
+    // Em centavos inteiros (metade para longe do zero), sem `toFixed` sobre
+    // ponto flutuante: 10.005 vira "10.01", como o resto do app calcula dinheiro.
+    const centavos = toCents(dados.valor);
+    if (centavos < 1) throw new Error("Valor do Pix inválido.");
+    valor = campo("54", `${Math.floor(centavos / 100)}.${String(centavos % 100).padStart(2, "0")}`);
   }
 
   const txidLimpo = (dados.txid ?? "").replace(/[^A-Za-z0-9]/g, "").slice(0, 25);
