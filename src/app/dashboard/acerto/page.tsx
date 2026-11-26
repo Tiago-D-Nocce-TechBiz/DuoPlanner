@@ -4,7 +4,7 @@ import { useMemo, useOptimistic, useState, useTransition } from "react";
 import Link from "next/link";
 import { CheckCircle2, Handshake, Users, AlertTriangle, Coins } from "@/components/ui/icons";
 import { salvarAcordoDivisao } from "@/app/dashboard/sincronizacao-actions";
-import { calcularAcerto, descreverRegra, valorEmReais, type Papel } from "@/lib/finance/acerto";
+import { calcularAcerto, descreverRegra, normalizarPercentual, valorEmReais, type Papel } from "@/lib/finance/acerto";
 import { criarDespesa, atualizarDespesa, lancamentosDoAcerto, removerDespesa, useDespesas, type Despesa } from "@/lib/finance/store";
 import { formatarMoeda } from "@/lib/cambio/use-cotacoes";
 import { isoToBR, todayInSaoPaulo } from "@/lib/dates";
@@ -400,7 +400,8 @@ function EditorRegra({
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [salvando, startSalvar] = useTransition();
 
-  const pct = Math.min(100, Math.max(0, Number(percentual.replace(",", ".")) || 0));
+  // Mesmas 2 casas do banco (numeric(5,2)): o que aparece é o que será salvo.
+  const pct = normalizarPercentual(Number(percentual.replace(",", ".")) || 0);
 
   function salvar(e: React.FormEvent) {
     e.preventDefault();
@@ -459,7 +460,7 @@ function EditorRegra({
         <div className="space-y-2">
           <label htmlFor="percentual-dono" className="block text-xs text-[var(--color-muted)]">
             Parte de {nomes.dono}: <strong className="text-[var(--color-heading)]">{pct}%</strong> · {nomes.parceiro}:{" "}
-            <strong className="text-[var(--color-heading)]">{100 - pct}%</strong>
+            <strong className="text-[var(--color-heading)]">{normalizarPercentual(100 - pct)}%</strong>
           </label>
           <input
             id="percentual-dono"

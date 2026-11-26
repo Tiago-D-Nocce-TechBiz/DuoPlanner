@@ -54,12 +54,26 @@ const reais = fromCents;
 const outro = (p: Papel): Papel => (p === "dono" ? "parceiro" : "dono");
 
 /**
- * Parte de `totalCentavos` que cabe a quem tem `percentual` (0–100). O outro
- * fica com o restante, então a soma fecha; o centavo ímpar vai para quem tem
- * a fração maior (no empate, para esta parte).
+ * Percentual entre 0 e 100 com no máximo 2 casas: o que o banco guarda
+ * (`numeric(5,2)` em `acordos_divisao.percentual_dono` e em
+ * `despesas_viagem.proporcao_divisao`). A tela usa o mesmo valor antes de o
+ * servidor confirmar, então o saldo mostrado nunca difere do que será salvo.
+ * Valor inválido (NaN) vira 0.
+ */
+export function normalizarPercentual(percentual: number): number {
+  if (!Number.isFinite(percentual)) return 0;
+  return Math.round(Math.min(100, Math.max(0, percentual)) * 100) / 100;
+}
+
+/**
+ * Parte de `totalCentavos` que cabe a quem tem `percentual` (0–100, 2 casas).
+ * O outro fica com o restante, então a soma fecha ao centavo. O centavo que
+ * sobra da divisão vai para quem tem a MAIOR fração; no empate, para esta
+ * parte (a primeira da lista de pesos): na regra do casal é o dono, e na
+ * divisão própria de um gasto é quem pagou.
  */
 function fatiar(totalCentavos: number, percentual: number): number {
-  const p = Math.min(100, Math.max(0, percentual));
+  const p = normalizarPercentual(percentual);
   return splitAmount(totalCentavos, [p, 100 - p])[0];
 }
 
@@ -144,7 +158,7 @@ export function valorEmReais(d: { valor: number; moeda: string; cotacaoBrl: numb
 /** Percentual do dono na regra (para exibir "60/40"). Fixo não tem percentual. */
 export function percentualDono(regra: RegraDivisao): number | null {
   if (regra.regra === "igual") return 50;
-  if (regra.regra === "proporcional") return Math.min(100, Math.max(0, regra.percentualDono));
+  if (regra.regra === "proporcional") return normalizarPercentual(regra.percentualDono);
   return null;
 }
 
@@ -155,8 +169,8 @@ const brl = (v: number) =>
 export function descreverRegra(regra: RegraDivisao, nomes: Record<Papel, string>): string {
   if (regra.regra === "igual") return "Divisão igual (50/50)";
   if (regra.regra === "proporcional") {
-    const p = Math.min(100, Math.max(0, regra.percentualDono));
-    return `${nomes.dono} ${formatarPercentual(p)} · ${nomes.parceiro} ${formatarPercentual(100 - p)}`;
+    const p = normalizarPercentual(regra.percentualDono);
+    return `${nomes.dono} ${formatarPercentual(p)} · ${nomes.parceiro} ${formatarPercentual(normalizarPercentual(100 - p))}`;
   }
   const quem = nomes[regra.quemCobre];
   const resto = nomes[outro(regra.quemCobre)];
