@@ -211,5 +211,21 @@ lendo o roteiro, só sem os custos.
       contexto de todas as ferramentas, guarda contra valores inventados pela
       IA, análise local completa sem chave, sem cota e offline, e painel de
       custos na gaveta (carregado sob demanda)
+## Fase 11 — Acerto de Contas: divisão provada e registro idempotente (rodada de 26/11/2026)
+Sem migration nova: a persistência por espaço (`acordos_divisao`, RLS,
+`perfis` com a chave Pix) e o tratamento de `23505` já existiam.
+- [x] 11.1 Percentual normalizado para as 2 casas do banco (`numeric(5,2)`) no
+      motor e no editor; invariantes testadas contra uma referência em BigInt
+      (0,00% a 100,00%, totais aleatórios, 3 regras): partes = total e saldos = 0
+- [x] 11.2 Pix: valor em centavos inteiros (`toFixed` dava 1.00 para 1,005) e
+      `lerBrCode`, decodificador estrito (TLV, CRC16, limites do padrão) que
+      sustenta os testes de ida e volta e de bordas
+- [x] 11.3 Registro do acerto idempotente: antes, "Já paguei" e "Recebi" nos
+      dois aparelhos somavam e invertiam o saldo; agora o id é determinístico e
+      o txid do Pix é estável por acerto
+- [x] 11.4 e2e do Acerto (saldo, Pix decodificado, registro, proporcional 60/40,
+      sem chave Pix, sem gastos)
+- [ ] 11.5 Fora do escopo por decisão: pagamento parcial e confirmação do credor
+      (exigiria migration e RLS novas)
 ## Regra de ouro
 Nenhuma entrega sem `npm test`, `npm run lint` e `npm run build` limpos.

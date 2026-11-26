@@ -46,7 +46,19 @@ Escuro com tokens CSS em `src/app/globals.css`.
   IA (sempre com confirmação) e aceita lançamento manual em qualquer moeda.
   A lista mostra 50 gastos por vez ("Carregar mais") e tem busca sem acento.
 - **Acerto de Contas**: 50/50, proporcional à renda (ex.: 60/40) ou valor
-  fixo, com Pix Copia e Cola (BR Code EMV).
+  fixo, salvo por espaço do casal (`acordos_divisao`, com RLS) e atualizado
+  para os dois na hora. Tudo em centavos inteiros: as partes SEMPRE somam o
+  total e os dois saldos fecham em zero; o centavo que sobra vai para quem tem
+  a maior fração (empate: o dono, na regra do casal; quem pagou, na divisão
+  própria de um gasto). O percentual tem as 2 casas do banco (`numeric(5,2)`),
+  então a tela mostra o que será salvo. O Pix Copia e Cola (BR Code EMV, CRC16,
+  chave validada por tipo, nome e cidade sem acento, valor em centavos) leva um
+  txid estável por acerto. Registrar o pagamento ("Já paguei" ou "Recebi") é
+  idempotente: o id do lançamento sai de espaço, quem paga, quem recebe, valor e
+  nº de acertos já registrados, então os dois aparelhos chegam ao mesmo
+  registro e o saldo não inverte. Limite conhecido: com a sincronização
+  atrasada e dados diferentes nos dois aparelhos, os valores diferem e os
+  registros também; o saldo recalculado mostra a diferença.
 - **Roteiro com planilha**: o Roteiro é uma página de servidor com duas ilhas
   cliente. "Baixar Planilha Modelo" gera `DuoPlanner-Modelo-Roteiro.xlsx`
   (Destino, Data, Turno_ou_Horario, Atividade_ou_Lugar, Categoria,
